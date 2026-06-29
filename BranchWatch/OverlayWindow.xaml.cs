@@ -1,6 +1,8 @@
 using System.Globalization;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
 
@@ -13,31 +15,60 @@ public partial class OverlayWindow : Window
     private const long WsExToolWindow = 0x00000080;
     private const long WsExLayered = 0x00080000;
     private const long WsExNoActivate = 0x08000000;
-    private const double HorizontalPadding = 36;
-    private const double VerticalPadding = 16;
-    private const double BorderSize = 2;
+    private const double OutlineBorderSize = 2;
+    private const double BaseCornerRadius = 8;
+    private const double BaseLineGap = 4;
     private const double ScreenMargin = 24;
+    private const double RepositoryFontScale = 0.5;
+
+    private string? _repositoryRoot;
 
     public OverlayWindow()
     {
         InitializeComponent();
     }
 
+    public void SetOverlayText(string branch, string? repositoryRoot)
+    {
+        BranchText.Text = string.IsNullOrWhiteSpace(branch) ? "Unknown branch" : branch;
+        _repositoryRoot = repositoryRoot;
+    }
+
     public void ApplySettings(AppSettings settings)
     {
-        BranchText.FontSize = Math.Clamp(settings.OverlayFontSize, 18, 96);
+        var scale = OverlaySettings.ClampScale(settings.OverlayScale);
+        BranchText.FontSize = OverlaySettings.BaseFontSize * scale;
 
-        var opacity = Math.Clamp(settings.OverlayOpacity, 0.2, 1.0);
+        var paddingH = OverlaySettings.BasePaddingHorizontal * scale;
+        var paddingV = OverlaySettings.BasePaddingVertical * scale;
+        RootBorder.Padding = new Thickness(paddingH, paddingV, paddingH, paddingV);
+        RootBorder.CornerRadius = new CornerRadius(BaseCornerRadius * scale);
+
+        var opacity = OverlaySettings.ClampOpacity(settings.OverlayOpacity);
         var alpha = (byte)Math.Round(opacity * 255);
         RootBorder.Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(alpha, 20, 24, 32));
 
-        UpdateSize();
-        Position(settings.OverlayPositionPreset);
-    }
+        RootBorder.BorderThickness = settings.OverlayShowOutline ? new Thickness(1) : new Thickness(0);
 
-    public void SetBranchText(string branch)
-    {
-        BranchText.Text = string.IsNullOrWhiteSpace(branch) ? "Unknown branch" : branch;
+        var fontColor = OverlaySettings.ParseFontColor(settings.OverlayFontColor);
+        var fontOpacity = OverlaySettings.ClampForegroundOpacity(settings.OverlayForegroundOpacity);
+        var fontAlpha = (byte)Math.Round(fontOpacity * 255);
+        var foreground = new SolidColorBrush(
+            System.Windows.Media.Color.FromArgb(fontAlpha, fontColor.R, fontColor.G, fontColor.B));
+        BranchText.Foreground = foreground;
+
+        var showRepository = settings.OverlayShowRepositoryName;
+        RepositoryText.Visibility = showRepository ? Visibility.Visible : Visibility.Collapsed;
+        if (showRepository)
+        {
+            RepositoryText.Text = GetRepositoryDisplayName(_repositoryRoot, settings.OverlayRepositoryFullPath);
+            RepositoryText.FontSize = BranchText.FontSize * RepositoryFontScale;
+            RepositoryText.Foreground = foreground;
+            RepositoryText.Margin = new Thickness(0, BaseLineGap * scale, 0, 0);
+        }
+
+        UpdateSize(settings, scale);
+        Position(settings.OverlayPositionPreset);
     }
 
     public void ShowOverlay(AppSettings settings)
@@ -59,38 +90,93 @@ public partial class OverlayWindow : Window
         ActivateClickThrough();
     }
 
-    private void UpdateSize()
+    private static string GetRepositoryDisplayName(string? repositoryRoot, bool fullPath)
     {
-        var fontSize = BranchText.FontSize;
-        var typeface = new Typeface(BranchText.FontFamily, BranchText.FontStyle, BranchText.FontWeight, BranchText.FontStretch);
-        var formattedText = new FormattedText(
-            BranchText.Text,
-            CultureInfo.CurrentUICulture,
-            System.Windows.FlowDirection.LeftToRight,
-            typeface,
-            fontSize,
-            System.Windows.Media.Brushes.White,
-            GetPixelsPerDip());
+        if (string.IsNullOrWhiteSpace(repositoryRoot))
+        {
+            return "(none)";
+        }
 
+        if (fullPath)
+        {
+            return repositoryRoot;
+        }
+
+        var trimmed = repositoryRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var folderName = Path.GetFileName(trimmed);
+        return string.IsNullOrWhiteSpace(folderName) ? trimmed : folderName;
+    }
+
+    private void UpdateSize(AppSettings settings, double scale)
+    {
+        var foreground = BranchText.Foreground as SolidColorBrush ?? System.Windows.Media.Brushes.White;
+        var branchTypeface = new Typeface(
+            BranchText.FontFamily, BranchText.FontStyle, BranchText.FontWeight, BranchText.FontStretch);
+        var branchFormatted = MeasureText(BranchText.Text, branchTypeface, BranchText.FontSize, foreground);
+
+        var horizontalPadding = OverlaySettings.BasePaddingHorizontal * scale * 2;
+        var verticalPadding = OverlaySettings.BasePaddingVertical * scale * 2;
+        var borderSize = settings.OverlayShowOutline ? OutlineBorderSize : 0;
         var workArea = SystemParameters.WorkArea;
-        var maxContentWidth = workArea.Width - (ScreenMargin * 2) - HorizontalPadding - BorderSize;
-        var contentWidth = Math.Ceiling(formattedText.WidthIncludingTrailingWhitespace);
-        var contentHeight = Math.Ceiling(formattedText.Height);
+        var maxContentWidth = workArea.Width - (ScreenMargin * 2) - horizontalPadding - borderSize;
+
+        var contentWidth = Math.Ceiling(branchFormatted.WidthIncludingTrailingWhitespace);
+        var contentHeight = Math.Ceiling(branchFormatted.Height);
+
+        var showRepository = settings.OverlayShowRepositoryName;
+        if (showRepository)
+        {
+            var repoTypeface = new Typeface(
+                RepositoryText.FontFamily, RepositoryText.FontStyle, RepositoryText.FontWeight, RepositoryText.FontStretch);
+            var repoFormatted = MeasureText(RepositoryText.Text, repoTypeface, RepositoryText.FontSize, foreground);
+            contentWidth = Math.Max(contentWidth, Math.Ceiling(repoFormatted.WidthIncludingTrailingWhitespace));
+            contentHeight += (BaseLineGap * scale) + Math.Ceiling(repoFormatted.Height);
+        }
+
+        ApplyMaxWidth(BranchText, contentWidth, maxContentWidth);
+        if (showRepository)
+        {
+            ApplyMaxWidth(RepositoryText, contentWidth, maxContentWidth);
+        }
+        else
+        {
+            RepositoryText.ClearValue(FrameworkElement.MaxWidthProperty);
+            RepositoryText.TextTrimming = TextTrimming.None;
+        }
 
         if (contentWidth > maxContentWidth)
         {
             contentWidth = maxContentWidth;
-            BranchText.MaxWidth = maxContentWidth;
-            BranchText.TextTrimming = TextTrimming.CharacterEllipsis;
+        }
+
+        Width = contentWidth + horizontalPadding + borderSize;
+        Height = contentHeight + verticalPadding + borderSize;
+    }
+
+    private FormattedText MeasureText(string text, Typeface typeface, double fontSize, System.Windows.Media.Brush foreground)
+    {
+        return new FormattedText(
+            text,
+            CultureInfo.CurrentUICulture,
+            System.Windows.FlowDirection.LeftToRight,
+            typeface,
+            fontSize,
+            foreground,
+            GetPixelsPerDip());
+    }
+
+    private static void ApplyMaxWidth(TextBlock textBlock, double contentWidth, double maxContentWidth)
+    {
+        if (contentWidth > maxContentWidth)
+        {
+            textBlock.MaxWidth = maxContentWidth;
+            textBlock.TextTrimming = TextTrimming.CharacterEllipsis;
         }
         else
         {
-            BranchText.ClearValue(FrameworkElement.MaxWidthProperty);
-            BranchText.TextTrimming = TextTrimming.None;
+            textBlock.ClearValue(FrameworkElement.MaxWidthProperty);
+            textBlock.TextTrimming = TextTrimming.None;
         }
-
-        Width = contentWidth + HorizontalPadding + BorderSize;
-        Height = contentHeight + VerticalPadding + BorderSize;
     }
 
     private double GetPixelsPerDip()

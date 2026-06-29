@@ -13,6 +13,13 @@ public sealed class TrayService : IDisposable
     private readonly GitRepositoryWatcher _repositoryWatcher;
     private readonly OverlayWindow _overlayWindow;
     private readonly Forms.NotifyIcon _notifyIcon;
+    private PersonalizeWindow? _personalizeWindow;
+    private Forms.ToolStripMenuItem? _repositoryItem;
+    private Forms.ToolStripMenuItem? _branchItem;
+    private Forms.ToolStripMenuItem? _statusItem;
+    private Forms.ToolStripMenuItem? _refreshItem;
+    private Forms.ToolStripMenuItem? _overlayToggleItem;
+    private Forms.ToolStripMenuItem? _startupItem;
     private bool _disposed;
 
     public TrayService(
@@ -76,6 +83,7 @@ public sealed class TrayService : IDisposable
         }
 
         _disposed = true;
+        _personalizeWindow?.Close();
         _repositoryWatcher.StatusChanged -= OnRepositoryStatusChanged;
         _notifyIcon.Visible = false;
         _notifyIcon.ContextMenuStrip?.Dispose();
@@ -85,39 +93,64 @@ public sealed class TrayService : IDisposable
     private Forms.ContextMenuStrip BuildContextMenu()
     {
         var menu = new Forms.ContextMenuStrip();
-        menu.Opening += (_, _) => PopulateContextMenu(menu);
-        return menu;
-    }
 
-    private void PopulateContextMenu(Forms.ContextMenuStrip menu)
-    {
-        menu.Items.Clear();
+        _repositoryItem = CreateDisabledItem("Repository: (none)");
+        _branchItem = CreateDisabledItem("Branch: No repository selected");
+        _statusItem = CreateDisabledItem(string.Empty);
+        _statusItem.Visible = false;
 
-        var status = _repositoryWatcher.CurrentStatus;
-        menu.Items.Add(CreateDisabledItem($"Repository: {FormatRepositoryLabel(status.RepositoryRoot)}"));
-        menu.Items.Add(CreateDisabledItem($"Branch: {status.BranchDisplay}"));
-
-        if (!string.IsNullOrWhiteSpace(status.ErrorMessage))
-        {
-            menu.Items.Add(CreateDisabledItem($"Status: {status.ErrorMessage}"));
-        }
-
+        menu.Items.Add(_repositoryItem);
+        menu.Items.Add(_branchItem);
+        menu.Items.Add(_statusItem);
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(CreateItem("Choose repository...", (_, _) => ChooseRepository()));
+        menu.Items.Add(CreateItem("Personalize...", (_, _) => OpenPersonalize()));
 
-        var refreshItem = CreateItem("Refresh branch", (_, _) => RefreshBranch());
-        refreshItem.Enabled = !string.IsNullOrWhiteSpace(status.RepositoryRoot);
-        menu.Items.Add(refreshItem);
+        _refreshItem = CreateItem("Refresh branch", (_, _) => RefreshBranch());
+        menu.Items.Add(_refreshItem);
 
-        menu.Items.Add(CreateItem(_settings.OverlayVisible ? "Hide overlay" : "Show overlay", (_, _) => ToggleOverlay()));
+        _overlayToggleItem = CreateItem("Hide overlay", (_, _) => ToggleOverlay());
+        menu.Items.Add(_overlayToggleItem);
 
-        var startupItem = CreateItem("Start with Windows", (_, _) => ToggleStartWithWindows());
-        startupItem.Checked = _settings.StartWithWindows;
-        startupItem.CheckOnClick = false;
-        menu.Items.Add(startupItem);
+        _startupItem = CreateItem("Start with Windows", (_, _) => ToggleStartWithWindows());
+        _startupItem.CheckOnClick = false;
+        menu.Items.Add(_startupItem);
 
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(CreateItem("Exit", (_, _) => ExitApplication()));
+
+        menu.Opening += (_, _) => RefreshContextMenu();
+        RefreshContextMenu();
+
+        return menu;
+    }
+
+    private void RefreshContextMenu()
+    {
+        if (_repositoryItem is null || _branchItem is null || _statusItem is null
+            || _refreshItem is null || _overlayToggleItem is null || _startupItem is null)
+        {
+            return;
+        }
+
+        var status = _repositoryWatcher.CurrentStatus;
+
+        _repositoryItem.Text = $"Repository: {FormatRepositoryLabel(status.RepositoryRoot)}";
+        _branchItem.Text = $"Branch: {status.BranchDisplay}";
+
+        if (!string.IsNullOrWhiteSpace(status.ErrorMessage))
+        {
+            _statusItem.Text = $"Status: {status.ErrorMessage}";
+            _statusItem.Visible = true;
+        }
+        else
+        {
+            _statusItem.Visible = false;
+        }
+
+        _refreshItem.Enabled = !string.IsNullOrWhiteSpace(status.RepositoryRoot);
+        _overlayToggleItem.Text = _settings.OverlayVisible ? "Hide overlay" : "Show overlay";
+        _startupItem.Checked = _settings.StartWithWindows;
     }
 
     private static Forms.ToolStripMenuItem CreateDisabledItem(string text)
@@ -153,6 +186,24 @@ public sealed class TrayService : IDisposable
         {
             SelectRepository(dialog.SelectedPath, showErrors: true);
         }
+    }
+
+    private void OpenPersonalize()
+    {
+        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+        {
+            if (_personalizeWindow is null)
+            {
+                _personalizeWindow = new PersonalizeWindow(_settingsService, _settings, ApplyOverlayState);
+                _personalizeWindow.Closed += (_, _) => _personalizeWindow = null;
+                _personalizeWindow.Show();
+            }
+            else
+            {
+                _personalizeWindow.Activate();
+                _personalizeWindow.Focus();
+            }
+        });
     }
 
     private void RefreshBranch()
@@ -202,7 +253,7 @@ public sealed class TrayService : IDisposable
 
         if (_settings.OverlayVisible && !string.IsNullOrWhiteSpace(status.RepositoryRoot))
         {
-            _overlayWindow.SetBranchText(status.BranchDisplay);
+            _overlayWindow.SetOverlayText(status.BranchDisplay, status.RepositoryRoot);
             _overlayWindow.ShowOverlay(_settings);
         }
         else

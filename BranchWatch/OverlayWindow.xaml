@@ -19,13 +19,21 @@
             CornerRadius="8"
             Padding="18,8"
             IsHitTestVisible="False">
-        <TextBlock x:Name="BranchText"
-                   Text="BranchWatch"
-                   HorizontalAlignment="Left"
-                   VerticalAlignment="Center"
-                   TextAlignment="Left"
-                   FontSize="42"
-                   FontWeight="SemiBold"
-                   Foreground="White" />
+        <StackPanel x:Name="ContentPanel">
+            <TextBlock x:Name="BranchText"
+                       Text="BranchWatch"
+                       HorizontalAlignment="Left"
+                       TextAlignment="Left"
+                       FontSize="42"
+                       FontWeight="SemiBold"
+                       Foreground="White" />
+            <TextBlock x:Name="RepositoryText"
+                       HorizontalAlignment="Center"
+                       TextAlignment="Center"
+                       FontSize="21"
+                       FontWeight="SemiBold"
+                       Foreground="White"
+                       Visibility="Collapsed" />
+        </StackPanel>
     </Border>
 </Window>
