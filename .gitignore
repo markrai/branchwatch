@@ -1,0 +1,42 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider
+.idea/
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# User-specific files
+*.rsuser
+
+# NuGet
+*.nupkg
+**/packages/*
+!**/packages/build/
+
+# Publish output
+publish/
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Logs and diagnostics
+*.log
+
+# Draft documentation (published docs under docs/ remain tracked)
+docs/draft/

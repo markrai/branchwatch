@@ -1,0 +1,32 @@
+<Window x:Class="BranchWatch.OverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="BranchWatch"
+        Width="520"
+        Height="88"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowActivated="False"
+        ShowInTaskbar="False"
+        Topmost="True"
+        Focusable="False">
+    <Border x:Name="RootBorder"
+            Background="#D9141820"
+            BorderBrush="#80FFFFFF"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="18,8"
+            IsHitTestVisible="False">
+        <TextBlock x:Name="BranchText"
+                   Text="BranchWatch"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   TextAlignment="Center"
+                   TextTrimming="CharacterEllipsis"
+                   FontSize="42"
+                   FontWeight="SemiBold"
+                   Foreground="White" />
+    </Border>
+</Window>
