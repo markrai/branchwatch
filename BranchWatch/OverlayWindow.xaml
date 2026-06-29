@@ -21,10 +21,9 @@
             IsHitTestVisible="False">
         <TextBlock x:Name="BranchText"
                    Text="BranchWatch"
-                   HorizontalAlignment="Center"
+                   HorizontalAlignment="Left"
                    VerticalAlignment="Center"
-                   TextAlignment="Center"
-                   TextTrimming="CharacterEllipsis"
+                   TextAlignment="Left"
                    FontSize="42"
                    FontWeight="SemiBold"
                    Foreground="White" />

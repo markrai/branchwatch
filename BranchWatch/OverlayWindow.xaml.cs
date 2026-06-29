@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
@@ -12,6 +13,10 @@ public partial class OverlayWindow : Window
     private const long WsExToolWindow = 0x00000080;
     private const long WsExLayered = 0x00080000;
     private const long WsExNoActivate = 0x08000000;
+    private const double HorizontalPadding = 36;
+    private const double VerticalPadding = 16;
+    private const double BorderSize = 2;
+    private const double ScreenMargin = 24;
 
     public OverlayWindow()
     {
@@ -26,8 +31,7 @@ public partial class OverlayWindow : Window
         var alpha = (byte)Math.Round(opacity * 255);
         RootBorder.Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(alpha, 20, 24, 32));
 
-        Width = Math.Clamp(BranchText.FontSize * 13, 360, 760);
-        Height = Math.Clamp(BranchText.FontSize * 1.8, 64, 150);
+        UpdateSize();
         Position(settings.OverlayPositionPreset);
     }
 
@@ -55,29 +59,74 @@ public partial class OverlayWindow : Window
         ActivateClickThrough();
     }
 
+    private void UpdateSize()
+    {
+        var fontSize = BranchText.FontSize;
+        var typeface = new Typeface(BranchText.FontFamily, BranchText.FontStyle, BranchText.FontWeight, BranchText.FontStretch);
+        var formattedText = new FormattedText(
+            BranchText.Text,
+            CultureInfo.CurrentUICulture,
+            System.Windows.FlowDirection.LeftToRight,
+            typeface,
+            fontSize,
+            System.Windows.Media.Brushes.White,
+            GetPixelsPerDip());
+
+        var workArea = SystemParameters.WorkArea;
+        var maxContentWidth = workArea.Width - (ScreenMargin * 2) - HorizontalPadding - BorderSize;
+        var contentWidth = Math.Ceiling(formattedText.WidthIncludingTrailingWhitespace);
+        var contentHeight = Math.Ceiling(formattedText.Height);
+
+        if (contentWidth > maxContentWidth)
+        {
+            contentWidth = maxContentWidth;
+            BranchText.MaxWidth = maxContentWidth;
+            BranchText.TextTrimming = TextTrimming.CharacterEllipsis;
+        }
+        else
+        {
+            BranchText.ClearValue(FrameworkElement.MaxWidthProperty);
+            BranchText.TextTrimming = TextTrimming.None;
+        }
+
+        Width = contentWidth + HorizontalPadding + BorderSize;
+        Height = contentHeight + VerticalPadding + BorderSize;
+    }
+
+    private double GetPixelsPerDip()
+    {
+        try
+        {
+            return VisualTreeHelper.GetDpi(this).PixelsPerDip;
+        }
+        catch
+        {
+            return 1.0;
+        }
+    }
+
     private void Position(string? preset)
     {
         var workArea = SystemParameters.WorkArea;
-        const double margin = 24;
 
         switch (preset?.Trim().ToLowerInvariant())
         {
             case "top-left":
-                Left = workArea.Left + margin;
-                Top = workArea.Top + margin;
+                Left = workArea.Left + ScreenMargin;
+                Top = workArea.Top + ScreenMargin;
                 break;
             case "bottom-right":
-                Left = workArea.Right - Width - margin;
-                Top = workArea.Bottom - Height - margin;
+                Left = workArea.Right - Width - ScreenMargin;
+                Top = workArea.Bottom - Height - ScreenMargin;
                 break;
             case "bottom-left":
-                Left = workArea.Left + margin;
-                Top = workArea.Bottom - Height - margin;
+                Left = workArea.Left + ScreenMargin;
+                Top = workArea.Bottom - Height - ScreenMargin;
                 break;
             case "top-right":
             default:
-                Left = workArea.Right - Width - margin;
-                Top = workArea.Top + margin;
+                Left = workArea.Right - Width - ScreenMargin;
+                Top = workArea.Top + ScreenMargin;
                 break;
         }
     }
