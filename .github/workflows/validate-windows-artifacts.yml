@@ -1,0 +1,90 @@
+name: Validate Windows Artifacts
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: pwsh
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  CONFIGURATION: Release
+  PROJECT_PATH: BranchWatch/BranchWatch.csproj
+  SOLUTION_PATH: BranchWatch.sln
+
+jobs:
+  test:
+    name: Test
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Test
+        run: dotnet test $env:SOLUTION_PATH -c $env:CONFIGURATION
+
+  package:
+    name: Package ${{ matrix.rid }}
+    runs-on: windows-latest
+    needs: test
+
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: [win-x64, win-arm64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish
+        run: |
+          $rid = "${{ matrix.rid }}"
+          $publishDir = Join-Path $env:RUNNER_TEMP "branchwatch-publish-$rid"
+
+          dotnet publish $env:PROJECT_PATH `
+            -c $env:CONFIGURATION `
+            -r $rid `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:DebugType=None `
+            -p:DebugSymbols=false `
+            -o $publishDir
+
+          $exePath = Join-Path $publishDir "BranchWatch.exe"
+          if (-not (Test-Path $exePath)) {
+            throw "Expected publish output not found: $exePath"
+          }
+
+          $shortSha = "${{ github.sha }}".Substring(0, 7)
+          $zipName = "BranchWatch-{0}-{1}.zip" -f $shortSha, $rid
+          $zipPath = Join-Path $env:RUNNER_TEMP $zipName
+
+          Compress-Archive -Path $exePath -DestinationPath $zipPath -Force
+          Add-Content -Path $env:GITHUB_ENV -Value "ARTIFACT_PATH=$zipPath"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BranchWatch-${{ matrix.rid }}
+          path: ${{ env.ARTIFACT_PATH }}
+          if-no-files-found: error
+          retention-days: 14
