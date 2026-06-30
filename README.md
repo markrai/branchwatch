@@ -2,7 +2,7 @@
 
 ![BranchWatch preview](preview.jpg)
 
-**Version 1.1.0**
+**Version 1.1.1**
 
 BranchWatch is a lightweight Windows tray app that displays the active Git repo/branch in a persistent always-on-top overlay.
 
