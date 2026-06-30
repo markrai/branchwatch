@@ -16,6 +16,7 @@ public sealed class AppSettings
 {
     public string? WatchedRepositoryPath { get; set; }
     public string? WorkspaceRootPath { get; set; }
+    public string? LastActiveWorkspaceRepositoryPath { get; set; }
     public RepositoryWatchMode WatchMode { get; set; } = RepositoryWatchMode.PinnedRepo;
     public bool WorkspaceFileActivityEnabled { get; set; } = true;
     public int WorkspaceDiscoveryMaxDepth { get; set; } = 2;
