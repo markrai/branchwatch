@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.1] - 2026-06-29
+
+### Fixed
+
+- WorkspaceRepo mode restores the last active workspace repository on startup instead of always opening on the pinned repository when both are in the workspace
+
+### Added
+
+- `LastActiveWorkspaceRepositoryPath` setting, persisted when workspace activity changes the active repository
+
 ## [1.1.0] - 2026-06-29
 
 ### Added
