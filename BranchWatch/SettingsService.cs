@@ -1,13 +1,24 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using MediaColor = System.Windows.Media.Color;
 using MediaColors = System.Windows.Media.Colors;
 
 namespace BranchWatch;
 
+public enum RepositoryWatchMode
+{
+    PinnedRepo,
+    WorkspaceRepo
+}
+
 public sealed class AppSettings
 {
     public string? WatchedRepositoryPath { get; set; }
+    public string? WorkspaceRootPath { get; set; }
+    public RepositoryWatchMode WatchMode { get; set; } = RepositoryWatchMode.PinnedRepo;
+    public bool WorkspaceFileActivityEnabled { get; set; } = true;
+    public int WorkspaceDiscoveryMaxDepth { get; set; } = 2;
     public bool OverlayVisible { get; set; } = true;
     public bool StartWithWindows { get; set; }
     public double OverlayFontSize { get; set; } = 42;
@@ -72,15 +83,23 @@ public sealed class SettingsService
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
-        PropertyNameCaseInsensitive = true
+        PropertyNameCaseInsensitive = true,
+        Converters = { new RepositoryWatchModeJsonConverter() }
     };
 
     public string SettingsPath { get; }
 
     public SettingsService()
+        : this(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "BranchWatch",
+            "settings.json"))
     {
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        SettingsPath = Path.Combine(appData, "BranchWatch", "settings.json");
+    }
+
+    internal SettingsService(string settingsPath)
+    {
+        SettingsPath = settingsPath;
     }
 
     public AppSettings Load()
@@ -115,5 +134,38 @@ public sealed class SettingsService
 
         var json = JsonSerializer.Serialize(settings, JsonOptions);
         File.WriteAllText(SettingsPath, json);
+    }
+}
+
+internal sealed class RepositoryWatchModeJsonConverter : JsonConverter<RepositoryWatchMode>
+{
+    public override RepositoryWatchMode Read(
+        ref Utf8JsonReader reader,
+        Type typeToConvert,
+        JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.String)
+        {
+            return string.Equals(reader.GetString(), nameof(RepositoryWatchMode.WorkspaceRepo), StringComparison.OrdinalIgnoreCase)
+                ? RepositoryWatchMode.WorkspaceRepo
+                : RepositoryWatchMode.PinnedRepo;
+        }
+
+        if (reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out var value))
+        {
+            return value == (int)RepositoryWatchMode.WorkspaceRepo
+                ? RepositoryWatchMode.WorkspaceRepo
+                : RepositoryWatchMode.PinnedRepo;
+        }
+
+        return RepositoryWatchMode.PinnedRepo;
+    }
+
+    public override void Write(
+        Utf8JsonWriter writer,
+        RepositoryWatchMode value,
+        JsonSerializerOptions options)
+    {
+        writer.WriteStringValue(value.ToString());
     }
 }

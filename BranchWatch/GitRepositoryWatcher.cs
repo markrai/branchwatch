@@ -51,6 +51,23 @@ public sealed class GitRepositoryWatcher : IDisposable
         return RepositorySelectionResult.Succeeded(repository.RootPath);
     }
 
+    public void Clear()
+    {
+        lock (_sync)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _repository = null;
+            _currentStatus = RepositoryStatus.Empty;
+            _metadataWatchers.Clear();
+        }
+
+        OnStatusChanged(RepositoryStatus.Empty);
+    }
+
     public RepositoryStatus Refresh()
     {
         RepositoryStatus status;
@@ -115,5 +132,4 @@ public sealed class GitRepositoryWatcher : IDisposable
             throw new ObjectDisposedException(nameof(GitRepositoryWatcher));
         }
     }
-
 }
