@@ -387,6 +387,119 @@ public sealed class WorkspaceRepositoryControllerTests
         Assert.IsNull(controller.LastWorkspaceActivityReason);
     }
 
+    [TestMethod]
+    public void WorkspaceModePromotesRepositoryOnRepoOpened()
+    {
+        using var workspace = new TestRepositoryWorkspace();
+        var repo1 = workspace.CreateRepo("repo1", "main");
+        var repo2 = workspace.CreateRepo("repo2", "main");
+        using var watcher = new GitRepositoryWatcher();
+        var settings = CreateSettings(RepositoryWatchMode.WorkspaceRepo, pinnedRepository: repo1, workspaceRoot: workspace.Root);
+        using var controller = CreateController(workspace, settings, watcher);
+
+        Assert.IsTrue(controller.LoadWorkspace().Success);
+        var promoted = controller.PromoteWorkspaceRepositoryForRepoOpened(repo2);
+
+        Assert.IsTrue(promoted);
+        Assert.AreEqual(repo2, watcher.CurrentStatus.RepositoryRoot);
+        Assert.AreEqual(WorkspaceActivityReason.RepoOpened, controller.LastWorkspaceActivityReason);
+        Assert.AreEqual(repo1, settings.WatchedRepositoryPath);
+    }
+
+    [TestMethod]
+    public void WorkspaceModeRepoOpenedDoesNotOverwritePinnedRepository()
+    {
+        using var workspace = new TestRepositoryWorkspace();
+        var pinnedRepo = workspace.CreateRepo("pinned");
+        var activeRepo = workspace.CreateRepo("active");
+        using var watcher = new GitRepositoryWatcher();
+        var settings = CreateSettings(RepositoryWatchMode.WorkspaceRepo, pinnedRepository: pinnedRepo, workspaceRoot: workspace.Root);
+        using var controller = CreateController(workspace, settings, watcher);
+
+        Assert.IsTrue(controller.LoadWorkspace().Success);
+        var promoted = controller.PromoteWorkspaceRepositoryForRepoOpened(activeRepo);
+
+        Assert.IsTrue(promoted);
+        Assert.AreEqual(activeRepo, watcher.CurrentStatus.RepositoryRoot);
+        Assert.AreEqual(pinnedRepo, settings.WatchedRepositoryPath);
+    }
+
+    [TestMethod]
+    public void WorkspaceModeRepoOpenedOutsideDiscoveredWorkspaceIsIgnored()
+    {
+        using var workspace = new TestRepositoryWorkspace();
+        workspace.CreateRepo("repo1");
+        var outsideRepo = Path.Combine(Path.GetTempPath(), "BranchWatchOutside", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(outsideRepo, ".git", "refs", "heads"));
+        File.WriteAllText(Path.Combine(outsideRepo, ".git", "HEAD"), "ref: refs/heads/main");
+        File.WriteAllText(Path.Combine(outsideRepo, ".git", "refs", "heads", "main"), "0123456789abcdef0123456789abcdef01234567");
+        using var watcher = new GitRepositoryWatcher();
+        var settings = CreateSettings(RepositoryWatchMode.WorkspaceRepo, workspaceRoot: workspace.Root);
+        using var controller = CreateController(workspace, settings, watcher);
+
+        try
+        {
+            Assert.IsTrue(controller.LoadWorkspace().Success);
+            var result = controller.TryReportRepoOpened(outsideRepo);
+
+            Assert.IsTrue(result.Success);
+            Assert.IsFalse(result.Promoted);
+            StringAssert.Contains(result.Message, "Rescan workspace");
+            StringAssert.Contains(result.Message, "WorkspaceDiscoveryMaxDepth");
+            Assert.AreEqual(WorkspaceActivityReason.WorkspaceLoaded, controller.LastWorkspaceActivityReason);
+        }
+        finally
+        {
+            Directory.Delete(outsideRepo, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void WorkspaceModeRepoOpenedBeyondDiscoveryDepthIsIgnored()
+    {
+        using var workspace = new TestRepositoryWorkspace();
+        workspace.CreateRepo("repo1");
+        var deepRepo = workspace.CreateNestedDirectory(workspace.Root, "level1", "level2", "level3", "deep-repo");
+        Directory.CreateDirectory(Path.Combine(deepRepo, ".git", "refs", "heads"));
+        File.WriteAllText(Path.Combine(deepRepo, ".git", "HEAD"), "ref: refs/heads/main");
+        File.WriteAllText(Path.Combine(deepRepo, ".git", "refs", "heads", "main"), "0123456789abcdef0123456789abcdef01234567");
+        using var watcher = new GitRepositoryWatcher();
+        var settings = CreateSettings(
+            RepositoryWatchMode.WorkspaceRepo,
+            workspaceRoot: workspace.Root,
+            workspaceDiscoveryMaxDepth: 2);
+        using var controller = CreateController(workspace, settings, watcher);
+
+        Assert.IsTrue(controller.LoadWorkspace().Success);
+        var result = controller.TryReportRepoOpened(deepRepo);
+
+        Assert.IsTrue(result.Success);
+        Assert.IsFalse(result.Promoted);
+        StringAssert.Contains(result.Message, "Rescan workspace");
+        StringAssert.Contains(result.Message, "WorkspaceDiscoveryMaxDepth");
+    }
+
+    [TestMethod]
+    public void PinnedRepoModeIgnoresRepoOpenedActivity()
+    {
+        using var workspace = new TestRepositoryWorkspace();
+        var repo1 = workspace.CreateRepo("repo1");
+        var repo2 = workspace.CreateRepo("repo2");
+        using var watcher = new GitRepositoryWatcher();
+        var settings = CreateSettings(RepositoryWatchMode.WorkspaceRepo, pinnedRepository: repo1, workspaceRoot: workspace.Root);
+        using var controller = CreateController(workspace, settings, watcher);
+
+        Assert.IsTrue(controller.LoadWorkspace().Success);
+        controller.SetWatchMode(RepositoryWatchMode.PinnedRepo);
+        var result = controller.TryReportRepoOpened(repo2);
+
+        Assert.IsTrue(result.Success);
+        Assert.IsFalse(result.Promoted);
+        StringAssert.Contains(result.Message, "WorkspaceRepo mode");
+        Assert.AreEqual(repo1, watcher.CurrentStatus.RepositoryRoot);
+        Assert.IsNull(controller.LastWorkspaceActivityReason);
+    }
+
     private static AppSettings CreateSettings(
         RepositoryWatchMode watchMode,
         string? pinnedRepository = null,

@@ -171,6 +171,38 @@ public sealed class RepositorySessionController : IDisposable
         return _workspaceMonitor.PromoteRepositoryForFileActivity(repositoryRoot);
     }
 
+    internal bool PromoteWorkspaceRepositoryForRepoOpened(string repositoryRoot)
+    {
+        if (_settings.WatchMode != RepositoryWatchMode.WorkspaceRepo)
+        {
+            return false;
+        }
+
+        return _workspaceMonitor.PromoteRepositoryForRepoOpened(repositoryRoot);
+    }
+
+    public WorkspaceActivityReportResult TryReportRepoOpened(string path)
+    {
+        if (_settings.WatchMode != RepositoryWatchMode.WorkspaceRepo)
+        {
+            return WorkspaceActivityReportResult.Ignored(
+                "BranchWatch is not in WorkspaceRepo mode. Repo-opened activity applies only in WorkspaceRepo mode.");
+        }
+
+        if (!GitRepositoryResolver.TryResolveRepository(path, out var repository, out var error))
+        {
+            return WorkspaceActivityReportResult.Failed(error);
+        }
+
+        if (!_workspaceMonitor.PromoteRepositoryForRepoOpened(repository.RootPath))
+        {
+            return WorkspaceActivityReportResult.Ignored(
+                $"Repository is not in the current workspace: {repository.RootPath}. Try Rescan workspace or increase WorkspaceDiscoveryMaxDepth in settings.json.");
+        }
+
+        return WorkspaceActivityReportResult.ForPromotion(repository.RootPath);
+    }
+
     private WorkspaceLoadResult StartWorkspace(
         string path,
         bool persistWorkspacePath,
@@ -285,7 +317,8 @@ public sealed class RepositorySessionController : IDisposable
             StringComparison.Ordinal);
         var sameActivityReason = LastWorkspaceActivityReason == e.Reason;
 
-        if (sameActiveRepository && sameDisplayedBranch && sameActivityReason && string.IsNullOrWhiteSpace(WorkspaceStatusText))
+        if (sameActiveRepository && sameDisplayedBranch && sameActivityReason && string.IsNullOrWhiteSpace(WorkspaceStatusText)
+            && e.Reason != WorkspaceActivityReason.RepoOpened)
         {
             _lastWorkspaceActivitySequence = e.ActivitySequence;
             return;
@@ -296,7 +329,7 @@ public sealed class RepositorySessionController : IDisposable
         _lastWorkspaceActivitySequence = e.ActivitySequence;
         if (sameActiveRepository)
         {
-            if (!sameDisplayedBranch)
+            if (e.Reason == WorkspaceActivityReason.RepoOpened || !sameDisplayedBranch)
             {
                 _repositoryWatcher.Refresh();
             }
@@ -326,4 +359,16 @@ public sealed record WorkspaceLoadResult(
 
     public static WorkspaceLoadResult Failed(string errorMessage) =>
         new(false, null, Array.Empty<RepositoryStatus>(), errorMessage);
+}
+
+public sealed record WorkspaceActivityReportResult(bool Success, bool Promoted, string Message)
+{
+    public static WorkspaceActivityReportResult ForPromotion(string repositoryRoot) =>
+        new(true, true, $"Promoted repository: {repositoryRoot}");
+
+    public static WorkspaceActivityReportResult Ignored(string message) =>
+        new(true, false, message);
+
+    public static WorkspaceActivityReportResult Failed(string message) =>
+        new(false, false, message);
 }

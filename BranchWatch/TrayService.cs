@@ -424,6 +424,7 @@ public sealed class TrayService : IDisposable
             WorkspaceActivityReason.BranchChanged => "branch changed",
             WorkspaceActivityReason.IndexChanged => "index changed",
             WorkspaceActivityReason.FileChanged => "file changed",
+            WorkspaceActivityReason.RepoOpened => "repo opened",
             _ => "(none)"
         };
     }

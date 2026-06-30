@@ -6,5 +6,6 @@ public enum WorkspaceActivityReason
     WorkspaceRescanned,
     BranchChanged,
     IndexChanged,
-    FileChanged
+    FileChanged,
+    RepoOpened
 }

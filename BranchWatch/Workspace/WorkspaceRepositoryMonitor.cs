@@ -124,6 +124,35 @@ internal sealed class WorkspaceRepositoryMonitor : IDisposable
         return PromoteRepositoryForIndexActivity(repositoryRoot, NextActivitySequence());
     }
 
+    public bool PromoteRepositoryForRepoOpened(string repositoryRoot)
+    {
+        return PromoteRepositoryForRepoOpened(repositoryRoot, NextActivitySequence());
+    }
+
+    private bool PromoteRepositoryForRepoOpened(string repositoryRoot, long activitySequence)
+    {
+        WorkspaceRepositoryChangedEventArgs? changed = null;
+
+        lock (_sync)
+        {
+            if (_disposed || !_repositories.TryGetValue(repositoryRoot, out var state))
+            {
+                return false;
+            }
+
+            var status = GitBranchReader.ReadStatus(state.Repository);
+            state.Status = status;
+            state.MetadataWatchers.Rebuild(state.Repository, status);
+            changed = new WorkspaceRepositoryChangedEventArgs(
+                status,
+                WorkspaceActivityReason.RepoOpened,
+                activitySequence);
+        }
+
+        RepositoryActivity?.Invoke(this, changed);
+        return true;
+    }
+
     private bool PromoteRepositoryForIndexActivity(string repositoryRoot, long activitySequence)
     {
         WorkspaceRepositoryChangedEventArgs? changed = null;

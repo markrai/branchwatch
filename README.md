@@ -31,6 +31,20 @@ WorkspaceRepo ignores obvious generated, cache, and vendor folders during discov
 
 Workspace discovery is depth-limited to avoid expensive first-run scans. The default `WorkspaceDiscoveryMaxDepth` is `2`, which includes the workspace root, its direct children, and grandchildren. Increase it in `%AppData%\BranchWatch\settings.json` if your repositories are nested more deeply.
 
+#### Explicit repo activity (optional)
+
+WorkspaceRepo mode automatically promotes repositories based on branch changes, Git index/staging updates, and working-tree file edits. Some editor actions, such as opening a second Cursor window on another repository, may not write files inside that repo, so BranchWatch cannot infer that repo is active from disk activity alone.
+
+Advanced users and tools can explicitly tell BranchWatch that a repository was opened or focused:
+
+```powershell
+BranchWatch.exe activity "C:\dev\project\my-repo" --reason repo-opened
+```
+
+The path may be the repository root or any folder inside the repository. BranchWatch must already be running in WorkspaceRepo mode. If BranchWatch is not running, the command prints an error and exits. If BranchWatch is in PinnedRepo mode, the activity is ignored safely.
+
+This is optional. Normal WorkspaceRepo behavior still works without it.
+
 ## Build
 
 ```powershell
