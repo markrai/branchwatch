@@ -72,7 +72,7 @@ jobs:
               throw "Expected publish output not found: $exePath"
             }
 
-            $zipName = "BranchWatch-v{0}-{1}.zip" -f $env:RELEASE_VERSION, $rid
+            $zipName = "BranchWatch-{0}.zip" -f $rid
             $zipPath = Join-Path $distDir $zipName
             Compress-Archive -Path $exePath -DestinationPath $zipPath -Force
           }
