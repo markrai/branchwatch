@@ -74,17 +74,10 @@ jobs:
             throw "Expected publish output not found: $exePath"
           }
 
-          $shortSha = "${{ github.sha }}".Substring(0, 7)
-          $zipName = "BranchWatch-{0}-{1}.zip" -f $shortSha, $rid
-          $zipPath = Join-Path $env:RUNNER_TEMP $zipName
-
-          Compress-Archive -Path $exePath -DestinationPath $zipPath -Force
-          Add-Content -Path $env:GITHUB_ENV -Value "ARTIFACT_PATH=$zipPath"
-
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: BranchWatch-${{ matrix.rid }}
-          path: ${{ env.ARTIFACT_PATH }}
+          path: ${{ runner.temp }}/branchwatch-publish-${{ matrix.rid }}
           if-no-files-found: error
           retention-days: 14
