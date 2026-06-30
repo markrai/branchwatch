@@ -1,9 +1,16 @@
 # Changelog
 
-All notable changes to BranchWatch are documented in this file.
+## [1.1.0] - 2026-06-29
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+### Added
+
+- Optional overlay activity reason display for WorkspaceRepo mode (`Show activity reason` in Personalize...)
+- Tray menu `Last activity` item showing the latest workspace activity reason
+- `BranchWatch.exe activity "<path>" --reason repo-opened` CLI for explicitly reporting repo focus in WorkspaceRepo mode
+
+### Fixed
+
+- Overlay line order when repository name is shown: branch appears above repository name again
 
 ## [1.0.0] - 2026-06-29
 
