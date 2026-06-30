@@ -22,6 +22,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <TextBlock Grid.Row="0"
@@ -97,7 +98,14 @@
                              Checked="OnSettingChanged" />
             </StackPanel>
 
-            <StackPanel Grid.Row="5" Margin="0,0,0,16">
+            <CheckBox x:Name="ShowActivityReasonCheckBox"
+                      Grid.Row="5"
+                      Content="Show activity reason"
+                      Margin="0,0,0,16"
+                      Checked="OnSettingChanged"
+                      Unchecked="OnSettingChanged" />
+
+            <StackPanel Grid.Row="6" Margin="0,0,0,16">
                 <TextBlock Text="Size"
                            FontWeight="SemiBold"
                            Margin="0,0,0,8" />
@@ -112,7 +120,7 @@
                            Foreground="Gray" />
             </StackPanel>
 
-            <StackPanel Grid.Row="6" Margin="0,0,0,16">
+            <StackPanel Grid.Row="7" Margin="0,0,0,16">
                 <TextBlock Text="Background opacity"
                            FontWeight="SemiBold"
                            Margin="0,0,0,8" />
@@ -127,7 +135,7 @@
                            Foreground="Gray" />
             </StackPanel>
 
-            <StackPanel Grid.Row="7" Margin="0,0,0,16">
+            <StackPanel Grid.Row="8" Margin="0,0,0,16">
                 <TextBlock Text="Foreground opacity"
                            FontWeight="SemiBold"
                            Margin="0,0,0,8" />
@@ -142,7 +150,7 @@
                            Foreground="Gray" />
             </StackPanel>
 
-            <StackPanel Grid.Row="8" Orientation="Horizontal" Margin="0,0,0,16">
+            <StackPanel Grid.Row="9" Orientation="Horizontal" Margin="0,0,0,16">
                 <TextBlock Text="Font color"
                            FontWeight="SemiBold"
                            VerticalAlignment="Center"
@@ -157,7 +165,7 @@
                         MouseLeftButtonUp="OnChooseColorClick" />
             </StackPanel>
 
-            <Button Grid.Row="9"
+            <Button Grid.Row="10"
                     Content="Close"
                     HorizontalAlignment="Right"
                     Padding="16,6"

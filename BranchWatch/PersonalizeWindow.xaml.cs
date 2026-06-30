@@ -69,6 +69,7 @@ public partial class PersonalizeWindow : Window
 
         ShowOutlineCheckBox.IsChecked = _settings.OverlayShowOutline;
         ShowRepositoryNameCheckBox.IsChecked = _settings.OverlayShowRepositoryName;
+        ShowActivityReasonCheckBox.IsChecked = _settings.ShowWorkspaceActivityReason;
         if (_settings.OverlayRepositoryFullPath)
         {
             RepositoryFullPathRadio.IsChecked = true;
@@ -100,6 +101,7 @@ public partial class PersonalizeWindow : Window
         _settings.OverlayShowOutline = ShowOutlineCheckBox.IsChecked == true;
         _settings.OverlayShowRepositoryName = ShowRepositoryNameCheckBox.IsChecked == true;
         _settings.OverlayRepositoryFullPath = RepositoryFullPathRadio.IsChecked == true;
+        _settings.ShowWorkspaceActivityReason = ShowActivityReasonCheckBox.IsChecked == true;
         UpdateRepositoryLabelPanelState();
         SaveAndApply();
     }

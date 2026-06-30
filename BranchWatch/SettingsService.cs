@@ -29,6 +29,7 @@ public sealed class AppSettings
     public bool OverlayShowOutline { get; set; } = true;
     public bool OverlayShowRepositoryName { get; set; }
     public bool OverlayRepositoryFullPath { get; set; }
+    public bool ShowWorkspaceActivityReason { get; set; }
     public string OverlayFontColor { get; set; } = "#FFFFFF";
 }
 

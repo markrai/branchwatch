@@ -34,6 +34,13 @@
                        FontWeight="SemiBold"
                        Foreground="White"
                        Visibility="Collapsed" />
+            <TextBlock x:Name="ActivityReasonText"
+                       HorizontalAlignment="Center"
+                       TextAlignment="Center"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Foreground="White"
+                       Visibility="Collapsed" />
         </StackPanel>
     </Border>
 </Window>
