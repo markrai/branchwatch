@@ -257,17 +257,26 @@ public sealed class RepositorySessionController : IDisposable
 
     private RepositoryStatus? SelectInitialWorkspaceRepository(IReadOnlyList<RepositoryStatus> repositories)
     {
-        if (!string.IsNullOrWhiteSpace(_settings.WatchedRepositoryPath))
+        var lastActive = FindRepository(repositories, _settings.LastActiveWorkspaceRepositoryPath);
+        if (lastActive is not null)
         {
-            var pinned = repositories.FirstOrDefault(repository =>
-                string.Equals(repository.RepositoryRoot, _settings.WatchedRepositoryPath, StringComparison.OrdinalIgnoreCase));
-            if (pinned is not null)
-            {
-                return pinned;
-            }
+            return lastActive;
         }
 
-        return null;
+        return FindRepository(repositories, _settings.WatchedRepositoryPath);
+    }
+
+    private static RepositoryStatus? FindRepository(
+        IReadOnlyList<RepositoryStatus> repositories,
+        string? repositoryRoot)
+    {
+        if (string.IsNullOrWhiteSpace(repositoryRoot))
+        {
+            return null;
+        }
+
+        return repositories.FirstOrDefault(repository =>
+            string.Equals(repository.RepositoryRoot, repositoryRoot, StringComparison.OrdinalIgnoreCase));
     }
 
     private RepositorySelectionResult SelectRepository(string path, bool persistPinnedPath)
@@ -306,6 +315,8 @@ public sealed class RepositorySessionController : IDisposable
             return;
         }
 
+        PersistLastActiveWorkspaceRepository(e.Status.RepositoryRoot);
+
         var currentStatus = _repositoryWatcher.CurrentStatus;
         var sameActiveRepository = string.Equals(
             currentStatus.RepositoryRoot,
@@ -340,6 +351,18 @@ public sealed class RepositorySessionController : IDisposable
         }
 
         OnStateChanged();
+    }
+
+    private void PersistLastActiveWorkspaceRepository(string? repositoryRoot)
+    {
+        if (string.IsNullOrWhiteSpace(repositoryRoot)
+            || string.Equals(_settings.LastActiveWorkspaceRepositoryPath, repositoryRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _settings.LastActiveWorkspaceRepositoryPath = repositoryRoot;
+        _settingsService.Save(_settings);
     }
 
     private void OnStateChanged()

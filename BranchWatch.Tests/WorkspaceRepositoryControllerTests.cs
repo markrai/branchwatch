@@ -8,8 +8,12 @@ public sealed class WorkspaceRepositoryControllerTests
     {
         using var workspace = new TestRepositoryWorkspace();
         var repo = workspace.CreateRepo("repo");
+        var lastActive = workspace.CreateRepo("last-active");
         using var watcher = new GitRepositoryWatcher();
-        var settings = CreateSettings(RepositoryWatchMode.PinnedRepo, pinnedRepository: repo);
+        var settings = CreateSettings(
+            RepositoryWatchMode.PinnedRepo,
+            pinnedRepository: repo,
+            lastActiveWorkspaceRepository: lastActive);
         using var controller = CreateController(workspace, settings, watcher);
 
         var result = controller.LoadPinnedRepository();
@@ -17,6 +21,7 @@ public sealed class WorkspaceRepositoryControllerTests
         Assert.IsTrue(result.Success, result.ErrorMessage);
         Assert.AreEqual(repo, watcher.CurrentStatus.RepositoryRoot);
         Assert.AreEqual(RepositoryWatchMode.PinnedRepo, settings.WatchMode);
+        Assert.AreEqual(lastActive, settings.LastActiveWorkspaceRepositoryPath);
     }
 
     [TestMethod]
@@ -39,15 +44,65 @@ public sealed class WorkspaceRepositoryControllerTests
     }
 
     [TestMethod]
-    public void WorkspaceModeWaitsForActivityWhenPinnedRepoIsOutsideWorkspace()
+    public void WorkspaceModeStartsWithLastActiveWorkspaceRepoWhenDiscovered()
+    {
+        using var workspace = new TestRepositoryWorkspace();
+        var pinnedRepo = workspace.CreateRepo("pinned");
+        var lastActiveRepo = workspace.CreateRepo("last-active");
+        using var watcher = new GitRepositoryWatcher();
+        var settings = CreateSettings(
+            RepositoryWatchMode.WorkspaceRepo,
+            pinnedRepository: pinnedRepo,
+            workspaceRoot: workspace.Root,
+            lastActiveWorkspaceRepository: lastActiveRepo);
+        using var controller = CreateController(workspace, settings, watcher);
+
+        var result = controller.LoadWorkspace();
+
+        Assert.IsTrue(result.Success, result.ErrorMessage);
+        Assert.AreEqual(lastActiveRepo, watcher.CurrentStatus.RepositoryRoot);
+        Assert.AreEqual(pinnedRepo, settings.WatchedRepositoryPath);
+        Assert.AreEqual(lastActiveRepo, settings.LastActiveWorkspaceRepositoryPath);
+        Assert.AreEqual(WorkspaceActivityReason.WorkspaceLoaded, controller.LastWorkspaceActivityReason);
+    }
+
+    [TestMethod]
+    public void WorkspaceModeFallsBackToPinnedRepoWhenLastActiveWorkspaceRepoIsStale()
+    {
+        using var workspace = new TestRepositoryWorkspace();
+        var pinnedRepo = workspace.CreateRepo("pinned");
+        var staleLastActive = Path.Combine(Path.GetTempPath(), "BranchWatchStale", Guid.NewGuid().ToString("N"));
+        using var watcher = new GitRepositoryWatcher();
+        var settings = CreateSettings(
+            RepositoryWatchMode.WorkspaceRepo,
+            pinnedRepository: pinnedRepo,
+            workspaceRoot: workspace.Root,
+            lastActiveWorkspaceRepository: staleLastActive);
+        using var controller = CreateController(workspace, settings, watcher);
+
+        var result = controller.LoadWorkspace();
+
+        Assert.IsTrue(result.Success, result.ErrorMessage);
+        Assert.AreEqual(pinnedRepo, watcher.CurrentStatus.RepositoryRoot);
+        Assert.AreEqual(pinnedRepo, settings.WatchedRepositoryPath);
+        Assert.AreEqual(staleLastActive, settings.LastActiveWorkspaceRepositoryPath);
+    }
+
+    [TestMethod]
+    public void WorkspaceModeWaitsForActivityWhenLastActiveAndPinnedRepoAreOutsideWorkspace()
     {
         using var workspace = new TestRepositoryWorkspace();
         workspace.CreateRepo("repo1");
         workspace.CreateRepo("repo2");
         var outsideRepo = Path.Combine(Path.GetTempPath(), "BranchWatchOutside", Guid.NewGuid().ToString("N"));
+        var staleLastActive = Path.Combine(Path.GetTempPath(), "BranchWatchStale", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(outsideRepo, ".git"));
         using var watcher = new GitRepositoryWatcher();
-        var settings = CreateSettings(RepositoryWatchMode.WorkspaceRepo, pinnedRepository: outsideRepo, workspaceRoot: workspace.Root);
+        var settings = CreateSettings(
+            RepositoryWatchMode.WorkspaceRepo,
+            pinnedRepository: outsideRepo,
+            workspaceRoot: workspace.Root,
+            lastActiveWorkspaceRepository: staleLastActive);
         using var controller = CreateController(workspace, settings, watcher);
 
         try
@@ -58,6 +113,7 @@ public sealed class WorkspaceRepositoryControllerTests
             Assert.IsNull(watcher.CurrentStatus.RepositoryRoot);
             Assert.AreEqual(RepositorySessionController.WaitingForWorkspaceActivityStatus, controller.WorkspaceStatusText);
             Assert.AreEqual(outsideRepo, settings.WatchedRepositoryPath);
+            Assert.AreEqual(staleLastActive, settings.LastActiveWorkspaceRepositoryPath);
         }
         finally
         {
@@ -100,6 +156,7 @@ public sealed class WorkspaceRepositoryControllerTests
         Assert.AreEqual(repo2, watcher.CurrentStatus.RepositoryRoot);
         Assert.AreEqual("dev", watcher.CurrentStatus.BranchDisplay);
         Assert.AreEqual(WorkspaceActivityReason.BranchChanged, controller.LastWorkspaceActivityReason);
+        AssertLastActiveWorkspaceRepositorySaved(workspace, repo2);
         Assert.AreEqual(repo1, settings.WatchedRepositoryPath);
     }
 
@@ -120,6 +177,7 @@ public sealed class WorkspaceRepositoryControllerTests
         Assert.AreEqual(repo2, watcher.CurrentStatus.RepositoryRoot);
         Assert.AreEqual("master", watcher.CurrentStatus.BranchDisplay);
         Assert.AreEqual(WorkspaceActivityReason.FileChanged, controller.LastWorkspaceActivityReason);
+        AssertLastActiveWorkspaceRepositorySaved(workspace, repo2);
     }
 
     [TestMethod]
@@ -175,6 +233,7 @@ public sealed class WorkspaceRepositoryControllerTests
         Assert.IsTrue(promoted);
         Assert.AreEqual(repo2, watcher.CurrentStatus.RepositoryRoot);
         Assert.AreEqual(WorkspaceActivityReason.IndexChanged, controller.LastWorkspaceActivityReason);
+        AssertLastActiveWorkspaceRepositorySaved(workspace, repo2);
         Assert.AreEqual(repo1, settings.WatchedRepositoryPath);
     }
 
@@ -196,6 +255,7 @@ public sealed class WorkspaceRepositoryControllerTests
         Assert.IsTrue(indexPromoted);
         Assert.AreEqual(repo2, watcher.CurrentStatus.RepositoryRoot);
         Assert.AreEqual(WorkspaceActivityReason.IndexChanged, controller.LastWorkspaceActivityReason);
+        AssertLastActiveWorkspaceRepositorySaved(workspace, repo2);
     }
 
     [TestMethod]
@@ -365,6 +425,7 @@ public sealed class WorkspaceRepositoryControllerTests
 
         Assert.IsTrue(promoted);
         Assert.AreEqual(activeRepo, watcher.CurrentStatus.RepositoryRoot);
+        Assert.AreEqual(activeRepo, settings.LastActiveWorkspaceRepositoryPath);
         Assert.AreEqual(pinnedRepo, settings.WatchedRepositoryPath);
     }
 
@@ -403,6 +464,7 @@ public sealed class WorkspaceRepositoryControllerTests
         Assert.IsTrue(promoted);
         Assert.AreEqual(repo2, watcher.CurrentStatus.RepositoryRoot);
         Assert.AreEqual(WorkspaceActivityReason.RepoOpened, controller.LastWorkspaceActivityReason);
+        AssertLastActiveWorkspaceRepositorySaved(workspace, repo2);
         Assert.AreEqual(repo1, settings.WatchedRepositoryPath);
     }
 
@@ -421,6 +483,7 @@ public sealed class WorkspaceRepositoryControllerTests
 
         Assert.IsTrue(promoted);
         Assert.AreEqual(activeRepo, watcher.CurrentStatus.RepositoryRoot);
+        Assert.AreEqual(activeRepo, settings.LastActiveWorkspaceRepositoryPath);
         Assert.AreEqual(pinnedRepo, settings.WatchedRepositoryPath);
     }
 
@@ -505,12 +568,14 @@ public sealed class WorkspaceRepositoryControllerTests
         string? pinnedRepository = null,
         string? workspaceRoot = null,
         bool workspaceFileActivityEnabled = true,
-        int workspaceDiscoveryMaxDepth = 2)
+        int workspaceDiscoveryMaxDepth = 2,
+        string? lastActiveWorkspaceRepository = null)
     {
         return new AppSettings
         {
             WatchMode = watchMode,
             WatchedRepositoryPath = pinnedRepository,
+            LastActiveWorkspaceRepositoryPath = lastActiveWorkspaceRepository,
             WorkspaceRootPath = workspaceRoot,
             WorkspaceFileActivityEnabled = workspaceFileActivityEnabled,
             WorkspaceDiscoveryMaxDepth = workspaceDiscoveryMaxDepth
@@ -524,5 +589,14 @@ public sealed class WorkspaceRepositoryControllerTests
     {
         var settingsPath = Path.Combine(workspace.Root, "settings.json");
         return new RepositorySessionController(new SettingsService(settingsPath), settings, watcher);
+    }
+
+    private static void AssertLastActiveWorkspaceRepositorySaved(
+        TestRepositoryWorkspace workspace,
+        string expectedRepositoryRoot)
+    {
+        var settingsPath = Path.Combine(workspace.Root, "settings.json");
+        var savedSettings = new SettingsService(settingsPath).Load();
+        Assert.AreEqual(expectedRepositoryRoot, savedSettings.LastActiveWorkspaceRepositoryPath);
     }
 }
