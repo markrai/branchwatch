@@ -20,18 +20,21 @@ public partial class OverlayWindow : Window
     private const double BaseLineGap = 4;
     private const double ScreenMargin = 24;
     private const double RepositoryFontScale = 0.5;
+    private const double ActivityReasonFontScale = 0.42;
 
     private string? _repositoryRoot;
+    private string? _activityReason;
 
     public OverlayWindow()
     {
         InitializeComponent();
     }
 
-    public void SetOverlayText(string branch, string? repositoryRoot)
+    public void SetOverlayText(string branch, string? repositoryRoot, string? activityReason = null)
     {
         BranchText.Text = string.IsNullOrWhiteSpace(branch) ? "Unknown branch" : branch;
         _repositoryRoot = repositoryRoot;
+        _activityReason = activityReason;
     }
 
     public void ApplySettings(AppSettings settings)
@@ -58,15 +61,27 @@ public partial class OverlayWindow : Window
         BranchText.Foreground = foreground;
 
         var showRepository = settings.OverlayShowRepositoryName;
+        var showActivityReason = !string.IsNullOrWhiteSpace(_activityReason);
+        ConfigureLineOrder();
+
         RepositoryText.Visibility = showRepository ? Visibility.Visible : Visibility.Collapsed;
         if (showRepository)
         {
             RepositoryText.Text = GetRepositoryDisplayName(_repositoryRoot, settings.OverlayRepositoryFullPath);
             RepositoryText.FontSize = BranchText.FontSize * RepositoryFontScale;
             RepositoryText.Foreground = foreground;
-            RepositoryText.Margin = new Thickness(0, BaseLineGap * scale, 0, 0);
+            RepositoryText.Margin = new Thickness(0);
         }
 
+        ActivityReasonText.Visibility = showActivityReason ? Visibility.Visible : Visibility.Collapsed;
+        if (showActivityReason)
+        {
+            ActivityReasonText.Text = _activityReason!;
+            ActivityReasonText.FontSize = BranchText.FontSize * ActivityReasonFontScale;
+            ActivityReasonText.Foreground = foreground;
+        }
+
+        ApplyLineMargins(scale);
         UpdateSize(settings, scale);
         Position(settings.OverlayPositionPreset);
     }
@@ -110,38 +125,36 @@ public partial class OverlayWindow : Window
     private void UpdateSize(AppSettings settings, double scale)
     {
         var foreground = BranchText.Foreground as SolidColorBrush ?? System.Windows.Media.Brushes.White;
-        var branchTypeface = new Typeface(
-            BranchText.FontFamily, BranchText.FontStyle, BranchText.FontWeight, BranchText.FontStretch);
-        var branchFormatted = MeasureText(BranchText.Text, branchTypeface, BranchText.FontSize, foreground);
-
         var horizontalPadding = OverlaySettings.BasePaddingHorizontal * scale * 2;
         var verticalPadding = OverlaySettings.BasePaddingVertical * scale * 2;
         var borderSize = settings.OverlayShowOutline ? OutlineBorderSize : 0;
         var workArea = SystemParameters.WorkArea;
         var maxContentWidth = workArea.Width - (ScreenMargin * 2) - horizontalPadding - borderSize;
+        var visibleTextBlocks = GetVisibleTextBlocks().ToArray();
 
-        var contentWidth = Math.Ceiling(branchFormatted.WidthIncludingTrailingWhitespace);
-        var contentHeight = Math.Ceiling(branchFormatted.Height);
-
-        var showRepository = settings.OverlayShowRepositoryName;
-        if (showRepository)
+        var contentWidth = 0d;
+        var contentHeight = 0d;
+        for (var i = 0; i < visibleTextBlocks.Length; i++)
         {
-            var repoTypeface = new Typeface(
-                RepositoryText.FontFamily, RepositoryText.FontStyle, RepositoryText.FontWeight, RepositoryText.FontStretch);
-            var repoFormatted = MeasureText(RepositoryText.Text, repoTypeface, RepositoryText.FontSize, foreground);
-            contentWidth = Math.Max(contentWidth, Math.Ceiling(repoFormatted.WidthIncludingTrailingWhitespace));
-            contentHeight += (BaseLineGap * scale) + Math.Ceiling(repoFormatted.Height);
+            var textBlock = visibleTextBlocks[i];
+            var formatted = MeasureTextBlock(textBlock, foreground);
+            contentWidth = Math.Max(contentWidth, Math.Ceiling(formatted.WidthIncludingTrailingWhitespace));
+            contentHeight += Math.Ceiling(formatted.Height);
+            if (i > 0)
+            {
+                contentHeight += BaseLineGap * scale;
+            }
         }
 
-        ApplyMaxWidth(BranchText, contentWidth, maxContentWidth);
-        if (showRepository)
+        foreach (var textBlock in visibleTextBlocks)
         {
-            ApplyMaxWidth(RepositoryText, contentWidth, maxContentWidth);
+            ApplyMaxWidth(textBlock, contentWidth, maxContentWidth);
         }
-        else
+
+        foreach (var textBlock in new[] { BranchText, RepositoryText, ActivityReasonText }.Except(visibleTextBlocks))
         {
-            RepositoryText.ClearValue(FrameworkElement.MaxWidthProperty);
-            RepositoryText.TextTrimming = TextTrimming.None;
+            textBlock.ClearValue(FrameworkElement.MaxWidthProperty);
+            textBlock.TextTrimming = TextTrimming.None;
         }
 
         if (contentWidth > maxContentWidth)
@@ -151,6 +164,42 @@ public partial class OverlayWindow : Window
 
         Width = contentWidth + horizontalPadding + borderSize;
         Height = contentHeight + verticalPadding + borderSize;
+    }
+
+    private FormattedText MeasureTextBlock(TextBlock textBlock, System.Windows.Media.Brush foreground)
+    {
+        var typeface = new Typeface(
+            textBlock.FontFamily, textBlock.FontStyle, textBlock.FontWeight, textBlock.FontStretch);
+        return MeasureText(textBlock.Text, typeface, textBlock.FontSize, foreground);
+    }
+
+    private IEnumerable<TextBlock> GetVisibleTextBlocks()
+    {
+        return ContentPanel.Children
+            .OfType<TextBlock>()
+            .Where(textBlock => textBlock.Visibility == Visibility.Visible);
+    }
+
+    private void ConfigureLineOrder()
+    {
+        ContentPanel.Children.Clear();
+        ContentPanel.Children.Add(BranchText);
+        ContentPanel.Children.Add(RepositoryText);
+        ContentPanel.Children.Add(ActivityReasonText);
+    }
+
+    private void ApplyLineMargins(double scale)
+    {
+        foreach (var textBlock in ContentPanel.Children.OfType<TextBlock>())
+        {
+            textBlock.Margin = new Thickness(0);
+        }
+
+        var visibleTextBlocks = GetVisibleTextBlocks().ToArray();
+        for (var i = 1; i < visibleTextBlocks.Length; i++)
+        {
+            visibleTextBlocks[i].Margin = new Thickness(0, BaseLineGap * scale, 0, 0);
+        }
     }
 
     private FormattedText MeasureText(string text, Typeface typeface, double fontSize, System.Windows.Media.Brush foreground)

@@ -1,7 +1,3 @@
-using System.Security.Cryptography;
-using System.Security.Principal;
-using System.Text;
-
 namespace BranchWatch;
 
 internal sealed class BranchWatchSingleInstance : IDisposable
@@ -15,7 +11,7 @@ internal sealed class BranchWatchSingleInstance : IDisposable
 
     public static BranchWatchSingleInstance? TryAcquire()
     {
-        var mutex = new Mutex(initiallyOwned: true, CreateCurrentUserMutexName(), out var createdNew);
+        var mutex = new Mutex(initiallyOwned: true, BranchWatchApplicationIdentity.MutexName, out var createdNew);
         if (createdNew)
         {
             return new BranchWatchSingleInstance(mutex);
@@ -36,14 +32,5 @@ internal sealed class BranchWatchSingleInstance : IDisposable
         }
 
         _mutex.Dispose();
-    }
-
-    private static string CreateCurrentUserMutexName()
-    {
-        var user = WindowsIdentity.GetCurrent().User?.Value
-            ?? Environment.UserName
-            ?? "unknown";
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(user)))[..16];
-        return $@"Local\BranchWatch-{hash}";
     }
 }

@@ -8,5 +8,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>BranchWatch</AssemblyName>
     <RootNamespace>BranchWatch</RootNamespace>
+    <StartupObject>BranchWatch.Program</StartupObject>
   </PropertyGroup>
 </Project>

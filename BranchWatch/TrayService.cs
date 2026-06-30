@@ -385,7 +385,10 @@ public sealed class TrayService : IDisposable
 
         if (_settings.OverlayVisible && !string.IsNullOrWhiteSpace(status.RepositoryRoot))
         {
-            _overlayWindow.SetOverlayText(status.BranchDisplay, status.RepositoryRoot);
+            var activityReason = WorkspaceActivityReasonFormatter.FormatForOverlay(
+                _settings,
+                _sessionController.LastWorkspaceActivityReason);
+            _overlayWindow.SetOverlayText(status.BranchDisplay, status.RepositoryRoot, activityReason);
             _overlayWindow.ShowOverlay(_settings);
         }
         else
@@ -417,15 +420,7 @@ public sealed class TrayService : IDisposable
 
     private static string FormatWorkspaceActivityReason(WorkspaceActivityReason? reason)
     {
-        return reason switch
-        {
-            WorkspaceActivityReason.WorkspaceLoaded => "workspace loaded",
-            WorkspaceActivityReason.WorkspaceRescanned => "workspace rescanned",
-            WorkspaceActivityReason.BranchChanged => "branch changed",
-            WorkspaceActivityReason.IndexChanged => "index changed",
-            WorkspaceActivityReason.FileChanged => "file changed",
-            _ => "(none)"
-        };
+        return WorkspaceActivityReasonFormatter.FormatOrNone(reason);
     }
 
     private static Forms.Form CreateDialogOwner()
