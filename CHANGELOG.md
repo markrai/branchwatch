@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.2] - 2026-06-29
+
+### Fixed
+
+- WorkspaceRepo mode waits for workspace activity on startup when no valid last-active repository is available, instead of auto-selecting the pinned repository
+
 ## [1.1.1] - 2026-06-29
 
 ### Fixed

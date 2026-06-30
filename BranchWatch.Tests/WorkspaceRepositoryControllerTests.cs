@@ -25,7 +25,7 @@ public sealed class WorkspaceRepositoryControllerTests
     }
 
     [TestMethod]
-    public void WorkspaceModeStartsWithPinnedRepoWhenPinnedRepoIsDiscovered()
+    public void WorkspaceModeWaitsForActivityWhenNoLastActiveWorkspaceRepoIsConfigured()
     {
         using var workspace = new TestRepositoryWorkspace();
         var repo1 = workspace.CreateRepo("repo1");
@@ -37,7 +37,8 @@ public sealed class WorkspaceRepositoryControllerTests
         var result = controller.LoadWorkspace();
 
         Assert.IsTrue(result.Success, result.ErrorMessage);
-        Assert.AreEqual(repo2, watcher.CurrentStatus.RepositoryRoot);
+        Assert.IsNull(watcher.CurrentStatus.RepositoryRoot);
+        Assert.AreEqual(RepositorySessionController.WaitingForWorkspaceActivityStatus, controller.WorkspaceStatusText);
         Assert.AreEqual(repo2, settings.WatchedRepositoryPath);
         Assert.HasCount(2, result.Repositories);
         Assert.IsTrue(result.Repositories.Any(repository => repository.RepositoryRoot == repo1));
@@ -67,7 +68,7 @@ public sealed class WorkspaceRepositoryControllerTests
     }
 
     [TestMethod]
-    public void WorkspaceModeFallsBackToPinnedRepoWhenLastActiveWorkspaceRepoIsStale()
+    public void WorkspaceModeWaitsForActivityWhenLastActiveWorkspaceRepoIsStale()
     {
         using var workspace = new TestRepositoryWorkspace();
         var pinnedRepo = workspace.CreateRepo("pinned");
@@ -83,7 +84,8 @@ public sealed class WorkspaceRepositoryControllerTests
         var result = controller.LoadWorkspace();
 
         Assert.IsTrue(result.Success, result.ErrorMessage);
-        Assert.AreEqual(pinnedRepo, watcher.CurrentStatus.RepositoryRoot);
+        Assert.IsNull(watcher.CurrentStatus.RepositoryRoot);
+        Assert.AreEqual(RepositorySessionController.WaitingForWorkspaceActivityStatus, controller.WorkspaceStatusText);
         Assert.AreEqual(pinnedRepo, settings.WatchedRepositoryPath);
         Assert.AreEqual(staleLastActive, settings.LastActiveWorkspaceRepositoryPath);
     }
@@ -213,7 +215,8 @@ public sealed class WorkspaceRepositoryControllerTests
         var promoted = controller.PromoteWorkspaceRepositoryForFileActivity(repo2, Path.Combine(repo2, ".git", "HEAD"));
 
         Assert.IsFalse(promoted);
-        Assert.AreEqual(repo1, watcher.CurrentStatus.RepositoryRoot);
+        Assert.IsNull(watcher.CurrentStatus.RepositoryRoot);
+        Assert.AreEqual(RepositorySessionController.WaitingForWorkspaceActivityStatus, controller.WorkspaceStatusText);
         Assert.AreEqual(WorkspaceActivityReason.WorkspaceLoaded, controller.LastWorkspaceActivityReason);
     }
 
@@ -274,7 +277,8 @@ public sealed class WorkspaceRepositoryControllerTests
             Path.Combine(repo2, "node_modules", "package", "index.js"));
 
         Assert.IsFalse(promoted);
-        Assert.AreEqual(repo1, watcher.CurrentStatus.RepositoryRoot);
+        Assert.IsNull(watcher.CurrentStatus.RepositoryRoot);
+        Assert.AreEqual(RepositorySessionController.WaitingForWorkspaceActivityStatus, controller.WorkspaceStatusText);
         Assert.AreEqual(WorkspaceActivityReason.WorkspaceLoaded, controller.LastWorkspaceActivityReason);
     }
 
@@ -387,7 +391,8 @@ public sealed class WorkspaceRepositoryControllerTests
         var promoted = controller.RefreshWorkspaceRepository(repo2);
 
         Assert.IsFalse(promoted);
-        Assert.AreEqual(repo1, watcher.CurrentStatus.RepositoryRoot);
+        Assert.IsNull(watcher.CurrentStatus.RepositoryRoot);
+        Assert.AreEqual(RepositorySessionController.WaitingForWorkspaceActivityStatus, controller.WorkspaceStatusText);
     }
 
     [TestMethod]

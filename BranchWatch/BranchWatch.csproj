@@ -9,6 +9,6 @@
     <AssemblyName>BranchWatch</AssemblyName>
     <RootNamespace>BranchWatch</RootNamespace>
     <StartupObject>BranchWatch.Program</StartupObject>
-    <Version>1.1.1</Version>
+    <Version>1.1.2</Version>
   </PropertyGroup>
 </Project>

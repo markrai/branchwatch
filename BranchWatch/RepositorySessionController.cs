@@ -263,7 +263,7 @@ public sealed class RepositorySessionController : IDisposable
             return lastActive;
         }
 
-        return FindRepository(repositories, _settings.WatchedRepositoryPath);
+        return null;
     }
 
     private static RepositoryStatus? FindRepository(
