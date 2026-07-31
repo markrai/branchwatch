@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0] - 2026-07-31
+
+### Added
+
+- Separate virtual desktop overlay showing the current Windows virtual desktop name
+- Tray menu `Virtual Desktops...` item with a dedicated configuration window for placement and personalization
+
 ## [1.1.2] - 2026-06-29
 
 ### Fixed

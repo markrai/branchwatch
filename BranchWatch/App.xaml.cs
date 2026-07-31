@@ -10,6 +10,7 @@ public partial class App : System.Windows.Application
     private GitRepositoryWatcher? _repositoryWatcher;
     private RepositorySessionController? _sessionController;
     private OverlayWindow? _overlayWindow;
+    private VirtualDesktopOverlayController? _virtualDesktopOverlayController;
     private TrayService? _trayService;
     private BranchWatchIpcServer? _ipcServer;
 
@@ -37,14 +38,17 @@ public partial class App : System.Windows.Application
         _ipcServer = new BranchWatchIpcServer(_sessionController);
         _ipcServer.Start();
         _overlayWindow = new OverlayWindow();
+        _virtualDesktopOverlayController = new VirtualDesktopOverlayController(_settingsService, settings);
         _trayService = new TrayService(
             _settingsService,
             settings,
             _startupService,
             _sessionController,
             _repositoryWatcher,
-            _overlayWindow);
+            _overlayWindow,
+            _virtualDesktopOverlayController);
         _trayService.Start();
+        _virtualDesktopOverlayController.Start();
 
         if (e.Args.Length > 0)
         {
@@ -64,6 +68,7 @@ public partial class App : System.Windows.Application
     {
         _ipcServer?.Dispose();
         _trayService?.Dispose();
+        _virtualDesktopOverlayController?.Dispose();
         _sessionController?.Dispose();
         _repositoryWatcher?.Dispose();
         _overlayWindow?.Close();

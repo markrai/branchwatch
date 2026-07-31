@@ -32,6 +32,14 @@ public sealed class AppSettings
     public bool OverlayRepositoryFullPath { get; set; }
     public bool ShowWorkspaceActivityReason { get; set; }
     public string OverlayFontColor { get; set; } = "#FFFFFF";
+    public bool VirtualDesktopOverlayVisible { get; set; } = true;
+    public bool VirtualDesktopOverlayShowOnlyOnDesktop { get; set; }
+    public string VirtualDesktopOverlayPositionPreset { get; set; } = "top-left";
+    public bool VirtualDesktopOverlayShowOutline { get; set; } = true;
+    public double VirtualDesktopOverlayScale { get; set; } = 1.0;
+    public double VirtualDesktopOverlayOpacity { get; set; } = 0.85;
+    public double VirtualDesktopOverlayForegroundOpacity { get; set; } = 1.0;
+    public string VirtualDesktopOverlayFontColor { get; set; } = "#FFFFFF";
 }
 
 public static class OverlaySettings
@@ -118,6 +126,9 @@ public sealed class SettingsService
             settings.OverlayOpacity = OverlaySettings.ClampOpacity(settings.OverlayOpacity);
             settings.OverlayForegroundOpacity = OverlaySettings.ClampForegroundOpacity(settings.OverlayForegroundOpacity);
             settings.OverlayScale = OverlaySettings.ClampScale(settings.OverlayScale);
+            settings.VirtualDesktopOverlayOpacity = OverlaySettings.ClampOpacity(settings.VirtualDesktopOverlayOpacity);
+            settings.VirtualDesktopOverlayForegroundOpacity = OverlaySettings.ClampForegroundOpacity(settings.VirtualDesktopOverlayForegroundOpacity);
+            settings.VirtualDesktopOverlayScale = OverlaySettings.ClampScale(settings.VirtualDesktopOverlayScale);
             return settings;
         }
         catch

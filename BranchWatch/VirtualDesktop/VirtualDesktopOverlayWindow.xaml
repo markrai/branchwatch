@@ -1,0 +1,30 @@
+<Window x:Class="BranchWatch.VirtualDesktopOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="BranchWatch Virtual Desktop"
+        Width="320"
+        Height="56"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowActivated="False"
+        ShowInTaskbar="False"
+        Topmost="True"
+        Focusable="False">
+    <Border x:Name="RootBorder"
+            Background="#D9141820"
+            BorderBrush="#80FFFFFF"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="18,8"
+            IsHitTestVisible="False">
+        <TextBlock x:Name="DesktopText"
+                   Text="Desktop 1"
+                   HorizontalAlignment="Left"
+                   TextAlignment="Left"
+                   FontSize="28"
+                   FontWeight="SemiBold"
+                   Foreground="White" />
+    </Border>
+</Window>

@@ -1,18 +1,17 @@
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Media;
 using Forms = System.Windows.Forms;
 
 namespace BranchWatch;
 
-public partial class PersonalizeWindow : Window
+public partial class VirtualDesktopsWindow : Window
 {
     private readonly SettingsService _settingsService;
     private readonly AppSettings _settings;
     private readonly Action _onSettingsChanged;
     private bool _isLoading;
 
-    public PersonalizeWindow(SettingsService settingsService, AppSettings settings, Action onSettingsChanged)
+    public VirtualDesktopsWindow(SettingsService settingsService, AppSettings settings, Action onSettingsChanged)
     {
         _settingsService = settingsService;
         _settings = settings;
@@ -50,10 +49,13 @@ public partial class PersonalizeWindow : Window
 
     private void LoadFromSettings()
     {
-        switch (_settings.OverlayPositionPreset?.Trim().ToLowerInvariant())
+        ShowOverlayCheckBox.IsChecked = _settings.VirtualDesktopOverlayVisible;
+        ShowOnlyOnDesktopCheckBox.IsChecked = _settings.VirtualDesktopOverlayShowOnlyOnDesktop;
+
+        switch (_settings.VirtualDesktopOverlayPositionPreset?.Trim().ToLowerInvariant())
         {
-            case "top-left":
-                TopLeftRadio.IsChecked = true;
+            case "top-right":
+                TopRightRadio.IsChecked = true;
                 break;
             case "bottom-left":
                 BottomLeftRadio.IsChecked = true;
@@ -61,31 +63,23 @@ public partial class PersonalizeWindow : Window
             case "bottom-right":
                 BottomRightRadio.IsChecked = true;
                 break;
-            case "top-right":
+            case "show-on-taskbar":
+                TaskbarRadio.IsChecked = true;
+                break;
+            case "top-left":
             default:
-                TopRightRadio.IsChecked = true;
+                TopLeftRadio.IsChecked = true;
                 break;
         }
 
-        ShowOutlineCheckBox.IsChecked = _settings.OverlayShowOutline;
-        ShowRepositoryNameCheckBox.IsChecked = _settings.OverlayShowRepositoryName;
-        ShowActivityReasonCheckBox.IsChecked = _settings.ShowWorkspaceActivityReason;
-        if (_settings.OverlayRepositoryFullPath)
-        {
-            RepositoryFullPathRadio.IsChecked = true;
-        }
-        else
-        {
-            RepositoryFolderRadio.IsChecked = true;
-        }
-        UpdateRepositoryLabelPanelState();
-        SizeSlider.Value = OverlaySettings.ClampScale(_settings.OverlayScale);
+        ShowOutlineCheckBox.IsChecked = _settings.VirtualDesktopOverlayShowOutline;
+        SizeSlider.Value = OverlaySettings.ClampScale(_settings.VirtualDesktopOverlayScale);
         UpdateSizeLabel(SizeSlider.Value);
-        OpacitySlider.Value = OverlaySettings.ClampOpacity(_settings.OverlayOpacity);
+        OpacitySlider.Value = OverlaySettings.ClampOpacity(_settings.VirtualDesktopOverlayOpacity);
         UpdateOpacityLabel(OpacitySlider.Value);
-        ForegroundOpacitySlider.Value = OverlaySettings.ClampForegroundOpacity(_settings.OverlayForegroundOpacity);
+        ForegroundOpacitySlider.Value = OverlaySettings.ClampForegroundOpacity(_settings.VirtualDesktopOverlayForegroundOpacity);
         UpdateForegroundOpacityLabel(ForegroundOpacitySlider.Value);
-        UpdateFontColorPreview(OverlaySettings.ParseFontColor(_settings.OverlayFontColor));
+        UpdateFontColorPreview(OverlaySettings.ParseFontColor(_settings.VirtualDesktopOverlayFontColor));
 
         _isLoading = false;
     }
@@ -97,18 +91,11 @@ public partial class PersonalizeWindow : Window
             return;
         }
 
-        _settings.OverlayPositionPreset = GetSelectedPosition();
-        _settings.OverlayShowOutline = ShowOutlineCheckBox.IsChecked == true;
-        _settings.OverlayShowRepositoryName = ShowRepositoryNameCheckBox.IsChecked == true;
-        _settings.OverlayRepositoryFullPath = RepositoryFullPathRadio.IsChecked == true;
-        _settings.ShowWorkspaceActivityReason = ShowActivityReasonCheckBox.IsChecked == true;
-        UpdateRepositoryLabelPanelState();
+        _settings.VirtualDesktopOverlayVisible = ShowOverlayCheckBox.IsChecked == true;
+        _settings.VirtualDesktopOverlayShowOnlyOnDesktop = ShowOnlyOnDesktopCheckBox.IsChecked == true;
+        _settings.VirtualDesktopOverlayPositionPreset = GetSelectedPosition();
+        _settings.VirtualDesktopOverlayShowOutline = ShowOutlineCheckBox.IsChecked == true;
         SaveAndApply();
-    }
-
-    private void UpdateRepositoryLabelPanelState()
-    {
-        RepositoryLabelPanel.IsEnabled = ShowRepositoryNameCheckBox.IsChecked == true;
     }
 
     private void OnSizeSliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -118,8 +105,8 @@ public partial class PersonalizeWindow : Window
             return;
         }
 
-        _settings.OverlayScale = OverlaySettings.ClampScale(SizeSlider.Value);
-        UpdateSizeLabel(_settings.OverlayScale);
+        _settings.VirtualDesktopOverlayScale = OverlaySettings.ClampScale(SizeSlider.Value);
+        UpdateSizeLabel(_settings.VirtualDesktopOverlayScale);
         SaveAndApply();
     }
 
@@ -130,8 +117,8 @@ public partial class PersonalizeWindow : Window
             return;
         }
 
-        _settings.OverlayOpacity = OverlaySettings.ClampOpacity(OpacitySlider.Value);
-        UpdateOpacityLabel(_settings.OverlayOpacity);
+        _settings.VirtualDesktopOverlayOpacity = OverlaySettings.ClampOpacity(OpacitySlider.Value);
+        UpdateOpacityLabel(_settings.VirtualDesktopOverlayOpacity);
         SaveAndApply();
     }
 
@@ -142,14 +129,14 @@ public partial class PersonalizeWindow : Window
             return;
         }
 
-        _settings.OverlayForegroundOpacity = OverlaySettings.ClampForegroundOpacity(ForegroundOpacitySlider.Value);
-        UpdateForegroundOpacityLabel(_settings.OverlayForegroundOpacity);
+        _settings.VirtualDesktopOverlayForegroundOpacity = OverlaySettings.ClampForegroundOpacity(ForegroundOpacitySlider.Value);
+        UpdateForegroundOpacityLabel(_settings.VirtualDesktopOverlayForegroundOpacity);
         SaveAndApply();
     }
 
     private void OnChooseColorClick(object sender, RoutedEventArgs e)
     {
-        var current = OverlaySettings.ParseFontColor(_settings.OverlayFontColor);
+        var current = OverlaySettings.ParseFontColor(_settings.VirtualDesktopOverlayFontColor);
         using var dialog = new Forms.ColorDialog
         {
             Color = System.Drawing.Color.FromArgb(current.R, current.G, current.B),
@@ -161,9 +148,9 @@ public partial class PersonalizeWindow : Window
             return;
         }
 
-        _settings.OverlayFontColor = OverlaySettings.ToHexColor(
+        _settings.VirtualDesktopOverlayFontColor = OverlaySettings.ToHexColor(
             System.Windows.Media.Color.FromRgb(dialog.Color.R, dialog.Color.G, dialog.Color.B));
-        UpdateFontColorPreview(OverlaySettings.ParseFontColor(_settings.OverlayFontColor));
+        UpdateFontColorPreview(OverlaySettings.ParseFontColor(_settings.VirtualDesktopOverlayFontColor));
         SaveAndApply();
     }
 
@@ -174,9 +161,9 @@ public partial class PersonalizeWindow : Window
 
     private string GetSelectedPosition()
     {
-        if (TopLeftRadio.IsChecked == true)
+        if (TopRightRadio.IsChecked == true)
         {
-            return "top-left";
+            return "top-right";
         }
 
         if (BottomLeftRadio.IsChecked == true)
@@ -189,7 +176,12 @@ public partial class PersonalizeWindow : Window
             return "bottom-right";
         }
 
-        return "top-right";
+        if (TaskbarRadio.IsChecked == true)
+        {
+            return "show-on-taskbar";
+        }
+
+        return "top-left";
     }
 
     private void UpdateSizeLabel(double scale)

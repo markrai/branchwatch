@@ -14,6 +14,7 @@ public sealed class TrayService : IDisposable
     private readonly RepositorySessionController _sessionController;
     private readonly GitRepositoryWatcher _repositoryWatcher;
     private readonly OverlayWindow _overlayWindow;
+    private readonly VirtualDesktopOverlayController _virtualDesktopOverlayController;
     private readonly Forms.NotifyIcon _notifyIcon;
     private readonly Forms.Form _dialogOwner;
     private PersonalizeWindow? _personalizeWindow;
@@ -37,7 +38,8 @@ public sealed class TrayService : IDisposable
         StartupService startupService,
         RepositorySessionController sessionController,
         GitRepositoryWatcher repositoryWatcher,
-        OverlayWindow overlayWindow)
+        OverlayWindow overlayWindow,
+        VirtualDesktopOverlayController virtualDesktopOverlayController)
     {
         _settingsService = settingsService;
         _settings = settings;
@@ -45,6 +47,7 @@ public sealed class TrayService : IDisposable
         _sessionController = sessionController;
         _repositoryWatcher = repositoryWatcher;
         _overlayWindow = overlayWindow;
+        _virtualDesktopOverlayController = virtualDesktopOverlayController;
         _dialogOwner = CreateDialogOwner();
         _notifyIcon = new Forms.NotifyIcon
         {
@@ -157,6 +160,7 @@ public sealed class TrayService : IDisposable
         _rescanWorkspaceItem = CreateItem("Rescan workspace", (_, _) => RescanWorkspace());
         menu.Items.Add(_rescanWorkspaceItem);
         menu.Items.Add(CreateItem("Personalize...", (_, _) => OpenPersonalize()));
+        menu.Items.Add(CreateItem("Virtual Desktops...", (_, _) => OpenVirtualDesktops()));
 
         _refreshItem = CreateItem("Refresh branch", (_, _) => RefreshBranch());
         menu.Items.Add(_refreshItem);
@@ -319,6 +323,11 @@ public sealed class TrayService : IDisposable
                 _personalizeWindow.Focus();
             }
         });
+    }
+
+    private void OpenVirtualDesktops()
+    {
+        RunAfterContextMenuClosed(() => _virtualDesktopOverlayController.OpenConfigWindow());
     }
 
     private void RefreshBranch()

@@ -2,7 +2,7 @@
 
 ![BranchWatch preview](preview.jpg)
 
-**Version 1.1.2**
+**Version 1.2.0**
 
 BranchWatch is a lightweight Windows tray app that displays the active Git repo/branch in a persistent always-on-top overlay.
 
@@ -49,6 +49,12 @@ The path may be the repository root or any folder inside the repository. BranchW
 
 This is optional. Normal WorkspaceRepo behavior still works without it.
 
+## Virtual Desktops
+
+BranchWatch can show the current Windows virtual desktop name on a separate always-on-top overlay, independent of the git branch overlay.
+
+Use the tray menu item `Virtual Desktops...` to show or hide the overlay, choose its screen position, and personalize size, opacity, outline, and font color. The overlay updates when you switch desktops.
+
 ## Build
 
 ```powershell
@@ -83,7 +89,7 @@ Settings are stored per user at:
 %AppData%\BranchWatch\settings.json
 ```
 
-Settings include the pinned repository path, workspace root path, watch mode, workspace discovery depth, internal workspace file activity toggle, optional overlay activity reason display, overlay visibility, overlay position, opacity, outline, font color, and startup preference.
+Settings include the pinned repository path, workspace root path, watch mode, workspace discovery depth, internal workspace file activity toggle, optional overlay activity reason display, overlay visibility, overlay position, opacity, outline, font color, virtual desktop overlay visibility and personalization, and startup preference.
 
 `Start with Windows` is stored in the current-user registry Run key:
 

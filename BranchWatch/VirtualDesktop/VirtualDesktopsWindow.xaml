@@ -1,7 +1,7 @@
-<Window x:Class="BranchWatch.PersonalizeWindow"
+<Window x:Class="BranchWatch.VirtualDesktopsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Personalize Overlay"
+        Title="Virtual Desktops"
         Width="420"
         MinWidth="320"
         SizeToContent="Height"
@@ -21,21 +21,34 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <TextBlock Grid.Row="0"
+            <StackPanel Grid.Row="0"
+                        Orientation="Horizontal"
+                        Margin="0,0,0,16">
+                <CheckBox x:Name="ShowOverlayCheckBox"
+                          Content="Show overlay"
+                          Margin="0,0,24,0"
+                          Checked="OnSettingChanged"
+                          Unchecked="OnSettingChanged" />
+                <CheckBox x:Name="ShowOnlyOnDesktopCheckBox"
+                          Content="Show only on desktop"
+                          Checked="OnSettingChanged"
+                          Unchecked="OnSettingChanged" />
+            </StackPanel>
+
+            <TextBlock Grid.Row="1"
                        Text="Position"
                        FontWeight="SemiBold"
                        Margin="0,0,0,8" />
 
-            <Grid Grid.Row="1" Margin="0,0,0,16">
+            <Grid Grid.Row="2" Margin="0,0,0,16">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
@@ -44,68 +57,47 @@
                              Grid.Row="0"
                              Grid.Column="0"
                              Content="Top left"
-                             GroupName="Position"
+                             GroupName="VirtualDesktopPosition"
                              Margin="0,0,8,8"
                              Checked="OnSettingChanged" />
                 <RadioButton x:Name="TopRightRadio"
                              Grid.Row="0"
                              Grid.Column="1"
                              Content="Top right"
-                             GroupName="Position"
+                             GroupName="VirtualDesktopPosition"
                              Margin="0,0,0,8"
                              Checked="OnSettingChanged" />
                 <RadioButton x:Name="BottomLeftRadio"
                              Grid.Row="1"
                              Grid.Column="0"
                              Content="Bottom left"
-                             GroupName="Position"
+                             GroupName="VirtualDesktopPosition"
                              Margin="0,0,8,0"
                              Checked="OnSettingChanged" />
                 <RadioButton x:Name="BottomRightRadio"
                              Grid.Row="1"
                              Grid.Column="1"
                              Content="Bottom right"
-                             GroupName="Position"
+                             GroupName="VirtualDesktopPosition"
+                             Margin="0,0,0,8"
+                             Checked="OnSettingChanged" />
+                <RadioButton x:Name="TaskbarRadio"
+                             Grid.Row="2"
+                             Grid.Column="0"
+                             Grid.ColumnSpan="2"
+                             Content="Show on Taskbar"
+                             GroupName="VirtualDesktopPosition"
                              Checked="OnSettingChanged" />
             </Grid>
 
             <CheckBox x:Name="ShowOutlineCheckBox"
-                      Grid.Row="2"
-                      Content="Show outline"
-                      Margin="0,0,0,8"
-                      Checked="OnSettingChanged"
-                      Unchecked="OnSettingChanged" />
-
-            <CheckBox x:Name="ShowRepositoryNameCheckBox"
                       Grid.Row="3"
-                      Content="Show repository name"
-                      Margin="0,0,0,4"
-                      Checked="OnSettingChanged"
-                      Unchecked="OnSettingChanged" />
-
-            <StackPanel x:Name="RepositoryLabelPanel"
-                        Grid.Row="4"
-                        Margin="24,0,0,16"
-                        IsEnabled="False">
-                <RadioButton x:Name="RepositoryFolderRadio"
-                             Content="Folder name"
-                             GroupName="RepositoryLabel"
-                             Margin="0,0,0,4"
-                             Checked="OnSettingChanged" />
-                <RadioButton x:Name="RepositoryFullPathRadio"
-                             Content="Full path"
-                             GroupName="RepositoryLabel"
-                             Checked="OnSettingChanged" />
-            </StackPanel>
-
-            <CheckBox x:Name="ShowActivityReasonCheckBox"
-                      Grid.Row="5"
-                      Content="Show activity reason"
+                      Content="Show outline"
                       Margin="0,0,0,16"
                       Checked="OnSettingChanged"
                       Unchecked="OnSettingChanged" />
 
-            <StackPanel Grid.Row="6" Margin="0,0,0,16">
+            <StackPanel Grid.Row="4" Margin="0,0,0,16">
                 <TextBlock Text="Size"
                            FontWeight="SemiBold"
                            Margin="0,0,0,8" />
@@ -120,7 +112,7 @@
                            Foreground="Gray" />
             </StackPanel>
 
-            <StackPanel Grid.Row="7" Margin="0,0,0,16">
+            <StackPanel Grid.Row="5" Margin="0,0,0,16">
                 <TextBlock Text="Background opacity"
                            FontWeight="SemiBold"
                            Margin="0,0,0,8" />
@@ -135,7 +127,7 @@
                            Foreground="Gray" />
             </StackPanel>
 
-            <StackPanel Grid.Row="8" Margin="0,0,0,16">
+            <StackPanel Grid.Row="6" Margin="0,0,0,16">
                 <TextBlock Text="Foreground opacity"
                            FontWeight="SemiBold"
                            Margin="0,0,0,8" />
@@ -150,7 +142,7 @@
                            Foreground="Gray" />
             </StackPanel>
 
-            <StackPanel Grid.Row="9" Orientation="Horizontal" Margin="0,0,0,16">
+            <StackPanel Grid.Row="7" Orientation="Horizontal" Margin="0,0,0,16">
                 <TextBlock Text="Font color"
                            FontWeight="SemiBold"
                            VerticalAlignment="Center"
@@ -172,7 +164,7 @@
                 </Button>
             </StackPanel>
 
-            <Button Grid.Row="10"
+            <Button Grid.Row="8"
                     Content="Close"
                     HorizontalAlignment="Right"
                     Padding="16,6"
