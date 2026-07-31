@@ -81,6 +81,26 @@ dotnet publish BranchWatch/BranchWatch.csproj -c Release -r win-x64 --self-conta
 
 The published executable is self-contained and does not require a separate .NET runtime install.
 
+## GitHub Releases
+
+Pushing a tag matching `vMAJOR.MINOR.PATCH` runs [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds self-contained executables for `win-x64` and `win-arm64`, generates SHA256 checksums, and publishes **GitHub artifact attestations** (SLSA provenance) for each binary.
+
+Each release includes, per platform:
+
+- `BranchWatch-win-x64.exe` / `BranchWatch-win-arm64.exe`
+- matching `.exe.sha256` checksum files
+- matching `.exe.intoto.jsonl` provenance bundles
+
+Verify a downloaded executable with the GitHub CLI:
+
+```powershell
+gh attestation verify .\BranchWatch-win-x64.exe `
+  -R OWNER/branchwatch `
+  --bundle .\BranchWatch-win-x64.exe.intoto.jsonl `
+  --signer-workflow OWNER/branchwatch/.github/workflows/release.yml `
+  --deny-self-hosted-runners
+```
+
 ## Settings
 
 Settings are stored per user at:
