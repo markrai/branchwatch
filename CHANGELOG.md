@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.2.1] - 2026-07-31
+
+### Added
+
+- Virtual desktop overlay `Show only on desktop` toggle so application windows can take z-order precedence
+- Virtual desktop overlay `Show on Taskbar` position option, centered and aligned with the taskbar
+
+### Fixed
+
+- Virtual Desktops font color picker not opening or applying correctly
+- `Show on Taskbar` overlay disappearing when the taskbar is clicked (uses topmost re-assertion)
+
+### Notes
+
+- Position relative to taskbar HWND (advanced) is not implemented. `Show on Taskbar` does not anchor to the taskbar window handle; it uses work-area geometry and periodic topmost re-assertion instead.
+
 ## [1.2.0] - 2026-07-31
 
 ### Added

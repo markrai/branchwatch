@@ -3,22 +3,29 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace BranchWatch;
 
 public partial class VirtualDesktopOverlayWindow : Window
 {
     private const int GwlExStyle = -20;
+    private const int SwpNoActivate = 0x0010;
+    private const int SwpNomove = 0x0002;
+    private const int SwpNosize = 0x0001;
     private const long WsExTransparent = 0x00000020;
     private const long WsExToolWindow = 0x00000080;
     private const long WsExLayered = 0x00080000;
     private const long WsExNoActivate = 0x08000000;
+    private static readonly IntPtr HwndTopmost = new(-1);
+    private static readonly IntPtr HwndNotopmost = new(-2);
     private const double OutlineBorderSize = 2;
     private const double BaseCornerRadius = 8;
     private const double ScreenMargin = 24;
     private const double DesktopFontScale = 0.67;
 
     private string _displayName = "Desktop 1";
+    private DispatcherTimer? _taskbarZOrderTimer;
 
     public VirtualDesktopOverlayWindow()
     {
@@ -65,23 +72,96 @@ public partial class VirtualDesktopOverlayWindow : Window
             Show();
         }
 
+        ApplyTopmostPolicy(settings);
+        ActivateClickThrough();
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        StopTaskbarZOrderTimer();
+        base.OnClosed(e);
+    }
+
+    private void ApplyTopmostPolicy(AppSettings settings)
+    {
+        StopTaskbarZOrderTimer();
+
+        if (IsTaskbarPosition(settings.VirtualDesktopOverlayPositionPreset))
+        {
+            EnsureAboveTaskbar();
+            StartTaskbarZOrderTimer();
+            return;
+        }
+
         if (settings.VirtualDesktopOverlayShowOnlyOnDesktop)
         {
             Topmost = false;
+            SetNativeTopmost(false);
         }
         else
         {
             Topmost = false;
             Topmost = true;
         }
-
-        ActivateClickThrough();
     }
 
-    protected override void OnSourceInitialized(EventArgs e)
+    private static bool IsTaskbarPosition(string? preset) =>
+        string.Equals(preset?.Trim(), "show-on-taskbar", StringComparison.OrdinalIgnoreCase);
+
+    private void EnsureAboveTaskbar()
     {
-        base.OnSourceInitialized(e);
-        ActivateClickThrough();
+        Topmost = true;
+        SetNativeTopmost(true);
+    }
+
+    private void SetNativeTopmost(bool topmost)
+    {
+        var handle = new WindowInteropHelper(this).Handle;
+        if (handle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        SetWindowPos(
+            handle,
+            topmost ? HwndTopmost : HwndNotopmost,
+            0,
+            0,
+            0,
+            0,
+            SwpNomove | SwpNosize | SwpNoActivate);
+    }
+
+    private void StartTaskbarZOrderTimer()
+    {
+        _taskbarZOrderTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(400)
+        };
+        _taskbarZOrderTimer.Tick += OnTaskbarZOrderTimerTick;
+        _taskbarZOrderTimer.Start();
+    }
+
+    private void StopTaskbarZOrderTimer()
+    {
+        if (_taskbarZOrderTimer is null)
+        {
+            return;
+        }
+
+        _taskbarZOrderTimer.Tick -= OnTaskbarZOrderTimerTick;
+        _taskbarZOrderTimer.Stop();
+        _taskbarZOrderTimer = null;
+    }
+
+    private void OnTaskbarZOrderTimerTick(object? sender, EventArgs e)
+    {
+        if (!IsVisible)
+        {
+            return;
+        }
+
+        EnsureAboveTaskbar();
     }
 
     private void UpdateSize(AppSettings settings, double scale)
@@ -172,6 +252,12 @@ public partial class VirtualDesktopOverlayWindow : Window
         }
     }
 
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        ActivateClickThrough();
+    }
+
     private void ActivateClickThrough()
     {
         var handle = new WindowInteropHelper(this).Handle;
@@ -209,4 +295,14 @@ public partial class VirtualDesktopOverlayWindow : Window
 
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtr")]
     private static extern IntPtr SetWindowLongPtr64(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(
+        IntPtr hWnd,
+        IntPtr hWndInsertAfter,
+        int x,
+        int y,
+        int cx,
+        int cy,
+        uint uFlags);
 }
