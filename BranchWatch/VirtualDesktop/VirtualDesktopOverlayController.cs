@@ -17,7 +17,7 @@ public sealed class VirtualDesktopOverlayController : IDisposable
         _settings = settings;
         _monitor = new VirtualDesktopMonitor();
         _overlayWindow = new VirtualDesktopOverlayWindow();
-        _monitor.CurrentChanged += OnCurrentDesktopChanged;
+        _monitor.StateChanged += OnDisplayStateChanged;
     }
 
     public void Start()
@@ -52,17 +52,17 @@ public sealed class VirtualDesktopOverlayController : IDisposable
         }
 
         _disposed = true;
-        _monitor.CurrentChanged -= OnCurrentDesktopChanged;
+        _monitor.StateChanged -= OnDisplayStateChanged;
         _configWindow?.Close();
         _monitor.Dispose();
         _overlayWindow.Close();
     }
 
-    private void OnCurrentDesktopChanged(object? sender, VirtualDesktopInfo desktop)
+    private void OnDisplayStateChanged(object? sender, VirtualDesktopDisplayState state)
     {
         System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
         {
-            _overlayWindow.SetDesktopName(desktop.DisplayName);
+            _overlayWindow.SetDisplayState(state);
             ApplyOverlayState();
         });
     }
@@ -75,10 +75,10 @@ public sealed class VirtualDesktopOverlayController : IDisposable
             return;
         }
 
-        var desktop = _monitor.Current ?? VirtualDesktopRegistryReader.TryGetCurrentDesktop();
-        if (desktop is not null)
+        var state = _monitor.CurrentState ?? VirtualDesktopRegistryReader.TryGetDisplayState();
+        if (state is not null)
         {
-            _overlayWindow.SetDesktopName(desktop.DisplayName);
+            _overlayWindow.SetDisplayState(state);
         }
 
         _overlayWindow.ShowOverlay(_settings);

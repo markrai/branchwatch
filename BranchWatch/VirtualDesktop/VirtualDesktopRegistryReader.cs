@@ -12,6 +12,11 @@ public static class VirtualDesktopRegistryReader
 
     public static VirtualDesktopInfo? TryGetCurrentDesktop()
     {
+        return TryGetDisplayState()?.ActiveDesktop;
+    }
+
+    public static VirtualDesktopDisplayState? TryGetDisplayState()
+    {
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(VirtualDesktopsKeyPath, writable: false);
@@ -34,14 +39,15 @@ public static class VirtualDesktopRegistryReader
                 return null;
             }
 
-            var index = desktopIds.ToList().IndexOf(currentId.Value);
-            if (index < 0)
+            var desktops = new VirtualDesktopInfo[desktopIds.Count];
+            for (var i = 0; i < desktopIds.Count; i++)
             {
-                index = 0;
+                var id = desktopIds[i];
+                var name = TryGetDesktopName(key, id);
+                desktops[i] = new VirtualDesktopInfo(id, ResolveDisplayName(i, name));
             }
 
-            var name = TryGetDesktopName(key, currentId.Value);
-            return new VirtualDesktopInfo(currentId.Value, ResolveDisplayName(index, name));
+            return VirtualDesktopDisplayStateBuilder.Build(desktops, currentId.Value);
         }
         catch
         {

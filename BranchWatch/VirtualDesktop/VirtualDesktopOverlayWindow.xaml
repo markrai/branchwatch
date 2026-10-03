@@ -12,19 +12,31 @@
         ShowInTaskbar="False"
         Topmost="True"
         Focusable="False">
-    <Border x:Name="RootBorder"
-            Background="#D9141820"
-            BorderBrush="#80FFFFFF"
-            BorderThickness="1"
-            CornerRadius="8"
-            Padding="18,8"
-            IsHitTestVisible="False">
-        <TextBlock x:Name="DesktopText"
-                   Text="Desktop 1"
-                   HorizontalAlignment="Left"
-                   TextAlignment="Left"
-                   FontSize="28"
-                   FontWeight="SemiBold"
-                   Foreground="White" />
-    </Border>
+    <StackPanel x:Name="RootStrip"
+                Orientation="Horizontal"
+                VerticalAlignment="Center"
+                IsHitTestVisible="False">
+        <StackPanel x:Name="LeftStrip"
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center" />
+        <Border x:Name="RootBorder"
+                Background="#D9141820"
+                BorderBrush="#80FFFFFF"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="18,8"
+                VerticalAlignment="Center"
+                IsHitTestVisible="False">
+            <TextBlock x:Name="DesktopText"
+                       Text="Desktop 1"
+                       HorizontalAlignment="Left"
+                       TextAlignment="Left"
+                       FontSize="28"
+                       FontWeight="SemiBold"
+                       Foreground="White" />
+        </Border>
+        <StackPanel x:Name="RightStrip"
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center" />
+    </StackPanel>
 </Window>

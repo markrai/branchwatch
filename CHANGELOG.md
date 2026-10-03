@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Virtual desktop taskbar overlay neighbor strip: faint labels for desktops to the left and right of the active desktop, anchored so the active name stays at its existing center
+
+### Notes
+
+- Neighbor updates reuse the existing registry poll (~300ms). Create/delete/rename/reorder are detected by comparing the full ordered desktop id+name snapshot; there is no COM/event notification integration.
+
 ## [1.2.1] - 2026-07-31
 
 ### Added
