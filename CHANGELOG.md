@@ -1,10 +1,14 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.2] - 2026-10-03
 
 ### Added
 
 - Virtual desktop taskbar overlay neighbor strip: faint labels for desktops to the left and right of the active desktop, anchored so the active name stays at its existing center
+
+### Fixed
+
+- Active virtual desktop name no longer truncates after neighbor-strip layout: `RootBorder` now explicitly owns the freshly calculated active width/height so prior StackPanel arrange state cannot shrink the active label
 
 ### Notes
 

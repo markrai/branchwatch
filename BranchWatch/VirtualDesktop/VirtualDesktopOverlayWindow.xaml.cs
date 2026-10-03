@@ -34,6 +34,10 @@ public partial class VirtualDesktopOverlayWindow : Window
     private double _activeOffsetX;
     private double _activeOffsetY;
 
+    internal double ActiveWidth => _activeWidth;
+
+    internal double ActiveHeight => _activeHeight;
+
     public VirtualDesktopOverlayWindow()
     {
         InitializeComponent();
@@ -191,23 +195,24 @@ public partial class VirtualDesktopOverlayWindow : Window
             DesktopText.FontFamily, DesktopText.FontStyle, DesktopText.FontWeight, DesktopText.FontStretch);
         var formatted = MeasureText(DesktopText.Text, typeface, DesktopText.FontSize, foreground);
 
-        var contentWidth = Math.Ceiling(formatted.WidthIncludingTrailingWhitespace);
-        var contentHeight = Math.Ceiling(formatted.Height);
+        var activeSize = VirtualDesktopActiveSize.Measure(
+            Math.Ceiling(formatted.WidthIncludingTrailingWhitespace),
+            Math.Ceiling(formatted.Height),
+            horizontalPadding,
+            verticalPadding,
+            borderSize,
+            maxContentWidth);
 
-        if (contentWidth > maxContentWidth)
-        {
-            DesktopText.MaxWidth = maxContentWidth;
-            DesktopText.TextTrimming = TextTrimming.CharacterEllipsis;
-            contentWidth = maxContentWidth;
-        }
-        else
-        {
-            DesktopText.ClearValue(FrameworkElement.MaxWidthProperty);
-            DesktopText.TextTrimming = TextTrimming.None;
-        }
+        ApplyActiveTextConstraints(activeSize, maxContentWidth);
 
-        _activeWidth = contentWidth + horizontalPadding + borderSize;
-        _activeHeight = contentHeight + verticalPadding + borderSize;
+        _activeWidth = activeSize.ActiveWidth;
+        _activeHeight = activeSize.ActiveHeight;
+
+        // Active rectangle must own its calculated size. As a StackPanel child it no
+        // longer inherits an exact width from the Window, so leave no DesiredSize /
+        // arrange-slot dependence on prior active names or neighbor composition.
+        RootBorder.Width = _activeWidth;
+        RootBorder.Height = _activeHeight;
 
         var leftDesktops = _displayState?.LeftDesktops ?? Array.Empty<VirtualDesktopInfo>();
         var rightDesktops = _displayState?.RightDesktops ?? Array.Empty<VirtualDesktopInfo>();
@@ -280,6 +285,25 @@ public partial class VirtualDesktopOverlayWindow : Window
             + layout.ActiveRightGap
             + layout.RenderedRightStripWidth;
         Height = _activeHeight;
+    }
+
+    private void ApplyActiveTextConstraints(VirtualDesktopActiveSizeResult activeSize, double maxContentWidth)
+    {
+        // Clear any Width/MaxWidth left from a previous active desktop before applying
+        // the fresh truncation decision for this name.
+        DesktopText.ClearValue(FrameworkElement.WidthProperty);
+        DesktopText.ClearValue(FrameworkElement.MaxWidthProperty);
+        RootBorder.ClearValue(FrameworkElement.MaxWidthProperty);
+
+        if (activeSize.IsTruncated)
+        {
+            DesktopText.MaxWidth = maxContentWidth;
+            DesktopText.TextTrimming = TextTrimming.CharacterEllipsis;
+        }
+        else
+        {
+            DesktopText.TextTrimming = TextTrimming.None;
+        }
     }
 
     private static List<double> MeasureNeighborWidths(
