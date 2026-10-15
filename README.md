@@ -6,6 +6,17 @@
 
 BranchWatch is a lightweight Windows tray app that displays the active Git repo/branch in a persistent always-on-top overlay.
 
+## Features
+
+- **Always-on-top Git overlay** — shows the active repository and branch at a glance.
+- **PinnedRepo mode** — watch one selected Git repository.
+- **WorkspaceRepo mode** — watch a parent folder; follows the repo with the latest branch, index, or working-tree activity.
+- **Activity reason display** — optionally show why a workspace repo became active, plus explicit `BranchWatch.exe activity` reporting.
+- **Virtual Desktops overlay** — separate overlay showing the current Windows virtual desktop name, with neighbor-desktop strip, `Show only on desktop`, and `Show on Taskbar` options.
+- **Tray control** — choose repository/workspace, rescan, personalize appearance, and configure startup.
+- **Personalization** — overlay position, opacity, outline, size, and font color.
+- **Simple setup** — per-user `settings.json`, `Start with Windows` support, and self-contained publish.
+
 ## Requirements
 
 - Windows 10/11
