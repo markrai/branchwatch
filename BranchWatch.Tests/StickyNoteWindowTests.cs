@@ -25,6 +25,9 @@ public sealed class StickyNoteWindowTests
                 {
                     Assert.IsTrue(window.AllowsTransparency);
                     Assert.IsTrue(window.Topmost);
+                    window.ApplyAppearance(new StickyNoteAppearance("Blue", 8));
+                    Assert.AreEqual("Blue", note.Color);
+                    Assert.AreEqual(ColorConverter.ConvertFromString("#DDEEFF"), ((SolidColorBrush)window.NoteSurface.Background).Color);
                     Assert.AreEqual(WindowStyle.None, window.WindowStyle);
                     Assert.AreEqual(ResizeMode.CanResize, window.ResizeMode);
                     Assert.AreEqual(Colors.Transparent, ((SolidColorBrush)window.Background).Color);

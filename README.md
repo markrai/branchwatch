@@ -69,6 +69,8 @@ Use the tray menu item `Virtual Desktops...` to show or hide the overlay, choose
 
 ## Sticky notes
 
+Open `Sticky notes` → `Preferences...` from the tray to set the default color and transparency for new notes. `Save defaults` leaves existing notes unchanged. `Apply to all notes` saves the defaults and immediately updates every note, including closed notes and notes on other virtual desktops, without changing content, position, size or desktop assignment. Per-note options remain available.
+
 Use `Sticky notes` → `New note` in the tray menu to create a note on the current virtual desktop. Each note has its own always-on-top window, can be dragged and resized, and supports multiple notes per desktop. The `+` button creates another note, the `⋯` menu changes its color, adjusts transparency, or moves it to another desktop, and the `×` button closes it without deleting its contents. Transparency is saved per note, with levels from 1 (fully opaque) to 10 (35% opacity). The default is level 3 (95% opacity).
 
 Use `Sticky notes` → `Open on this desktop` to reopen a closed note or bring an existing note to the current desktop. To permanently remove a note, choose `Delete note…` in its options menu. Open notes are restored when their assigned desktop is visited after restarting BranchWatch. Notes whose desktop no longer exists remain accessible from the tray.

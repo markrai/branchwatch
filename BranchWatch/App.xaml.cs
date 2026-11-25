@@ -41,7 +41,7 @@ public partial class App : System.Windows.Application
         _overlayWindow = new OverlayWindow();
         _virtualDesktopOverlayController = new VirtualDesktopOverlayController(_settingsService, settings);
         _stickyNotes = new StickyNotesController(_virtualDesktopOverlayController.Monitor,
-            System.IO.Path.Combine(System.IO.Path.GetDirectoryName(_settingsService.SettingsPath)!, "sticky-notes.json"));
+            System.IO.Path.Combine(System.IO.Path.GetDirectoryName(_settingsService.SettingsPath)!, "sticky-notes.json"), settings);
         _trayService = new TrayService(
             _settingsService,
             settings,
