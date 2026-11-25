@@ -4,11 +4,11 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Icon="pack://application:,,,/BranchWatch;component/Assets/BranchWatch.ico"
         Title="Sticky note" Width="300" Height="260" MinWidth="220" MinHeight="150"
-        WindowStyle="None" ResizeMode="CanResize" WindowStartupLocation="Manual"
-        ShowInTaskbar="True" Topmost="True" Background="#FFF5C5" FontFamily="Segoe UI" UseLayoutRounding="True">
+        WindowStyle="None" AllowsTransparency="True" ResizeMode="CanResize" WindowStartupLocation="Manual"
+        ShowInTaskbar="True" Topmost="True" Background="Transparent" FontFamily="Segoe UI" UseLayoutRounding="True">
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="0" ResizeBorderThickness="5"
-                            GlassFrameThickness="0" CornerRadius="8"/>
+                            GlassFrameThickness="0" NonClientFrameEdges="None" CornerRadius="8"/>
     </shell:WindowChrome.WindowChrome>
     <Window.Resources>
         <Style x:Key="HeaderButton" TargetType="Button">
