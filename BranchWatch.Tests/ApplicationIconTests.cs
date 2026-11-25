@@ -1,5 +1,4 @@
 using System.IO;
-using System.Windows;
 
 namespace BranchWatch.Tests;
 
@@ -9,9 +8,7 @@ public sealed class ApplicationIconTests
     [TestMethod]
     public void EmbeddedIconContainsTrayAndHighResolutionFrames()
     {
-        var resource = Application.GetResourceStream(new Uri(ApplicationIcon.ResourceUri, UriKind.Absolute));
-        Assert.IsNotNull(resource);
-        using var stream = resource!.Stream;
+        using var stream = ApplicationIcon.OpenResourceStream();
         using var reader = new BinaryReader(stream);
 
         Assert.AreEqual((ushort)0, reader.ReadUInt16());
