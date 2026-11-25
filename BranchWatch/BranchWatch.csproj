@@ -9,6 +9,10 @@
     <AssemblyName>BranchWatch</AssemblyName>
     <RootNamespace>BranchWatch</RootNamespace>
     <StartupObject>BranchWatch.Program</StartupObject>
+    <ApplicationIcon>Assets\BranchWatch.ico</ApplicationIcon>
     <Version>1.3.0</Version>
   </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="Assets\BranchWatch.ico" />
+  </ItemGroup>
 </Project>
