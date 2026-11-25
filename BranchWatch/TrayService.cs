@@ -20,6 +20,7 @@ public sealed class TrayService : IDisposable
     private readonly Icon _trayIcon;
     private readonly Forms.Form _dialogOwner;
     private PersonalizeWindow? _personalizeWindow;
+    private StickyNotePreferencesWindow? _stickyNotePreferencesWindow;
     private Forms.ToolStripMenuItem? _modeItem;
     private Forms.ToolStripMenuItem? _repositoryItem;
     private Forms.ToolStripMenuItem? _activeRepositoryItem;
@@ -133,6 +134,7 @@ public sealed class TrayService : IDisposable
         _disposed = true;
         _stickyNotes.Error -= OnStickyNotesError;
         _personalizeWindow?.Close();
+        _stickyNotePreferencesWindow?.Close();
         _sessionController.StateChanged -= OnSessionStateChanged;
         _repositoryWatcher.StatusChanged -= OnRepositoryStatusChanged;
         _notifyIcon.Visible = false;
@@ -204,6 +206,8 @@ public sealed class TrayService : IDisposable
         menu.DropDownItems.Add(CreateItem("New note", (_, _) => RunAfterContextMenuClosed(_stickyNotes.CreateNote)));
         var reopen = new Forms.ToolStripMenuItem("Open on this desktop");
         menu.DropDownItems.Add(reopen);
+        menu.DropDownItems.Add(new Forms.ToolStripSeparator());
+        menu.DropDownItems.Add(CreateItem("Preferences...", (_, _) => RunAfterContextMenuClosed(OpenStickyNotePreferences)));
         menu.DropDownOpening += (_, _) =>
         {
             while (reopen.DropDownItems.Count > 0)
@@ -366,6 +370,25 @@ public sealed class TrayService : IDisposable
                 _personalizeWindow.Focus();
             }
         });
+    }
+
+    private void OpenStickyNotePreferences()
+    {
+        if (_stickyNotePreferencesWindow is null)
+        {
+            _stickyNotePreferencesWindow = new StickyNotePreferencesWindow(_settingsService, _settings, _stickyNotes);
+            _stickyNotePreferencesWindow.Closed += (_, _) => _stickyNotePreferencesWindow = null;
+            _stickyNotePreferencesWindow.Show();
+        }
+        else
+        {
+            if (_stickyNotePreferencesWindow.WindowState == WindowState.Minimized)
+            {
+                _stickyNotePreferencesWindow.WindowState = WindowState.Normal;
+            }
+
+            _stickyNotePreferencesWindow.Activate();
+        }
     }
 
     private void OpenVirtualDesktops()

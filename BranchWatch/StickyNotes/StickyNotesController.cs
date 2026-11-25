@@ -7,6 +7,7 @@ public sealed class StickyNotesController : IDisposable
 {
     private readonly VirtualDesktopMonitor _monitor;
     private readonly StickyNoteStore _store;
+    private readonly AppSettings _settings;
     private readonly NativeDesktopManager _native = new();
     private readonly DispatcherTimer _timer;
     private readonly Dictionary<Guid, StickyNoteWindow> _windows = [];
@@ -18,10 +19,11 @@ public sealed class StickyNotesController : IDisposable
     private Guid? _restoreDesktop;
     private int _restoreAttempts;
 
-    internal StickyNotesController(VirtualDesktopMonitor monitor, string path)
+    internal StickyNotesController(VirtualDesktopMonitor monitor, string path, AppSettings? settings = null)
     {
         _monitor = monitor;
         _store = new StickyNoteStore(path);
+        _settings = settings ?? new AppSettings();
         _timer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += OnTimerTick;
     }
@@ -29,6 +31,38 @@ public sealed class StickyNotesController : IDisposable
     internal event Action<string>? Error;
 
     internal IReadOnlyList<StickyNote> Notes => _notes;
+    internal bool IsAvailable => _available && !_disposed;
+    internal StickyNoteAppearance DefaultAppearance => StickyNoteAppearance.FromSettings(_settings);
+
+    internal StickyNote CreateDefaultNote()
+    {
+        var note = new StickyNote();
+        DefaultAppearance.ApplyTo(note);
+        return note;
+    }
+
+    internal bool ApplyAppearanceToAll(StickyNoteAppearance appearance)
+    {
+        if (!IsAvailable)
+        {
+            return false;
+        }
+
+        foreach (var note in _notes)
+        {
+            if (_windows.TryGetValue(note.Id, out var window))
+            {
+                window.ApplyAppearance(appearance);
+            }
+            else
+            {
+                appearance.ApplyTo(note);
+            }
+        }
+
+        MarkDirty();
+        return Save();
+    }
     internal IReadOnlyList<VirtualDesktopInfo> Desktops =>
         VirtualDesktopRegistryReader.TryGetDisplayState()?.AllDesktops
         ?? _monitor.CurrentState?.AllDesktops ?? Array.Empty<VirtualDesktopInfo>();
@@ -67,11 +101,9 @@ public sealed class StickyNotesController : IDisposable
 
         var work = SystemParameters.WorkArea;
         var offset = (_windows.Count % 8) * 22;
-        var note = new StickyNote
-        {
-            Left = work.Right - 324 - offset,
-            Top = work.Top + 24 + offset
-        };
+        var note = CreateDefaultNote();
+        note.Left = work.Right - note.Width - 24 - offset;
+        note.Top = work.Top + 24 + offset;
 
         if (!OpenWindow(note, null, activate: true))
         {
@@ -289,11 +321,16 @@ public sealed class StickyNotesController : IDisposable
         Save();
     }
 
-    private void Save()
+    private bool Save()
     {
-        if (!_available || !_dirty)
+        if (!_available)
         {
-            return;
+            return false;
+        }
+
+        if (!_dirty)
+        {
+            return true;
         }
 
         try
@@ -301,6 +338,7 @@ public sealed class StickyNotesController : IDisposable
             _store.Save(_notes);
             _dirty = false;
             _saveErrorReported = false;
+            return true;
         }
         catch (Exception ex)
         {
@@ -309,6 +347,8 @@ public sealed class StickyNotesController : IDisposable
                 _saveErrorReported = true;
                 Error?.Invoke($"Unable to save sticky notes. Changes will be retried. {ex.Message}");
             }
+
+            return false;
         }
     }
 

@@ -12,16 +12,6 @@ namespace BranchWatch;
 
 public partial class StickyNoteWindow : Window
 {
-    private static readonly (string Name, string Body, string Header)[] Palette =
-    [
-        ("Yellow", "#FFF5C5", "#F6DE87"),
-        ("Green", "#DFF5D8", "#B8E2AD"),
-        ("Pink", "#FCE1E8", "#F3BACB"),
-        ("Blue", "#DDEEFF", "#B7D7F4"),
-        ("Purple", "#EEE3FC", "#D8C3F1"),
-        ("White", "#F5F5F5", "#DDDDDD")
-    ];
-
     private readonly StickyNote _note;
     private readonly StickyNotesController _controller;
     private bool _trackingBounds;
@@ -104,14 +94,16 @@ public partial class StickyNoteWindow : Window
 
     private void ApplyColor()
     {
-        var palette = Palette.FirstOrDefault(p => p.Name == _note.Color);
-        if (palette.Name is null)
-        {
-            palette = Palette[0];
-        }
-
+        var palette = StickyNoteAppearance.ResolveColor(_note.Color);
         NoteSurface.Background = BrushFor(palette.Body);
         Header.Background = BrushFor(palette.Header);
+    }
+
+    internal void ApplyAppearance(StickyNoteAppearance appearance)
+    {
+        appearance.ApplyTo(_note);
+        ApplyColor();
+        ApplyTransparency(_note.TransparencyLevel);
     }
 
     internal void ApplyTransparency(int level)
@@ -139,7 +131,7 @@ public partial class StickyNoteWindow : Window
     {
         var menu = new WpfContextMenu { PlacementTarget = OptionsButton };
         var colors = new WpfMenuItem { Header = "Color" };
-        foreach (var color in Palette)
+        foreach (var color in StickyNoteAppearance.Palette)
         {
             var item = new WpfMenuItem { Header = color.Name, IsCheckable = true, IsChecked = _note.Color == color.Name };
             item.Click += (_, _) =>
@@ -159,10 +151,14 @@ public partial class StickyNoteWindow : Window
             var label = level switch
             {
                 StickyNoteTransparency.MinLevel => "1 (opaque)",
-                StickyNoteTransparency.DefaultLevel => "3 (default)",
                 StickyNoteTransparency.MaxLevel => "10 (most transparent)",
                 _ => level.ToString()
             };
+            if (level == _controller.DefaultAppearance.TransparencyLevel)
+            {
+                label += " (default)";
+            }
+
             var item = new WpfMenuItem
             {
                 Header = label,

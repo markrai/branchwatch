@@ -40,6 +40,8 @@ public sealed class AppSettings
     public double VirtualDesktopOverlayOpacity { get; set; } = 0.85;
     public double VirtualDesktopOverlayForegroundOpacity { get; set; } = 1.0;
     public string VirtualDesktopOverlayFontColor { get; set; } = "#FFFFFF";
+    public string StickyNoteDefaultColor { get; set; } = "Yellow";
+    public int StickyNoteDefaultTransparencyLevel { get; set; } = StickyNoteTransparency.DefaultLevel;
 }
 
 public static class OverlaySettings
@@ -129,6 +131,8 @@ public sealed class SettingsService
             settings.VirtualDesktopOverlayOpacity = OverlaySettings.ClampOpacity(settings.VirtualDesktopOverlayOpacity);
             settings.VirtualDesktopOverlayForegroundOpacity = OverlaySettings.ClampForegroundOpacity(settings.VirtualDesktopOverlayForegroundOpacity);
             settings.VirtualDesktopOverlayScale = OverlaySettings.ClampScale(settings.VirtualDesktopOverlayScale);
+            settings.StickyNoteDefaultColor = StickyNoteAppearance.ResolveColor(settings.StickyNoteDefaultColor).Name;
+            settings.StickyNoteDefaultTransparencyLevel = StickyNoteTransparency.ClampLevel(settings.StickyNoteDefaultTransparencyLevel);
             return settings;
         }
         catch

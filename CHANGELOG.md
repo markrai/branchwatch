@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Sticky note preferences for default color and transparency, with an explicit apply-to-all action.
+
 ### Fixed
 
 - Sticky note transparency now uses WPF composition instead of modifying native layered-window styles after creation.
