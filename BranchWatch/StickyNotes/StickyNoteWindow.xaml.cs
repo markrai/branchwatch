@@ -119,7 +119,7 @@ public partial class StickyNoteWindow : Window
     {
         var palette = StickyNoteAppearance.ResolveColor(_note.Color);
         NoteSurface.Background = BrushFor(palette.Body);
-        Header.Background = BrushFor(palette.Header);
+        HeaderSurface.Background = BrushFor(palette.Header);
         UpdateInputPresentation();
         _passiveBody?.UpdateContent(_note);
     }

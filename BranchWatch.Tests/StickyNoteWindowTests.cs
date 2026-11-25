@@ -33,6 +33,9 @@ public sealed class StickyNoteWindowTests
                     Assert.AreEqual(ResizeMode.CanResize, window.ResizeMode);
                     Assert.AreEqual(Colors.Transparent, ((SolidColorBrush)window.Background).Color);
                     Assert.AreEqual(0.55, window.NoteSurface.Opacity, 0.0001);
+                    Assert.AreEqual(System.Windows.Media.Color.FromRgb(0xB7, 0xD7, 0xF4),
+                        ((SolidColorBrush)window.HeaderSurface.Background).Color);
+                    AssertSurfaceAlignment(window);
                     Assert.IsTrue(window.Editor.IsReadOnly);
                     Assert.IsFalse(window.Editor.Focusable);
                     Assert.AreNotEqual(IntPtr.Zero, new WindowInteropHelper(window).EnsureHandle());
@@ -47,6 +50,7 @@ public sealed class StickyNoteWindowTests
                         Assert.AreEqual(level > 1, window.Editor.IsReadOnly);
                         Assert.AreEqual(level == 1, window.Editor.Focusable);
                         Assert.IsTrue(window.OptionsButton.IsEnabled);
+                        AssertSurfaceAlignment(window);
                     }
                 }
                 finally
@@ -67,6 +71,26 @@ public sealed class StickyNoteWindowTests
         if (failure is not null)
         {
             throw failure;
+        }
+    }
+
+    private static void AssertSurfaceAlignment(StickyNoteWindow window)
+    {
+        foreach (var width in new[] { 220.0, 300.0, 460.0 })
+        {
+            var size = new System.Windows.Size(width, 260);
+            window.NoteSurface.Measure(size);
+            window.NoteSurface.Arrange(new Rect(size));
+
+            var header = window.HeaderSurface.TranslatePoint(new System.Windows.Point(), window.NoteSurface);
+            var body = window.BodyHost.TranslatePoint(new System.Windows.Point(), window.NoteSurface);
+
+            Assert.IsGreaterThan(0, window.HeaderSurface.ActualWidth);
+            Assert.IsGreaterThan(0, window.BodyHost.ActualHeight);
+            Assert.AreEqual(header.X, body.X, 0.001);
+            Assert.AreEqual(window.HeaderSurface.ActualWidth, window.BodyHost.ActualWidth, 0.001);
+            Assert.AreEqual(header.Y + window.HeaderSurface.ActualHeight, body.Y, 0.001);
+            Assert.AreEqual(new Thickness(4, 4, 4, 0), window.Header.Margin);
         }
     }
 }

@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Align sticky note headers and click-through bodies edge to edge while preserving internal header padding.
 - Validate passive sticky note window styles after WPF shows the window, and recognize owned auxiliary windows without a separate virtual desktop ID. Report the failing operation when click-through cannot be enabled.
 
 ### Changed
