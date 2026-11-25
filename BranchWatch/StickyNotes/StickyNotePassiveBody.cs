@@ -33,7 +33,7 @@ internal sealed class StickyNotePassiveBody
         {
             Margin = new Thickness(7, 4, 7, 7),
             Padding = new Thickness(8, 7, 8, 7),
-            Background = Brushes.Transparent,
+            Background = System.Windows.Media.Brushes.Transparent,
             BorderThickness = new Thickness(0),
             Foreground = BrushFor("#29251F"),
             FontFamily = new System.Windows.Media.FontFamily("Segoe UI"),
@@ -51,7 +51,7 @@ internal sealed class StickyNotePassiveBody
             Owner = owner,
             WindowStyle = WindowStyle.None,
             AllowsTransparency = true,
-            Background = Brushes.Transparent,
+            Background = System.Windows.Media.Brushes.Transparent,
             ResizeMode = ResizeMode.NoResize,
             ShowInTaskbar = false,
             ShowActivated = false,
@@ -66,6 +66,7 @@ internal sealed class StickyNotePassiveBody
     }
 
     internal bool IsVisible => _window.IsVisible;
+    internal IntPtr Handle => _handle;
 
     internal void UpdateContent(StickyNote note)
     {
@@ -89,6 +90,12 @@ internal sealed class StickyNotePassiveBody
 
     internal bool TryShow(FrameworkElement host, StickyNotesController controller)
     {
+        var origin = host.TranslatePoint(new WpfPoint(0, 0), _owner);
+        _window.Left = _owner.Left + origin.X;
+        _window.Top = _owner.Top + origin.Y;
+        _window.Width = host.ActualWidth;
+        _window.Height = host.ActualHeight;
+
         var helper = new WindowInteropHelper(_window);
         _handle = helper.EnsureHandle();
         var style = GetWindowLong(_handle, GwlExStyle);
@@ -105,14 +112,18 @@ internal sealed class StickyNotePassiveBody
             return false;
         }
 
-        if (!controller.IsPassiveBodyOnOwnerDesktop(_handle, _owner.Handle))
+        if (!controller.IsNoteOnCurrentDesktop(_owner))
         {
             return false;
         }
 
         _window.Show();
+        _bounds = null;
+        var shownStyle = GetWindowLong(_handle, GwlExStyle);
+        SetWindowLong(_handle, GwlExStyle, shownStyle | WsExTransparent | WsExNoActivate);
         return controller.IsPassiveBodyOnOwnerDesktop(_handle, _owner.Handle)
-            && (GetWindowLong(_handle, GwlExStyle) & WsExTransparent) != 0
+            && (GetWindowLong(_handle, GwlExStyle) & (WsExLayered | WsExTransparent | WsExNoActivate))
+                == (WsExLayered | WsExTransparent | WsExNoActivate)
             && TryAlign(host);
     }
 

@@ -18,6 +18,8 @@ public partial class StickyNoteWindow : Window
     private StickyNotePassiveBody? _passiveBody;
     private bool _desktopVerified;
     private bool _passiveBodyFailed;
+    private bool _refreshingPassiveBody;
+    private bool _closing;
 
     internal StickyNoteWindow(StickyNote note, StickyNotesController controller)
     {
@@ -35,12 +37,16 @@ public partial class StickyNoteWindow : Window
             _controller.MarkDirty();
             _passiveBody?.UpdateContent(_note);
         };
-        LocationChanged += (_, _) => { CaptureBounds(); RefreshPassiveBody(); };
-        SizeChanged += (_, _) => { CaptureBounds(); RefreshPassiveBody(); };
+        LocationChanged += (_, _) => { CaptureBounds(); AlignPassiveBody(); };
+        SizeChanged += (_, _) => { CaptureBounds(); AlignPassiveBody(); };
         StateChanged += (_, _) => RefreshPassiveBody();
         IsVisibleChanged += (_, _) => RefreshPassiveBody();
-        Closed += (_, _) => RemovePassiveBody();
-        LayoutUpdated += (_, _) => RefreshPassiveBody();
+        Closing += (_, _) =>
+        {
+            _closing = true;
+            RemovePassiveBody();
+        };
+        LayoutUpdated += (_, _) => AlignPassiveBody();
     }
 
     internal IntPtr Handle => new WindowInteropHelper(this).Handle;
@@ -156,11 +162,24 @@ public partial class StickyNoteWindow : Window
 
     internal void RefreshPassiveBody()
     {
-        if (!_desktopVerified)
+        if (!_desktopVerified || _closing || _refreshingPassiveBody)
         {
             return;
         }
 
+        _refreshingPassiveBody = true;
+        try
+        {
+            RefreshPassiveBodyCore();
+        }
+        finally
+        {
+            _refreshingPassiveBody = false;
+        }
+    }
+
+    private void RefreshPassiveBodyCore()
+    {
         if (!WantsClickThrough || !IsVisible || WindowState == WindowState.Minimized
             || !_controller.IsNoteOnCurrentDesktop(this))
         {
@@ -187,14 +206,43 @@ public partial class StickyNoteWindow : Window
 
             UpdateInputPresentation();
         }
-        else if (!_passiveBody.TryAlign(BodyHost))
+        else if (!_controller.IsPassiveBodyOnOwnerDesktop(_passiveBody.Handle, Handle))
+        {
+            RemovePassiveBody();
+            return;
+        }
+
+        AlignPassiveBodyCore();
+        _passiveBody?.UpdateContent(_note);
+    }
+
+    private void AlignPassiveBody()
+    {
+        if (_closing || _refreshingPassiveBody || _passiveBody is null)
+        {
+            return;
+        }
+
+        _refreshingPassiveBody = true;
+        try
+        {
+            AlignPassiveBodyCore();
+        }
+        finally
+        {
+            _refreshingPassiveBody = false;
+        }
+    }
+
+    private void AlignPassiveBodyCore()
+    {
+        if (_passiveBody is not null && IsVisible && WindowState != WindowState.Minimized
+            && BodyHost.ActualWidth > 0 && BodyHost.ActualHeight > 0 && !_passiveBody.TryAlign(BodyHost))
         {
             _passiveBodyFailed = true;
             RemovePassiveBody();
             _controller.ReportClickThroughFailure();
         }
-
-        _passiveBody?.UpdateContent(_note);
     }
 
     private void RemovePassiveBody()
@@ -206,7 +254,10 @@ public partial class StickyNoteWindow : Window
 
         _passiveBody = null;
         body.Close();
-        UpdateInputPresentation();
+        if (!_closing)
+        {
+            UpdateInputPresentation();
+        }
     }
 
     private static SolidColorBrush BrushFor(string value) =>
