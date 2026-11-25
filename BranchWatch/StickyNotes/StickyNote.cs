@@ -6,6 +6,14 @@ internal sealed class StickyNote
     public Guid DesktopId { get; set; }
     public string Text { get; set; } = "";
     public string Color { get; set; } = "Yellow";
+    private int _transparencyLevel = StickyNoteTransparency.DefaultLevel;
+
+    public int TransparencyLevel
+    {
+        get => _transparencyLevel;
+        set => _transparencyLevel = StickyNoteTransparency.ClampLevel(value);
+    }
+
     public bool IsOpen { get; set; } = true;
     public double Left { get; set; }
     public double Top { get; set; }
