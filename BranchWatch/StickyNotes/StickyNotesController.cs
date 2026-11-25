@@ -67,6 +67,16 @@ public sealed class StickyNotesController : IDisposable
         VirtualDesktopRegistryReader.TryGetDisplayState()?.AllDesktops
         ?? _monitor.CurrentState?.AllDesktops ?? Array.Empty<VirtualDesktopInfo>();
 
+    internal bool IsNoteOnCurrentDesktop(StickyNoteWindow window) =>
+        window.Handle != IntPtr.Zero && _native.IsCurrent(window.Handle);
+
+    internal bool IsPassiveBodyOnOwnerDesktop(IntPtr body, IntPtr owner) =>
+        _native.GetDesktop(owner) is { } desktop && _native.GetDesktop(body) == desktop
+        && _native.IsCurrent(body);
+
+    internal void ReportClickThroughFailure() =>
+        Error?.Invoke("Windows could not enable sticky note click-through. The note remains visible.");
+
     internal string DesktopName(Guid id) =>
         Desktops.FirstOrDefault(desktop => desktop.Id == id)?.DisplayName ?? "Unavailable desktop";
 
@@ -170,6 +180,7 @@ public sealed class StickyNotesController : IDisposable
 
         note.DesktopId = desktopId;
         window.RefreshDesktopName();
+        window.RefreshPassiveBody();
         MarkDirty();
         Save();
         return true;
@@ -297,6 +308,7 @@ public sealed class StickyNotesController : IDisposable
         foreach (var window in _windows.Values)
         {
             window.RefreshDesktopName();
+            window.RefreshPassiveBody();
         }
     }
 
@@ -318,6 +330,10 @@ public sealed class StickyNotesController : IDisposable
     {
         SynchronizeAssignments();
         RestorePending();
+        foreach (var window in _windows.Values)
+        {
+            window.RefreshPassiveBody();
+        }
         Save();
     }
 

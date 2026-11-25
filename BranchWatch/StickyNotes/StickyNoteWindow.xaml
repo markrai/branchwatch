@@ -68,11 +68,13 @@
                 <Button Grid.Column="3" Style="{StaticResource HeaderButton}" Content="×"
                         Click="CloseClick" ToolTip="Close note" AutomationProperties.Name="Close note"/>
             </Grid>
-            <TextBox x:Name="Editor" Grid.Row="1" Margin="7,4,7,7" Padding="8,7"
+            <Grid x:Name="BodyHost" Grid.Row="1">
+            <TextBox x:Name="Editor" Margin="7,4,7,7" Padding="8,7"
                      Background="Transparent" BorderThickness="0" Foreground="#29251F"
                      FontSize="16" AcceptsReturn="True" TextWrapping="Wrap"
                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                      SpellCheck.IsEnabled="False" AutomationProperties.Name="Note text"/>
+            </Grid>
         </Grid>
     </Border>
 </Window>

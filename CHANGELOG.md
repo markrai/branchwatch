@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Translucent sticky note bodies pass pointer input through to underlying applications while the header remains interactive.
+
 ### Added
 
 - Sticky note preferences for default color and transparency, with an explicit apply-to-all action.
