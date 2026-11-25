@@ -15,6 +15,9 @@ public partial class StickyNoteWindow : Window
     private readonly StickyNote _note;
     private readonly StickyNotesController _controller;
     private bool _trackingBounds;
+    private StickyNotePassiveBody? _passiveBody;
+    private bool _desktopVerified;
+    private bool _passiveBodyFailed;
 
     internal StickyNoteWindow(StickyNote note, StickyNotesController controller)
     {
@@ -30,9 +33,14 @@ public partial class StickyNoteWindow : Window
         {
             _note.Text = Editor.Text;
             _controller.MarkDirty();
+            _passiveBody?.UpdateContent(_note);
         };
-        LocationChanged += (_, _) => CaptureBounds();
-        SizeChanged += (_, _) => CaptureBounds();
+        LocationChanged += (_, _) => { CaptureBounds(); RefreshPassiveBody(); };
+        SizeChanged += (_, _) => { CaptureBounds(); RefreshPassiveBody(); };
+        StateChanged += (_, _) => RefreshPassiveBody();
+        IsVisibleChanged += (_, _) => RefreshPassiveBody();
+        Closed += (_, _) => RemovePassiveBody();
+        LayoutUpdated += (_, _) => RefreshPassiveBody();
     }
 
     internal IntPtr Handle => new WindowInteropHelper(this).Handle;
@@ -47,13 +55,22 @@ public partial class StickyNoteWindow : Window
     internal void FocusEditor()
     {
         Activate();
-        Editor.Focus();
+        if (_note.TransparencyLevel == StickyNoteTransparency.MinLevel)
+        {
+            Editor.Focus();
+        }
+        else
+        {
+            OptionsButton.Focus();
+        }
     }
 
     internal void BeginTrackingBounds()
     {
         _trackingBounds = true;
         CaptureBounds();
+        _desktopVerified = true;
+        RefreshPassiveBody();
     }
 
     internal void CaptureBounds()
@@ -97,6 +114,8 @@ public partial class StickyNoteWindow : Window
         var palette = StickyNoteAppearance.ResolveColor(_note.Color);
         NoteSurface.Background = BrushFor(palette.Body);
         Header.Background = BrushFor(palette.Header);
+        UpdateInputPresentation();
+        _passiveBody?.UpdateContent(_note);
     }
 
     internal void ApplyAppearance(StickyNoteAppearance appearance)
@@ -110,6 +129,84 @@ public partial class StickyNoteWindow : Window
     {
         _note.TransparencyLevel = level;
         NoteSurface.Opacity = StickyNoteTransparency.OpacityForLevel(_note.TransparencyLevel);
+        _passiveBodyFailed = false;
+        UpdateInputPresentation();
+        RefreshPassiveBody();
+    }
+
+    internal bool IsBodyClickThrough => _passiveBody is { IsVisible: true };
+
+    private bool WantsClickThrough => _note.TransparencyLevel > StickyNoteTransparency.MinLevel;
+
+    private void UpdateInputPresentation()
+    {
+        var passive = IsBodyClickThrough && WantsClickThrough;
+        var palette = StickyNoteAppearance.ResolveColor(_note.Color);
+        NoteSurface.Background = passive ? System.Windows.Media.Brushes.Transparent : BrushFor(palette.Body);
+        NoteSurface.BorderBrush = passive ? System.Windows.Media.Brushes.Transparent : BrushFor("#33000000");
+        Editor.Opacity = passive ? 0 : 1;
+        Editor.IsHitTestVisible = !passive;
+        Editor.IsReadOnly = WantsClickThrough;
+        Editor.Focusable = !WantsClickThrough;
+        if (WantsClickThrough && Editor.IsKeyboardFocusWithin)
+        {
+            OptionsButton.Focus();
+        }
+    }
+
+    internal void RefreshPassiveBody()
+    {
+        if (!_desktopVerified)
+        {
+            return;
+        }
+
+        if (!WantsClickThrough || !IsVisible || WindowState == WindowState.Minimized
+            || !_controller.IsNoteOnCurrentDesktop(this))
+        {
+            RemovePassiveBody();
+            return;
+        }
+
+        if (_passiveBodyFailed || !IsLoaded || BodyHost.ActualWidth <= 0 || BodyHost.ActualHeight <= 0)
+        {
+            return;
+        }
+
+        if (_passiveBody is null)
+        {
+            var body = new StickyNotePassiveBody(this, _note);
+            _passiveBody = body;
+            if (!body.TryShow(BodyHost, _controller))
+            {
+                _passiveBodyFailed = true;
+                RemovePassiveBody();
+                _controller.ReportClickThroughFailure();
+                return;
+            }
+
+            UpdateInputPresentation();
+        }
+        else if (!_passiveBody.TryAlign(BodyHost))
+        {
+            _passiveBodyFailed = true;
+            RemovePassiveBody();
+            _controller.ReportClickThroughFailure();
+        }
+
+        _passiveBody?.UpdateContent(_note);
+    }
+
+    private void RemovePassiveBody()
+    {
+        if (_passiveBody is not { } body)
+        {
+            return;
+        }
+
+        _passiveBody = null;
+        body.Close();
+        UpdateInputPresentation();
     }
 
     private static SolidColorBrush BrushFor(string value) =>
@@ -145,6 +242,7 @@ public partial class StickyNoteWindow : Window
 
         menu.Items.Add(colors);
         var transparency = new WpfMenuItem { Header = $"Transparency ({_note.TransparencyLevel})" };
+        transparency.ToolTip = "Levels 2–10 allow clicks through the body. Choose level 1 to edit.";
         for (var level = StickyNoteTransparency.MinLevel; level <= StickyNoteTransparency.MaxLevel; level++)
         {
             var selectedLevel = level;

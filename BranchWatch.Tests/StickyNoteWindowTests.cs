@@ -33,6 +33,8 @@ public sealed class StickyNoteWindowTests
                     Assert.AreEqual(ResizeMode.CanResize, window.ResizeMode);
                     Assert.AreEqual(Colors.Transparent, ((SolidColorBrush)window.Background).Color);
                     Assert.AreEqual(0.55, window.NoteSurface.Opacity, 0.0001);
+                    Assert.IsTrue(window.Editor.IsReadOnly);
+                    Assert.IsFalse(window.Editor.Focusable);
                     Assert.AreNotEqual(IntPtr.Zero, new WindowInteropHelper(window).EnsureHandle());
 
                     foreach (var level in new[] { 1, 10, 3 })
@@ -42,6 +44,9 @@ public sealed class StickyNoteWindowTests
                         Assert.AreEqual(StickyNoteTransparency.OpacityForLevel(level),
                             window.NoteSurface.Opacity, 0.0001);
                         Assert.IsTrue(window.Topmost);
+                        Assert.AreEqual(level > 1, window.Editor.IsReadOnly);
+                        Assert.AreEqual(level == 1, window.Editor.Focusable);
+                        Assert.IsTrue(window.OptionsButton.IsEnabled);
                     }
                 }
                 finally
