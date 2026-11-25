@@ -11,6 +11,7 @@ namespace BranchWatch;
 internal sealed class StickyNotePassiveBody
 {
     private const int GwlExStyle = -20;
+    private const uint GwOwner = 4;
     private const int WsExTransparent = 0x20;
     private const int WsExLayered = 0x80000;
     private const int WsExNoActivate = 0x08000000;
@@ -67,6 +68,8 @@ internal sealed class StickyNotePassiveBody
 
     internal bool IsVisible => _window.IsVisible;
     internal IntPtr Handle => _handle;
+    internal bool HasNativeOwner => _handle != IntPtr.Zero && GetWindow(_handle, GwOwner) == _owner.Handle;
+    internal string? LastError { get; private set; }
 
     internal void UpdateContent(StickyNote note)
     {
@@ -90,48 +93,88 @@ internal sealed class StickyNotePassiveBody
 
     internal bool TryShow(FrameworkElement host, StickyNotesController controller)
     {
+        LastError = null;
         var origin = host.TranslatePoint(new WpfPoint(0, 0), _owner);
         _window.Left = _owner.Left + origin.X;
         _window.Top = _owner.Top + origin.Y;
         _window.Width = host.ActualWidth;
         _window.Height = host.ActualHeight;
 
-        var helper = new WindowInteropHelper(_window);
-        _handle = helper.EnsureHandle();
-        var style = GetWindowLong(_handle, GwlExStyle);
-        if ((style & WsExLayered) == 0)
-        {
-            return false;
-        }
-
-        var desired = style | WsExTransparent | WsExNoActivate;
-        SetWindowLong(_handle, GwlExStyle, desired);
-        if ((GetWindowLong(_handle, GwlExStyle) & desired) != desired
-            || !TryAlign(host))
-        {
-            return false;
-        }
-
         if (!controller.IsNoteOnCurrentDesktop(_owner))
+        {
+            return Fail("The note is no longer on the current desktop.");
+        }
+
+        _surface.Opacity = 0;
+        _handle = new WindowInteropHelper(_window).EnsureHandle();
+        if (_handle == IntPtr.Zero)
+        {
+            return Fail("Could not create the passive window handle.");
+        }
+
+        if (!TrySetInputStyles(requireLayered: false))
         {
             return false;
         }
 
         _window.Show();
         _bounds = null;
-        var shownStyle = GetWindowLong(_handle, GwlExStyle);
-        SetWindowLong(_handle, GwlExStyle, shownStyle | WsExTransparent | WsExNoActivate);
-        return controller.IsPassiveBodyOnOwnerDesktop(_handle, _owner.Handle)
-            && (GetWindowLong(_handle, GwlExStyle) & (WsExLayered | WsExTransparent | WsExNoActivate))
-                == (WsExLayered | WsExTransparent | WsExNoActivate)
-            && TryAlign(host);
+        if (!TrySetInputStyles(requireLayered: true))
+        {
+            return false;
+        }
+
+        if (!controller.IsPassiveBodyOnOwnerDesktop(this, _owner, out var desktopError))
+        {
+            return Fail(desktopError);
+        }
+
+        if (!TryAlign(host))
+        {
+            return false;
+        }
+
+        _surface.Opacity = StickyNoteTransparency.OpacityForLevel(_level);
+        return true;
+    }
+
+    private bool TrySetInputStyles(bool requireLayered)
+    {
+        var style = GetWindowLong(_handle, GwlExStyle);
+        var error = Marshal.GetLastPInvokeError();
+        if (style == 0 && error != 0)
+        {
+            return Fail($"GetWindowLong failed (Win32 {error}).");
+        }
+
+        var desired = style | WsExTransparent | WsExNoActivate;
+        if (desired != style)
+        {
+            var previous = SetWindowLong(_handle, GwlExStyle, desired);
+            error = Marshal.GetLastPInvokeError();
+            if (previous == 0 && error != 0)
+            {
+                return Fail($"SetWindowLong failed (Win32 {error}).");
+            }
+        }
+
+        var required = WsExTransparent | WsExNoActivate | (requireLayered ? WsExLayered : 0);
+        var actual = GetWindowLong(_handle, GwlExStyle);
+        return (actual & required) == required
+            || Fail($"Passive window styles were not retained (actual 0x{actual:X8}, required 0x{required:X8}).");
+    }
+
+    private bool Fail(string message)
+    {
+        LastError = message;
+        return false;
     }
 
     internal bool TryAlign(FrameworkElement host)
     {
         if (_handle == IntPtr.Zero || host.ActualWidth <= 0 || host.ActualHeight <= 0)
         {
-            return false;
+            return Fail("The note body has no usable window bounds.");
         }
 
         var topLeft = host.PointToScreen(new WpfPoint(0, 0));
@@ -148,7 +191,7 @@ internal sealed class StickyNotePassiveBody
 
         if (!SetWindowPos(_handle, IntPtr.Zero, x, y, width, height, SwpNoActivate | SwpNoZOrder))
         {
-            return false;
+            return Fail($"SetWindowPos failed (Win32 {Marshal.GetLastPInvokeError()}).");
         }
 
         _bounds = bounds;
@@ -159,6 +202,9 @@ internal sealed class StickyNotePassiveBody
 
     private static SolidColorBrush BrushFor(string value) =>
         new((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(value)!);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetWindow(IntPtr handle, uint command);
 
     [DllImport("user32.dll", EntryPoint = "GetWindowLongW", SetLastError = true)]
     private static extern int GetWindowLong(IntPtr handle, int index);

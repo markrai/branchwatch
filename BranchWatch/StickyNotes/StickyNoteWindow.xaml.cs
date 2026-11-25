@@ -199,14 +199,15 @@ public partial class StickyNoteWindow : Window
             if (!body.TryShow(BodyHost, _controller))
             {
                 _passiveBodyFailed = true;
+                var detail = body.LastError;
                 RemovePassiveBody();
-                _controller.ReportClickThroughFailure();
+                _controller.ReportClickThroughFailure(detail);
                 return;
             }
 
             UpdateInputPresentation();
         }
-        else if (!_controller.IsPassiveBodyOnOwnerDesktop(_passiveBody.Handle, Handle))
+        else if (!_controller.IsPassiveBodyOnOwnerDesktop(_passiveBody, this, out _))
         {
             RemovePassiveBody();
             return;
@@ -240,8 +241,9 @@ public partial class StickyNoteWindow : Window
             && BodyHost.ActualWidth > 0 && BodyHost.ActualHeight > 0 && !_passiveBody.TryAlign(BodyHost))
         {
             _passiveBodyFailed = true;
+            var detail = _passiveBody.LastError;
             RemovePassiveBody();
-            _controller.ReportClickThroughFailure();
+            _controller.ReportClickThroughFailure(detail);
         }
     }
 
