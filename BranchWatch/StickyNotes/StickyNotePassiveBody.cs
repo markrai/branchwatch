@@ -47,6 +47,7 @@ internal sealed class StickyNotePassiveBody
             HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled
         };
         _surface = new WpfBorder { Child = _text };
+        _surface.SizeChanged += (_, e) => _surface.Clip = StickyNoteResizeGeometry.PassiveBodyClip(e.NewSize.Width, e.NewSize.Height);
         _window = new Window
         {
             Owner = owner,
@@ -59,6 +60,7 @@ internal sealed class StickyNotePassiveBody
             Topmost = true,
             Focusable = false,
             WindowStartupLocation = WindowStartupLocation.Manual,
+            UseLayoutRounding = true,
             Width = 1,
             Height = 1,
             Content = _surface

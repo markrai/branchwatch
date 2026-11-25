@@ -13,6 +13,7 @@
 
 ### Added
 
+- A discreet bottom-left shrink-only grip for sticky notes, including translucent click-through notes.
 - Sticky note preferences for default color and transparency, with an explicit apply-to-all action.
 
 ### Fixed
