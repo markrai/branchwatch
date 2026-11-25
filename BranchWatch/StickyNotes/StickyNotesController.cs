@@ -50,10 +50,13 @@ public sealed class StickyNotesController : IDisposable
 
         foreach (var note in _notes)
         {
-            appearance.ApplyTo(note);
             if (_windows.TryGetValue(note.Id, out var window))
             {
                 window.ApplyAppearance(appearance);
+            }
+            else
+            {
+                appearance.ApplyTo(note);
             }
         }
 

@@ -151,10 +151,14 @@ public partial class StickyNoteWindow : Window
             var label = level switch
             {
                 StickyNoteTransparency.MinLevel => "1 (opaque)",
-                _ when level == _controller.DefaultAppearance.TransparencyLevel => $"{level} (default)",
                 StickyNoteTransparency.MaxLevel => "10 (most transparent)",
                 _ => level.ToString()
             };
+            if (level == _controller.DefaultAppearance.TransparencyLevel)
+            {
+                label += " (default)";
+            }
+
             var item = new WpfMenuItem
             {
                 Header = label,

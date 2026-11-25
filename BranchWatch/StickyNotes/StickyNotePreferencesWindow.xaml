@@ -48,7 +48,7 @@
                 <Button Content="Save defaults" Click="OnSaveDefaults" Padding="12,7" Margin="0,0,8,4" IsDefault="True"/>
                 <Button x:Name="ApplyAllButton" Content="Apply to all notes" Click="OnApplyAll"
                         Padding="12,7" Margin="0,0,8,4"/>
-                <Button Content="Close" Click="OnClose" Padding="12,7" Margin="0,0,0,4" IsCancel="True"/>
+                <Button Content="Close" Click="OnClose" Padding="12,7" Margin="0,0,0,4"/>
             </WrapPanel>
         </StackPanel>
     </ScrollViewer>
