@@ -1,6 +1,7 @@
 <Window x:Class="BranchWatch.VirtualDesktopOverlayWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Icon="pack://application:,,,/Assets/BranchWatch.ico"
         Title="BranchWatch Virtual Desktop"
         Width="320"
         Height="56"

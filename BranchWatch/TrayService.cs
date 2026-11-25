@@ -17,6 +17,7 @@ public sealed class TrayService : IDisposable
     private readonly VirtualDesktopOverlayController _virtualDesktopOverlayController;
     private readonly StickyNotesController _stickyNotes;
     private readonly Forms.NotifyIcon _notifyIcon;
+    private readonly Icon _trayIcon;
     private readonly Forms.Form _dialogOwner;
     private PersonalizeWindow? _personalizeWindow;
     private Forms.ToolStripMenuItem? _modeItem;
@@ -52,9 +53,10 @@ public sealed class TrayService : IDisposable
         _virtualDesktopOverlayController = virtualDesktopOverlayController;
         _stickyNotes = stickyNotes;
         _dialogOwner = CreateDialogOwner();
+        _trayIcon = ApplicationIcon.LoadTrayIcon();
         _notifyIcon = new Forms.NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = _trayIcon,
             Text = "BranchWatch",
             Visible = false,
             ContextMenuStrip = BuildContextMenu()
@@ -136,6 +138,7 @@ public sealed class TrayService : IDisposable
         _notifyIcon.Visible = false;
         _notifyIcon.ContextMenuStrip?.Dispose();
         _notifyIcon.Dispose();
+        _trayIcon.Dispose();
         _dialogOwner.Dispose();
     }
 
