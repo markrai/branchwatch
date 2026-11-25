@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Correct the bottom-left resize grip orientation and allow resizing back to the saved original dimensions, including after restarting.
 - Align sticky note headers and click-through bodies edge to edge while preserving internal header padding.
 - Validate passive sticky note window styles after WPF shows the window, and recognize owned auxiliary windows without a separate virtual desktop ID. Report the failing operation when click-through cannot be enabled.
 
@@ -13,7 +14,7 @@
 
 ### Added
 
-- A discreet bottom-left shrink-only grip for sticky notes, including translucent click-through notes.
+- A discreet bottom-left resize grip for sticky notes, including translucent click-through notes.
 - Sticky note preferences for default color and transparency, with an explicit apply-to-all action.
 
 ### Fixed
