@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- Sticky note transparency now uses WPF composition instead of modifying native layered-window styles after creation.
+
 ## [1.3.0] - 2026-11-25
 
 ### Added

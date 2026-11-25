@@ -35,13 +35,7 @@ public partial class StickyNoteWindow : Window
         Editor.Text = note.Text;
         ApplyColor();
         ApplyBounds();
-        SourceInitialized += (_, _) =>
-        {
-            if (!StickyNoteTransparency.TryApply(Handle, _note.TransparencyLevel))
-            {
-                _controller.ReportError("Windows could not apply the saved sticky note transparency.");
-            }
-        };
+        ApplyTransparency(_note.TransparencyLevel);
         Editor.TextChanged += (_, _) =>
         {
             _note.Text = Editor.Text;
@@ -118,7 +112,12 @@ public partial class StickyNoteWindow : Window
 
         NoteSurface.Background = BrushFor(palette.Body);
         Header.Background = BrushFor(palette.Header);
-        Background = NoteSurface.Background;
+    }
+
+    internal void ApplyTransparency(int level)
+    {
+        _note.TransparencyLevel = level;
+        NoteSurface.Opacity = StickyNoteTransparency.OpacityForLevel(_note.TransparencyLevel);
     }
 
     private static SolidColorBrush BrushFor(string value) =>
@@ -172,15 +171,8 @@ public partial class StickyNoteWindow : Window
             };
             item.Click += (_, _) =>
             {
-                if (StickyNoteTransparency.TryApply(Handle, selectedLevel))
-                {
-                    _note.TransparencyLevel = selectedLevel;
-                    _controller.MarkDirty();
-                }
-                else
-                {
-                    _controller.ReportError("Windows could not change the sticky note transparency.");
-                }
+                ApplyTransparency(selectedLevel);
+                _controller.MarkDirty();
             };
             transparency.Items.Add(item);
         }

@@ -76,17 +76,18 @@ public sealed class StickyNoteStoreTests
     [TestMethod]
     public void TransparencyLevels_ProgressFromOpaqueToTranslucent()
     {
-        Assert.AreEqual((byte)255, StickyNoteTransparency.AlphaForLevel(1));
-        Assert.AreEqual((byte)242, StickyNoteTransparency.AlphaForLevel(3));
-        Assert.AreEqual((byte)89, StickyNoteTransparency.AlphaForLevel(10));
+        Assert.AreEqual(1.0, StickyNoteTransparency.OpacityForLevel(1), 0.0001);
+        Assert.AreEqual(0.95, StickyNoteTransparency.OpacityForLevel(3), 0.0001);
+        Assert.AreEqual(0.35, StickyNoteTransparency.OpacityForLevel(10), 0.0001);
 
         for (var level = 1; level < 10; level++)
         {
-            Assert.IsTrue(StickyNoteTransparency.AlphaForLevel(level) > StickyNoteTransparency.AlphaForLevel(level + 1));
+            Assert.IsGreaterThan(StickyNoteTransparency.OpacityForLevel(level + 1),
+                StickyNoteTransparency.OpacityForLevel(level));
         }
 
-        Assert.AreEqual(StickyNoteTransparency.AlphaForLevel(1), StickyNoteTransparency.AlphaForLevel(0));
-        Assert.AreEqual(StickyNoteTransparency.AlphaForLevel(10), StickyNoteTransparency.AlphaForLevel(11));
+        Assert.AreEqual(StickyNoteTransparency.OpacityForLevel(1), StickyNoteTransparency.OpacityForLevel(0));
+        Assert.AreEqual(StickyNoteTransparency.OpacityForLevel(10), StickyNoteTransparency.OpacityForLevel(11));
     }
 
     [TestMethod]

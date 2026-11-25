@@ -28,8 +28,6 @@ public sealed class StickyNotesController : IDisposable
 
     internal event Action<string>? Error;
 
-    internal void ReportError(string message) => Error?.Invoke(message);
-
     internal IReadOnlyList<StickyNote> Notes => _notes;
     internal IReadOnlyList<VirtualDesktopInfo> Desktops =>
         VirtualDesktopRegistryReader.TryGetDisplayState()?.AllDesktops
