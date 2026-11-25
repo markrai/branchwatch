@@ -78,14 +78,14 @@
                          SpellCheck.IsEnabled="False" AutomationProperties.Name="Note text"/>
                 <Thumb x:Name="ShrinkGrip" Width="18" Height="18" HorizontalAlignment="Left"
                        VerticalAlignment="Bottom" Cursor="SizeNESW" Focusable="False"
-                       ToolTip="Drag inward to shrink the note" AutomationProperties.Name="Shrink note"
+                       ToolTip="Drag inward to shrink or outward to restore the original size" AutomationProperties.Name="Resize note"
                        shell:WindowChrome.IsHitTestVisibleInChrome="True"
                        DragStarted="ShrinkDragStarted" DragDelta="ShrinkDragDelta"
                        DragCompleted="ShrinkDragCompleted">
                     <Thumb.Template>
                         <ControlTemplate TargetType="Thumb">
                             <Border Background="{TemplateBinding Background}">
-                                <Path x:Name="GripLines" Data="M 4,10 L 10,4 M 4,14 L 14,4"
+                                <Path x:Name="GripLines" Data="M 3,8 L 11,16 M 3,13 L 6,16"
                                       Stroke="#332D24" StrokeThickness="1.25"
                                       StrokeStartLineCap="Round" StrokeEndLineCap="Round" Opacity="0.38"
                                       IsHitTestVisible="False"/>

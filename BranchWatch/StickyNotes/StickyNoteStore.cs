@@ -35,6 +35,8 @@ internal sealed class StickyNoteStore(string path)
             {
                 throw new InvalidDataException("Invalid sticky note identity or content.");
             }
+
+            note.EnsureOriginalSize();
         }
 
         return notes;

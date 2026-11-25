@@ -79,6 +79,7 @@ public partial class StickyNoteWindow : Window
     internal void BeginTrackingBounds()
     {
         _trackingBounds = true;
+        _note.EnsureOriginalSize();
         CaptureBounds();
         _desktopVerified = true;
         RefreshPassiveBody();
@@ -102,8 +103,9 @@ public partial class StickyNoteWindow : Window
     private void ApplyBounds()
     {
         var work = SystemParameters.WorkArea;
-        Width = Math.Clamp(double.IsFinite(_note.Width) ? _note.Width : 300, MinWidth, Math.Max(MinWidth, work.Width));
-        Height = Math.Clamp(double.IsFinite(_note.Height) ? _note.Height : 260, MinHeight, Math.Max(MinHeight, work.Height));
+        _note.EnsureOriginalSize();
+        Width = Math.Clamp(double.IsFinite(_note.Width) ? _note.Width : StickyNote.DefaultWidth, MinWidth, Math.Max(MinWidth, work.Width));
+        Height = Math.Clamp(double.IsFinite(_note.Height) ? _note.Height : StickyNote.DefaultHeight, MinHeight, Math.Max(MinHeight, work.Height));
 
         var screen = new Rect(SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop,
             SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
@@ -291,10 +293,11 @@ public partial class StickyNoteWindow : Window
         }
 
         var current = new StickyNoteResizeBounds(Left, Top, Width, Height);
-        var next = StickyNoteResizeGeometry.Shrink(start, current,
+        var next = StickyNoteResizeGeometry.Resize(start,
             (cursor.X - _shrinkCursor.X) / _shrinkDpi.DpiScaleX,
             (cursor.Y - _shrinkCursor.Y) / _shrinkDpi.DpiScaleY,
-            MinWidth, MinHeight);
+            MinWidth, MinHeight, _note.OriginalWidth ?? StickyNote.DefaultWidth,
+            _note.OriginalHeight ?? StickyNote.DefaultHeight);
         if (next == current)
         {
             return;

@@ -9,11 +9,11 @@ internal static class StickyNoteResizeGeometry
 {
     internal const double GripSize = 18;
 
-    internal static StickyNoteResizeBounds Shrink(StickyNoteResizeBounds start, StickyNoteResizeBounds current,
-        double deltaX, double deltaY, double minWidth, double minHeight)
+    internal static StickyNoteResizeBounds Resize(StickyNoteResizeBounds start,
+        double deltaX, double deltaY, double minWidth, double minHeight, double maxWidth, double maxHeight)
     {
-        var width = Math.Clamp(start.Width - Math.Max(0, deltaX), Math.Min(minWidth, current.Width), current.Width);
-        var height = Math.Clamp(start.Height + Math.Min(0, deltaY), Math.Min(minHeight, current.Height), current.Height);
+        var width = Math.Clamp(start.Width - deltaX, minWidth, Math.Max(minWidth, maxWidth));
+        var height = Math.Clamp(start.Height + deltaY, minHeight, Math.Max(minHeight, maxHeight));
         return new StickyNoteResizeBounds(start.Left + start.Width - width, start.Top, width, height);
     }
 
