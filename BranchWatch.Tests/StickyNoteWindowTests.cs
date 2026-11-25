@@ -30,7 +30,7 @@ public sealed class StickyNoteWindowTests
                     Assert.AreEqual(System.Windows.Media.Color.FromRgb(0xDD, 0xEE, 0xFF),
                         ((SolidColorBrush)window.NoteSurface.Background).Color);
                     Assert.AreEqual(WindowStyle.None, window.WindowStyle);
-                    Assert.AreEqual(ResizeMode.CanResize, window.ResizeMode);
+                    Assert.AreEqual(ResizeMode.NoResize, window.ResizeMode);
                     Assert.AreEqual(Colors.Transparent, ((SolidColorBrush)window.Background).Color);
                     Assert.AreEqual(0.55, window.NoteSurface.Opacity, 0.0001);
                     Assert.AreEqual(System.Windows.Media.Color.FromRgb(0xB7, 0xD7, 0xF4),
@@ -91,6 +91,12 @@ public sealed class StickyNoteWindowTests
             Assert.AreEqual(window.HeaderSurface.ActualWidth, window.BodyHost.ActualWidth, 0.001);
             Assert.AreEqual(header.Y + window.HeaderSurface.ActualHeight, body.Y, 0.001);
             Assert.AreEqual(new Thickness(4, 4, 4, 0), window.Header.Margin);
+            var grip = window.ShrinkGrip.TranslatePoint(new System.Windows.Point(), window.BodyHost);
+            Assert.AreEqual(0, grip.X, 0.001);
+            Assert.AreEqual(window.BodyHost.ActualHeight - window.ShrinkGrip.ActualHeight, grip.Y, 0.001);
+            Assert.AreEqual(StickyNoteResizeGeometry.GripSize, window.ShrinkGrip.ActualWidth, 0.001);
+            Assert.AreEqual(StickyNoteResizeGeometry.GripSize, window.ShrinkGrip.ActualHeight, 0.001);
+            Assert.IsTrue(window.ShrinkGrip.IsHitTestVisible);
         }
     }
 }

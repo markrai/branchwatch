@@ -1,4 +1,6 @@
+using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Input;
@@ -20,6 +22,9 @@ public partial class StickyNoteWindow : Window
     private bool _passiveBodyFailed;
     private bool _refreshingPassiveBody;
     private bool _closing;
+    private StickyNoteResizeBounds? _shrinkStart;
+    private NativePoint _shrinkCursor;
+    private DpiScale _shrinkDpi;
 
     internal StickyNoteWindow(StickyNote note, StickyNotesController controller)
     {
@@ -120,6 +125,7 @@ public partial class StickyNoteWindow : Window
         var palette = StickyNoteAppearance.ResolveColor(_note.Color);
         NoteSurface.Background = BrushFor(palette.Body);
         HeaderSurface.Background = BrushFor(palette.Header);
+        ShrinkGrip.Background = BrushFor(palette.Body);
         UpdateInputPresentation();
         _passiveBody?.UpdateContent(_note);
     }
@@ -264,6 +270,61 @@ public partial class StickyNoteWindow : Window
 
     private static SolidColorBrush BrushFor(string value) =>
         new((System.Windows.Media.Color)WpfColorConverter.ConvertFromString(value)!);
+
+    private void ShrinkDragStarted(object sender, DragStartedEventArgs e)
+    {
+        _shrinkStart = null;
+        if (WindowState != WindowState.Normal || !GetCursorPos(out _shrinkCursor))
+        {
+            return;
+        }
+
+        _shrinkDpi = VisualTreeHelper.GetDpi(this);
+        _shrinkStart = new StickyNoteResizeBounds(Left, Top, ActualWidth, ActualHeight);
+    }
+
+    private void ShrinkDragDelta(object sender, DragDeltaEventArgs e)
+    {
+        if (_shrinkStart is not { } start || !GetCursorPos(out var cursor))
+        {
+            return;
+        }
+
+        var current = new StickyNoteResizeBounds(Left, Top, Width, Height);
+        var next = StickyNoteResizeGeometry.Shrink(start, current,
+            (cursor.X - _shrinkCursor.X) / _shrinkDpi.DpiScaleX,
+            (cursor.Y - _shrinkCursor.Y) / _shrinkDpi.DpiScaleY,
+            MinWidth, MinHeight);
+        if (next == current)
+        {
+            return;
+        }
+
+        Width = next.Width;
+        Height = next.Height;
+        Left = next.Left;
+        UpdateLayout();
+        CaptureBounds();
+        AlignPassiveBody();
+    }
+
+    private void ShrinkDragCompleted(object sender, DragCompletedEventArgs e)
+    {
+        _shrinkStart = null;
+        CaptureBounds();
+        AlignPassiveBody();
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativePoint
+    {
+        public int X;
+        public int Y;
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetCursorPos(out NativePoint point);
 
     private void HeaderMouseDown(object sender, MouseButtonEventArgs e)
     {
