@@ -6,7 +6,7 @@ namespace BranchWatch;
 
 internal static class ApplicationIcon
 {
-    internal const string ResourceUri = "pack://application:,,,/Assets/BranchWatch.ico";
+    internal const string ResourceUri = "pack://application:,,,/BranchWatch;component/Assets/BranchWatch.ico";
 
     internal static Icon LoadTrayIcon()
     {
