@@ -15,6 +15,7 @@ public sealed class TrayService : IDisposable
     private readonly GitRepositoryWatcher _repositoryWatcher;
     private readonly OverlayWindow _overlayWindow;
     private readonly VirtualDesktopOverlayController _virtualDesktopOverlayController;
+    private readonly StickyNotesController _stickyNotes;
     private readonly Forms.NotifyIcon _notifyIcon;
     private readonly Forms.Form _dialogOwner;
     private PersonalizeWindow? _personalizeWindow;
@@ -39,7 +40,8 @@ public sealed class TrayService : IDisposable
         RepositorySessionController sessionController,
         GitRepositoryWatcher repositoryWatcher,
         OverlayWindow overlayWindow,
-        VirtualDesktopOverlayController virtualDesktopOverlayController)
+        VirtualDesktopOverlayController virtualDesktopOverlayController,
+        StickyNotesController stickyNotes)
     {
         _settingsService = settingsService;
         _settings = settings;
@@ -48,6 +50,7 @@ public sealed class TrayService : IDisposable
         _repositoryWatcher = repositoryWatcher;
         _overlayWindow = overlayWindow;
         _virtualDesktopOverlayController = virtualDesktopOverlayController;
+        _stickyNotes = stickyNotes;
         _dialogOwner = CreateDialogOwner();
         _notifyIcon = new Forms.NotifyIcon
         {
@@ -57,6 +60,7 @@ public sealed class TrayService : IDisposable
             ContextMenuStrip = BuildContextMenu()
         };
 
+        _stickyNotes.Error += OnStickyNotesError;
         _notifyIcon.DoubleClick += (_, _) => ToggleOverlay();
         _sessionController.StateChanged += OnSessionStateChanged;
         _repositoryWatcher.StatusChanged += OnRepositoryStatusChanged;
@@ -125,6 +129,7 @@ public sealed class TrayService : IDisposable
         }
 
         _disposed = true;
+        _stickyNotes.Error -= OnStickyNotesError;
         _personalizeWindow?.Close();
         _sessionController.StateChanged -= OnSessionStateChanged;
         _repositoryWatcher.StatusChanged -= OnRepositoryStatusChanged;
@@ -161,6 +166,7 @@ public sealed class TrayService : IDisposable
         menu.Items.Add(_rescanWorkspaceItem);
         menu.Items.Add(CreateItem("Personalize...", (_, _) => OpenPersonalize()));
         menu.Items.Add(CreateItem("Virtual Desktops...", (_, _) => OpenVirtualDesktops()));
+        menu.Items.Add(BuildStickyNotesMenu());
 
         _refreshItem = CreateItem("Refresh branch", (_, _) => RefreshBranch());
         menu.Items.Add(_refreshItem);
@@ -188,6 +194,40 @@ public sealed class TrayService : IDisposable
 
         return menu;
     }
+
+    private Forms.ToolStripMenuItem BuildStickyNotesMenu()
+    {
+        var menu = new Forms.ToolStripMenuItem("Sticky notes");
+        menu.DropDownItems.Add(CreateItem("New note", (_, _) => RunAfterContextMenuClosed(_stickyNotes.CreateNote)));
+        var reopen = new Forms.ToolStripMenuItem("Open on this desktop");
+        menu.DropDownItems.Add(reopen);
+        menu.DropDownOpening += (_, _) =>
+        {
+            while (reopen.DropDownItems.Count > 0)
+            {
+                var item = reopen.DropDownItems[0];
+                reopen.DropDownItems.RemoveAt(0);
+                item.Dispose();
+            }
+
+            foreach (var note in _stickyNotes.Notes)
+            {
+                var label = $"{note.Preview} · {_stickyNotes.DesktopName(note.DesktopId)}";
+                if (!note.IsOpen)
+                {
+                    label += " (closed)";
+                }
+
+                reopen.DropDownItems.Add(CreateItem(label.Replace("&", "&&"),
+                    (_, _) => RunAfterContextMenuClosed(() => _stickyNotes.OpenOnCurrentDesktop(note))));
+            }
+
+            reopen.Enabled = reopen.DropDownItems.Count > 0;
+        };
+        return menu;
+    }
+
+    private void OnStickyNotesError(string message) => ShowBalloon("Sticky notes", message);
 
     private void RefreshContextMenu()
     {
@@ -373,6 +413,7 @@ public sealed class TrayService : IDisposable
     private void ExitApplication()
     {
         _overlayWindow.Hide();
+        _stickyNotes.Dispose();
         Dispose();
         System.Windows.Application.Current.Shutdown();
     }

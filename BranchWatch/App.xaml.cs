@@ -12,6 +12,7 @@ public partial class App : System.Windows.Application
     private OverlayWindow? _overlayWindow;
     private VirtualDesktopOverlayController? _virtualDesktopOverlayController;
     private TrayService? _trayService;
+    private StickyNotesController? _stickyNotes;
     private BranchWatchIpcServer? _ipcServer;
 
     public App()
@@ -39,6 +40,8 @@ public partial class App : System.Windows.Application
         _ipcServer.Start();
         _overlayWindow = new OverlayWindow();
         _virtualDesktopOverlayController = new VirtualDesktopOverlayController(_settingsService, settings);
+        _stickyNotes = new StickyNotesController(_virtualDesktopOverlayController.Monitor,
+            System.IO.Path.Combine(System.IO.Path.GetDirectoryName(_settingsService.SettingsPath)!, "sticky-notes.json"));
         _trayService = new TrayService(
             _settingsService,
             settings,
@@ -46,8 +49,10 @@ public partial class App : System.Windows.Application
             _sessionController,
             _repositoryWatcher,
             _overlayWindow,
-            _virtualDesktopOverlayController);
+            _virtualDesktopOverlayController,
+            _stickyNotes);
         _trayService.Start();
+        _stickyNotes.Start();
         _virtualDesktopOverlayController.Start();
 
         if (e.Args.Length > 0)
@@ -64,9 +69,19 @@ public partial class App : System.Windows.Application
         }
     }
 
+    protected override void OnSessionEnding(SessionEndingCancelEventArgs e)
+    {
+        base.OnSessionEnding(e);
+        if (!e.Cancel)
+        {
+            _stickyNotes?.Dispose();
+        }
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
         _ipcServer?.Dispose();
+        _stickyNotes?.Dispose();
         _trayService?.Dispose();
         _virtualDesktopOverlayController?.Dispose();
         _sessionController?.Dispose();
