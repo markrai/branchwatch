@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.0] - 2026-11-25
+
+### Added
+
+- Desktop-specific sticky notes with independent windows, colors, move and close controls, and local autosave.
+
 ## [1.2.2] - 2026-10-03
 
 ### Added

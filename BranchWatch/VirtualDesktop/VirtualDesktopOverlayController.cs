@@ -20,6 +20,8 @@ public sealed class VirtualDesktopOverlayController : IDisposable
         _monitor.StateChanged += OnDisplayStateChanged;
     }
 
+    internal VirtualDesktopMonitor Monitor => _monitor;
+
     public void Start()
     {
         ApplyOverlayState();

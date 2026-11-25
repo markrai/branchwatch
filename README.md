@@ -2,7 +2,7 @@
 
 ![BranchWatch preview](preview.jpg)
 
-**Version 1.2.1**
+**Version 1.3.0**
 
 BranchWatch is a lightweight Windows tray app that displays the active Git repo/branch in a persistent always-on-top overlay.
 
@@ -13,6 +13,7 @@ BranchWatch is a lightweight Windows tray app that displays the active Git repo/
 - **WorkspaceRepo mode** — watch a parent folder; follows the repo with the latest branch, index, or working-tree activity.
 - **Activity reason display** — optionally show why a workspace repo became active, plus explicit `BranchWatch.exe activity` reporting.
 - **Virtual Desktops overlay** — separate overlay showing the current Windows virtual desktop name, with neighbor-desktop strip, `Show only on desktop`, and `Show on Taskbar` options.
+- **Sticky notes** — independent, editable note windows assigned to individual Windows virtual desktops.
 - **Tray control** — choose repository/workspace, rescan, personalize appearance, and configure startup.
 - **Personalization** — overlay position, opacity, outline, size, and font color.
 - **Simple setup** — per-user `settings.json`, `Start with Windows` support, and self-contained publish.
@@ -65,6 +66,14 @@ This is optional. Normal WorkspaceRepo behavior still works without it.
 BranchWatch can show the current Windows virtual desktop name on a separate always-on-top overlay, independent of the git branch overlay.
 
 Use the tray menu item `Virtual Desktops...` to show or hide the overlay, choose its screen position, and personalize size, opacity, outline, and font color. The overlay updates when you switch desktops.
+
+## Sticky notes
+
+Use `Sticky notes` → `New note` in the tray menu to create a note on the current virtual desktop. Each note has its own window, can be dragged and resized, and supports multiple notes per desktop. The `+` button creates another note, the `⋯` menu changes its color or moves it to another desktop, and the `×` button closes it without deleting its contents.
+
+Use `Sticky notes` → `Open on this desktop` to reopen a closed note or bring an existing note to the current desktop. To permanently remove a note, choose `Delete note…` in its options menu. Open notes are restored when their assigned desktop is visited after restarting BranchWatch. Notes whose desktop no longer exists remain accessible from the tray.
+
+Notes are saved locally in `%AppData%\\BranchWatch\\sticky-notes.json`, independently of overlay settings. Windows manages each visible note as a separate window; do not pin the BranchWatch app to all desktops if you want notes to remain desktop-specific.
 
 ## Build
 
