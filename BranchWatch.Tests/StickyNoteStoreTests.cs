@@ -12,7 +12,7 @@ public sealed class StickyNoteStoreTests
         var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "notes.json");
         try
         {
-            var first = new StickyNote { DesktopId = Guid.NewGuid(), Text = "first\nline", Color = "Blue", Left = -250, Top = 80, Width = 420, Height = 300 };
+            var first = new StickyNote { DesktopId = Guid.NewGuid(), Text = "first\nline", Color = "Blue", TransparencyLevel = 8, Left = -250, Top = 80, Width = 420, Height = 300 };
             var second = new StickyNote { DesktopId = Guid.NewGuid(), Text = "second", IsOpen = false };
             var store = new StickyNoteStore(path);
             store.Save([first, second]);
@@ -23,6 +23,8 @@ public sealed class StickyNoteStoreTests
             Assert.AreEqual(first.DesktopId, notes[0].DesktopId);
             Assert.AreEqual(first.Text, notes[0].Text);
             Assert.AreEqual(first.Color, notes[0].Color);
+            Assert.AreEqual(8, notes[0].TransparencyLevel);
+            Assert.AreEqual(StickyNoteTransparency.DefaultLevel, notes[1].TransparencyLevel);
             Assert.AreEqual(first.Left, notes[0].Left);
             Assert.AreEqual(first.Top, notes[0].Top);
             Assert.AreEqual(first.Width, notes[0].Width);
@@ -42,6 +44,49 @@ public sealed class StickyNoteStoreTests
                 Directory.Delete(Path.GetDirectoryName(path)!, recursive: true);
             }
         }
+    }
+
+    [TestMethod]
+    public void Load_UsesDefaultTransparencyForExistingNotesAndClampsOutOfRangeValues()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            var id = Guid.NewGuid();
+            var desktop = Guid.NewGuid();
+            var store = new StickyNoteStore(path);
+            File.WriteAllText(path, JsonSerializer.Serialize(new[] { new { Id = id, DesktopId = desktop } }));
+            Assert.AreEqual(3, store.Load()[0].TransparencyLevel);
+
+            File.WriteAllText(path, JsonSerializer.Serialize(new[]
+            {
+                new { Id = id, DesktopId = desktop, TransparencyLevel = -2 },
+                new { Id = Guid.NewGuid(), DesktopId = desktop, TransparencyLevel = 30 }
+            }));
+            var notes = store.Load();
+            Assert.AreEqual(1, notes[0].TransparencyLevel);
+            Assert.AreEqual(10, notes[1].TransparencyLevel);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [TestMethod]
+    public void TransparencyLevels_ProgressFromOpaqueToTranslucent()
+    {
+        Assert.AreEqual((byte)255, StickyNoteTransparency.AlphaForLevel(1));
+        Assert.AreEqual((byte)242, StickyNoteTransparency.AlphaForLevel(3));
+        Assert.AreEqual((byte)89, StickyNoteTransparency.AlphaForLevel(10));
+
+        for (var level = 1; level < 10; level++)
+        {
+            Assert.IsTrue(StickyNoteTransparency.AlphaForLevel(level) > StickyNoteTransparency.AlphaForLevel(level + 1));
+        }
+
+        Assert.AreEqual(StickyNoteTransparency.AlphaForLevel(1), StickyNoteTransparency.AlphaForLevel(0));
+        Assert.AreEqual(StickyNoteTransparency.AlphaForLevel(10), StickyNoteTransparency.AlphaForLevel(11));
     }
 
     [TestMethod]

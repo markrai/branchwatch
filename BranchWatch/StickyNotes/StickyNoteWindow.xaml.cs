@@ -35,6 +35,13 @@ public partial class StickyNoteWindow : Window
         Editor.Text = note.Text;
         ApplyColor();
         ApplyBounds();
+        SourceInitialized += (_, _) =>
+        {
+            if (!StickyNoteTransparency.TryApply(Handle, _note.TransparencyLevel))
+            {
+                _controller.ReportError("Windows could not apply the saved sticky note transparency.");
+            }
+        };
         Editor.TextChanged += (_, _) =>
         {
             _note.Text = Editor.Text;
@@ -146,6 +153,39 @@ public partial class StickyNoteWindow : Window
         }
 
         menu.Items.Add(colors);
+        var transparency = new WpfMenuItem { Header = $"Transparency ({_note.TransparencyLevel})" };
+        for (var level = StickyNoteTransparency.MinLevel; level <= StickyNoteTransparency.MaxLevel; level++)
+        {
+            var selectedLevel = level;
+            var label = level switch
+            {
+                StickyNoteTransparency.MinLevel => "1 (opaque)",
+                StickyNoteTransparency.DefaultLevel => "3 (default)",
+                StickyNoteTransparency.MaxLevel => "10 (most transparent)",
+                _ => level.ToString()
+            };
+            var item = new WpfMenuItem
+            {
+                Header = label,
+                IsCheckable = true,
+                IsChecked = _note.TransparencyLevel == level
+            };
+            item.Click += (_, _) =>
+            {
+                if (StickyNoteTransparency.TryApply(Handle, selectedLevel))
+                {
+                    _note.TransparencyLevel = selectedLevel;
+                    _controller.MarkDirty();
+                }
+                else
+                {
+                    _controller.ReportError("Windows could not change the sticky note transparency.");
+                }
+            };
+            transparency.Items.Add(item);
+        }
+
+        menu.Items.Add(transparency);
         var move = new WpfMenuItem { Header = "Move to desktop" };
         foreach (var desktop in _controller.Desktops)
         {
