@@ -9,13 +9,22 @@ internal sealed class StickyNoteStore(string path)
 
     internal List<StickyNote> Load()
     {
-        if (!File.Exists(path))
+        FileStream stream;
+        try
+        {
+            stream = File.OpenRead(path);
+        }
+        catch (FileNotFoundException)
+        {
+            return [];
+        }
+        catch (DirectoryNotFoundException)
         {
             return [];
         }
 
-        using var stream = File.OpenRead(path);
-        var notes = JsonSerializer.Deserialize<List<StickyNote>>(stream, Options)
+        using var input = stream;
+        var notes = JsonSerializer.Deserialize<List<StickyNote>>(input, Options)
             ?? throw new InvalidDataException("Invalid sticky notes file.");
 
         var ids = new HashSet<Guid>();

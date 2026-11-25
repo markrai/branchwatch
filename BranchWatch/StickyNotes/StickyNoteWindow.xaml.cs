@@ -24,6 +24,7 @@ public partial class StickyNoteWindow : Window
 
     private readonly StickyNote _note;
     private readonly StickyNotesController _controller;
+    private bool _trackingBounds;
 
     internal StickyNoteWindow(StickyNote note, StickyNotesController controller)
     {
@@ -58,9 +59,16 @@ public partial class StickyNoteWindow : Window
         Editor.Focus();
     }
 
+    internal void BeginTrackingBounds()
+    {
+        _trackingBounds = true;
+        CaptureBounds();
+    }
+
     internal void CaptureBounds()
     {
-        if (!IsLoaded || WindowState != WindowState.Normal)
+        if (!_trackingBounds || !IsLoaded || WindowState != WindowState.Normal
+            || ActualWidth <= 0 || ActualHeight <= 0)
         {
             return;
         }

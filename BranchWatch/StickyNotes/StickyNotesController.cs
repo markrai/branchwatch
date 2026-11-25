@@ -15,6 +15,8 @@ public sealed class StickyNotesController : IDisposable
     private bool _dirty;
     private bool _saveErrorReported;
     private bool _disposed;
+    private Guid? _restoreDesktop;
+    private int _restoreAttempts;
 
     internal StickyNotesController(VirtualDesktopMonitor monitor, string path)
     {
@@ -51,7 +53,7 @@ public sealed class StickyNotesController : IDisposable
         _timer.Start();
         if (_monitor.CurrentState is { } state)
         {
-            Restore(state.ActiveDesktop.Id);
+            ScheduleRestore(state.ActiveDesktop.Id);
         }
     }
 
@@ -93,7 +95,7 @@ public sealed class StickyNotesController : IDisposable
             if (!_native.IsCurrent(existing.Handle))
             {
                 var current = VirtualDesktopRegistryReader.TryGetCurrentDesktop();
-                if (current is null || !MoveNote(note, current.Id) || !_native.IsCurrent(existing.Handle))
+                if (current is null || !MoveNote(note, current.Id, requireCurrent: true))
                 {
                     Error?.Invoke("Unable to bring this note to the current virtual desktop.");
                     return;
@@ -111,13 +113,26 @@ public sealed class StickyNotesController : IDisposable
         }
     }
 
-    internal bool MoveNote(StickyNote note, Guid desktopId)
+    internal bool MoveNote(StickyNote note, Guid desktopId, bool requireCurrent = false)
     {
         if (!_windows.TryGetValue(note.Id, out var window)
-            || !Desktops.Any(desktop => desktop.Id == desktopId)
-            || !_native.Move(window.Handle, desktopId))
+            || !Desktops.Any(desktop => desktop.Id == desktopId))
+        {
+            Error?.Invoke("The selected virtual desktop is unavailable.");
+            return false;
+        }
+
+        var previous = _native.GetDesktop(window.Handle);
+        if (previous is null || !_native.Move(window.Handle, desktopId))
         {
             Error?.Invoke("Windows could not move this note to the selected virtual desktop.");
+            return false;
+        }
+
+        if (requireCurrent && !_native.IsCurrent(window.Handle))
+        {
+            _native.Move(window.Handle, previous.Value);
+            SynchronizeAssignments();
             return false;
         }
 
@@ -148,7 +163,7 @@ public sealed class StickyNotesController : IDisposable
         }
     }
 
-    private bool OpenWindow(StickyNote note, Guid? expectedDesktop, bool activate)
+    private bool OpenWindow(StickyNote note, Guid? expectedDesktop, bool activate, bool reportError = true)
     {
         var window = new StickyNoteWindow(note, this) { ShowActivated = false };
         window.Show();
@@ -158,7 +173,11 @@ public sealed class StickyNotesController : IDisposable
             || (expectedDesktop.HasValue && actualDesktop != expectedDesktop))
         {
             window.Close();
-            Error?.Invoke("Windows could not verify the note's virtual desktop. The note was not opened.");
+            if (reportError)
+            {
+                Error?.Invoke("Windows could not verify the note's virtual desktop. The note was not opened.");
+            }
+
             return false;
         }
 
@@ -166,6 +185,19 @@ public sealed class StickyNotesController : IDisposable
         note.IsOpen = true;
         _windows.Add(note.Id, window);
         window.RefreshDesktopName();
+        window.BeginTrackingBounds();
+        window.Closing += (_, _) =>
+        {
+            if (_windows.ContainsKey(note.Id))
+            {
+                if (_native.GetDesktop(window.Handle) is { } desktopId)
+                {
+                    note.DesktopId = desktopId;
+                }
+
+                window.CaptureBounds();
+            }
+        };
         window.Closed += (_, _) =>
         {
             if (_windows.Remove(note.Id))
@@ -184,26 +216,52 @@ public sealed class StickyNotesController : IDisposable
         return true;
     }
 
-    private void Restore(Guid desktopId)
+    private void ScheduleRestore(Guid desktopId)
     {
-        if (!_available || _disposed)
+        _restoreDesktop = desktopId;
+        _restoreAttempts = 3;
+    }
+
+    private void RestorePending()
+    {
+        if (!_available || _disposed || _restoreDesktop is not { } desktopId)
         {
             return;
         }
 
-        foreach (var note in StickyNote.ForDesktop(_notes, desktopId))
+        var pending = StickyNote.ForDesktop(_notes, desktopId)
+            .Where(note => !_windows.ContainsKey(note.Id)).ToArray();
+        if (pending.Length == 0)
         {
-            if (!_windows.ContainsKey(note.Id))
+            _restoreDesktop = null;
+            return;
+        }
+
+        var failed = false;
+        foreach (var note in pending)
+        {
+            if (!OpenWindow(note, desktopId, activate: false, reportError: false))
             {
-                OpenWindow(note, desktopId, activate: false);
+                failed = true;
+                break;
             }
+        }
+
+        if (!failed)
+        {
+            _restoreDesktop = null;
+        }
+        else if (--_restoreAttempts == 0)
+        {
+            _restoreDesktop = null;
+            Error?.Invoke("Some sticky notes could not be restored. They remain available in the tray menu.");
         }
     }
 
     private void OnDesktopChanged(object? sender, VirtualDesktopDisplayState state)
     {
         SynchronizeAssignments();
-        Restore(state.ActiveDesktop.Id);
+        ScheduleRestore(state.ActiveDesktop.Id);
         foreach (var window in _windows.Values)
         {
             window.RefreshDesktopName();
@@ -227,6 +285,7 @@ public sealed class StickyNotesController : IDisposable
     private void OnTimerTick(object? sender, EventArgs e)
     {
         SynchronizeAssignments();
+        RestorePending();
         Save();
     }
 
