@@ -70,12 +70,18 @@ public sealed class StickyNotesController : IDisposable
     internal bool IsNoteOnCurrentDesktop(StickyNoteWindow window) =>
         window.Handle != IntPtr.Zero && _native.IsCurrent(window.Handle);
 
-    internal bool IsPassiveBodyOnOwnerDesktop(IntPtr body, IntPtr owner) =>
-        _native.GetDesktop(owner) is { } desktop && _native.GetDesktop(body) == desktop
-        && _native.IsCurrent(body);
+    internal bool IsPassiveBodyOnOwnerDesktop(StickyNotePassiveBody body, StickyNoteWindow owner, out string reason)
+    {
+        var ownerDesktop = _native.GetDesktop(owner.Handle);
+        var ownerCurrent = ownerDesktop.HasValue && _native.IsCurrent(owner.Handle);
+        var bodyDesktop = _native.GetDesktop(body.Handle);
+        var bodyCurrent = bodyDesktop.HasValue && _native.IsCurrent(body.Handle);
+        return StickyNoteDesktopAffinity.Verify(body.HasNativeOwner, ownerDesktop, ownerCurrent,
+            bodyDesktop, bodyCurrent, out reason);
+    }
 
-    internal void ReportClickThroughFailure() =>
-        Error?.Invoke("Windows could not enable sticky note click-through. The note remains visible.");
+    internal void ReportClickThroughFailure(string? detail) =>
+        Error?.Invoke($"Sticky note click-through unavailable. {detail ?? "Unknown window error."} The note remains visible.");
 
     internal string DesktopName(Guid id) =>
         Desktops.FirstOrDefault(desktop => desktop.Id == id)?.DisplayName ?? "Unavailable desktop";

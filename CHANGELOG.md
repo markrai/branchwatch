@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Validate passive sticky note window styles after WPF shows the window, and recognize owned auxiliary windows without a separate virtual desktop ID. Report the failing operation when click-through cannot be enabled.
+
 ### Changed
 
 - Translucent sticky note bodies pass pointer input through to underlying applications while the header remains interactive.
