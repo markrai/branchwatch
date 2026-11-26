@@ -9,6 +9,7 @@ internal sealed record BrowserRestoreReply(int Version, string Status, string Pr
 
 internal static class BrowserRestoreProtocol
 {
+    internal const int Version = 2;
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
     {
         UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow,
@@ -25,7 +26,7 @@ internal static class BrowserRestoreProtocol
     {
         Exact(root, ["version", "command", "profileId", "nonce", "ticket", "windowId"]);
         var request = root.Deserialize<BrowserRestoreRequest>(Options) ?? throw new InvalidDataException("Invalid restore request.");
-        if (request.Version != 1 || request.Command != "restore" || !BrowserTabCapture.IsId(request.ProfileId)
+        if (request.Version != Version || request.Command != "restore" || !BrowserTabCapture.IsId(request.ProfileId)
             || !BrowserTabCapture.IsId(request.Nonce) || !BrowserTabCapture.IsId(request.Ticket) || request.WindowId < 0)
             throw new InvalidDataException("Invalid restore request.");
         return request;
@@ -49,7 +50,7 @@ internal static class BrowserRestoreProtocol
         var root = doc.RootElement;
         Exact(root, ["version", "status", "profileId", "nonce", "tabs"]);
         var reply = root.Deserialize<BrowserRestoreReply>(Options) ?? throw new InvalidDataException("Invalid restore reply.");
-        if (reply.Version != 1 || reply.ProfileId != request.ProfileId || reply.Nonce != request.Nonce
+        if (reply.Version != Version || reply.ProfileId != request.ProfileId || reply.Nonce != request.Nonce
             || reply.Status is not ("authorized" or "rejected"))
             throw new InvalidDataException("Restore response did not match.");
         if (reply.Status == "rejected")
@@ -74,7 +75,7 @@ internal static class BrowserRestoreProtocol
             if (!tab.Pinned) unpinned = true;
             else if (unpinned) return false;
         }
-        return BrowserCompanionProtocol.Encode(new BrowserRestoreReply(1, "authorized", context.ProfileId,
+        return BrowserCompanionProtocol.Encode(new BrowserRestoreReply(Version, "authorized", context.ProfileId,
             new string('0', 32), context.Tabs)).Length <= BrowserTabCapture.MaxFrame;
     }
 

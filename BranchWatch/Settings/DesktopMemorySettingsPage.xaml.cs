@@ -369,7 +369,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
                 : !BrowserRestoreProtocol.CanRestore(context) ? "Saved tab order or payload is not eligible for reopening."
                 : w.Minimized || w.Maximized ? "Only saved normal browser windows are eligible."
                 : source.DesktopId != _active ? "Switch to this desktop first."
-                : "Reopen in the matching profile; placement and existing-session reconciliation are not yet enabled.";
+                : "Check existing tabs in the matching profile before reopening. Native placement is not yet enabled.";
             return new BrowserReviewGroup(w.Id, label, detail, editable, restorable, draft is null ? hint : "",
                 context.Tabs.Select((tab, index) => new BrowserReviewRow(w.Id, index, tab,
                     draft is null || _browserReview.IsSelected(w.Id, index), editable)).ToArray());
@@ -426,7 +426,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         if (window is null || window.BrowserContext is not { } context || window.Minimized || window.Maximized
             || !BrowserRestoreProtocol.CanRestore(context)) return;
         var key = new BrowserRestoreKey(saved.DesktopId, saved.CapturedUtc, window.Id);
-        if (!Confirm($"Reopen {context.Tabs.Count} saved tabs in a NEW {context.Browser} window for profile {context.ProfileId[..8]}…? Existing windows and tabs will not be reused or closed. If the browser already restored them, this may create duplicates. The new window's native placement is not verified.", "Reopen browser session")) return;
+        if (!Confirm($"Check and reopen {context.Tabs.Count} saved tabs in {context.Browser} profile {context.ProfileId[..8]}…? Companion will check existing normal windows in that profile. Matching or overlapping tabs prevent a new window. No existing tab is modified or closed. Native placement is not verified.", "Reopen browser session")) return;
         try
         {
             bool StillCurrent()

@@ -45,7 +45,7 @@ let restoring = false;
 async function executeApprovedRestore(message) {
     if (restoring) return { status: "busy" };
     const { reply, nonce, sourceWindowId } = message;
-    if (!idPattern.test(nonce ?? "") || !Number.isSafeInteger(sourceWindowId) || reply?.version !== 1
+    if (!idPattern.test(nonce ?? "") || !Number.isSafeInteger(sourceWindowId) || reply?.version !== 2
         || reply.status !== "authorized" || reply.nonce !== nonce || !validRestoreTabs(reply.tabs)) return { status: "rejected" };
     restoring = true;
     try {

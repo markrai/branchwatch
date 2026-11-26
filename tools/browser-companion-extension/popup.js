@@ -96,10 +96,10 @@ restoreButton.addEventListener("click", async () => {
         if (!/^[0-9a-f]{32}$/.test(profile?.profileId ?? "")) throw new Error("Profile unavailable.");
         const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, "0")).join("");
         const reply = await chrome.runtime.sendNativeMessage("com.branchwatch.companion", {
-            version: 1, command: "restore", profileId: profile.profileId, nonce, ticket, windowId: source.id
+            version: 2, command: "restore", profileId: profile.profileId, nonce, ticket, windowId: source.id
         });
         const after = await chrome.windows.getCurrent();
-        if (!eligibleWindow(after) || after.id !== source.id || reply?.version !== 1 || reply.status !== "authorized"
+        if (!eligibleWindow(after) || after.id !== source.id || reply?.version !== 2 || reply.status !== "authorized"
             || reply.profileId !== profile.profileId || reply.nonce !== nonce || !validRestoreTabs(reply.tabs))
             throw new Error("Restore approval rejected or window changed.");
         document.getElementById("restoreTicket").value = "";
