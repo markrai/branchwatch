@@ -75,8 +75,8 @@ Self-tests cover statistics, CPU normalization, comparison deltas, JSON round tr
 | M.1 | Lazy overlay window creation and resource release | Merged; Windows CI passed; physical measurements pending |
 | M.2 | Lazy settings pages and snapshot loading | Merged; Windows CI passed; physical measurements pending |
 | M.3 | Demand-driven timers and background activity | Merged; Windows CI passed; physical measurements pending |
-| M.4 | Filesystem watcher consolidation and reuse | Implemented; Windows CI and physical measurements pending |
-| M.5 | Sticky-note rendering and shared resources | Planned |
+| M.4 | Filesystem watcher consolidation and reuse | Merged; Windows CI passed; physical measurements pending |
+| M.5 | Sticky-note rendering and shared resources | Implemented; Windows CI and physical measurements pending |
 | M.6 | Controlled runtime/GC experiments only if evidence warrants | Planned |
 | M.7 | Final repeat profiling and functional regression qualification | Planned |
 
@@ -123,3 +123,13 @@ Metadata watcher errors invalidate the affected subscription and schedule a norm
 Six tests cover watcher reuse and counts, changed refs, detached HEAD, clearing and disposal, linked worktrees, missing directory recovery, exact filename/rename routing, and live packed-refs/index/HEAD notifications. Existing workspace promotion and pinned behavior coverage remains in place. M.3 merged with passing CI; M.4 Windows CI and comparative profiling pending.
 
 Profile a fixed workspace of known repository count and equivalent pinned mode before and after this change. Compare private bytes, handles, CPU and repeated activity; exercise branch checkout, index updates, packed refs, linked worktrees, workspace rescan and transition back to pinned mode. No measured MiB or process handle reductions claimed before matched captures. M.5 will address sticky-note rendering resources.
+
+## M.5: sticky-note rendering resources
+
+Sticky-note owner windows, passive bodies and appearance previews share a lazily initialized, bounded palette of frozen WPF brushes. The palette contains only the predefined note colors and fixed foreground/border colors, never arbitrary user content. Frozen brushes can be reused safely across dispatchers. The scrollbar style is loaded and sealed once per dispatcher through a weak-key cache; each editor and passive body keeps its own local implicit style entry. Other controls are not affected. The existing scrollbar templates, colors, transparency levels and click-through behavior remain unchanged.
+
+Alarm pulses share a lazily initialized frozen animation definition but retain independent per-outline animation clocks and active glow effects. Dismissing an alarm removes its animation and local effect/brush references; inactive refreshes no longer repeatedly set collapsed visibility. Identical tooltip and automation label updates are skipped. The passive-body lifecycle, native affinity checks, alignment, focus, alarm deadlines and persistence are unchanged. The two-window click-through architecture is deliberately retained.
+
+Three new STA tests cover frozen palette sharing across dispatchers, scrollbar style sharing and isolation, and independent alarm clocks/effect release. Existing scrollbar template, note appearance, editing, alarm and native affinity tests remain in the suite. M.4 merged with passing CI; M.5 CI and physical profiling remain pending.
+
+Compare equivalent notes-10 and notes-closed workloads against the prior phase, including color changes, transparency transitions, collapse/expand, multiple simultaneous alarms, dismissal and virtual desktop switching. The bounded caches retain a small number of reusable resources after their first use; savings should be most apparent with multiple notes or repeated passive-window creation rather than an untouched tray-only session. No measured byte savings claimed. M.6 is evidence-driven runtime analysis; do not change GC or runtime settings without comparable measurements.
