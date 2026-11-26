@@ -31,6 +31,12 @@ internal static class BrowserTabCapture
             _ => null
         };
 
+    internal static string? SavedBrowserFor(string? path, string? className) =>
+        className == "MozillaWindowClass" && string.Equals(Path.GetFileName(path), "firefox.exe", StringComparison.OrdinalIgnoreCase)
+            ? "firefox" : BrowserFor(path, className);
+
+    internal static bool SupportsLiveSession(string? browser) => browser is "chrome" or "edge";
+
     internal static bool IsId(string? id) => id is { Length: 32 }
         && id.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
 
@@ -41,7 +47,7 @@ internal static class BrowserTabCapture
         && string.IsNullOrEmpty(uri.UserInfo);
 
     internal static bool IsValid(BrowserWindowContext? context) => context is not null
-        && context.Browser is "chrome" or "edge" && IsId(context.ProfileId)
+        && context.Browser is "chrome" or "edge" or "firefox" && IsId(context.ProfileId)
         && context.Tabs is { Count: <= MaxTabs }
         && context.Tabs.All(t => t is not null && IsUrl(t.Url))
         && context.Tabs.Count(t => t.Active) <= 1;
@@ -72,7 +78,7 @@ internal static class BrowserTabCapture
         ExactFields(root.GetProperty("token"), ["handle","processId","processCreation"]);
         var request = ParseRequest(root.GetProperty("request"));
         var envelope = root.Deserialize<BrowserCaptureEnvelope>(Options) ?? throw new InvalidDataException("Invalid capture envelope.");
-        if (envelope.Browser is not ("chrome" or "edge") || envelope.Token is not { } token
+        if (!SupportsLiveSession(envelope.Browser) || envelope.Token is not { } token
             || token.ProcessId == 0 || envelope.DesktopId == Guid.Empty || token.Handle is null
             || !token.Handle.StartsWith("0x", StringComparison.Ordinal)
             || !long.TryParse(token.Handle.AsSpan(2), System.Globalization.NumberStyles.HexNumber,

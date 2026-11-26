@@ -357,7 +357,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         {
             var context = w.BrowserContext!;
             var label = w.Title ?? w.ProcessName ?? "Browser";
-            var family = context.Browser == "chrome" ? "Chrome" : "Edge";
+            var family = context.Browser switch { "chrome" => "Chrome", "edge" => "Edge", "firefox" => "Firefox", _ => "Browser" };
             var detail = $"{family} · {w.MonitorSource} · Profile {context.ProfileId[..8]}…";
             var source = snapshot!;
             var key = new BrowserRestoreKey(source.DesktopId, source.CapturedUtc, w.Id);
@@ -366,6 +366,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
                 && source.DesktopId == _active && !issued && !w.Minimized && !w.Maximized && BrowserRestoreProtocol.CanRestore(context);
             var hint = issued ? "Request already issued in this BranchWatch session; check Companion before retrying."
                 : context.Tabs.Count == 0 ? "No selected URLs to reopen."
+                : !BrowserTabCapture.SupportsLiveSession(context.Browser) ? "Firefox session reopening is locked pending physical correlation qualification."
                 : !BrowserRestoreProtocol.CanRestore(context) ? "Saved tab order or payload is not eligible for reopening."
                 : w.Minimized || w.Maximized ? "Only saved normal browser windows are eligible."
                 : source.DesktopId != _active ? "Switch to this desktop first."
