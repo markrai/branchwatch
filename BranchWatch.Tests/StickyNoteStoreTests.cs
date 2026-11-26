@@ -77,6 +77,33 @@ public sealed class StickyNoteStoreTests
     }
 
     [TestMethod]
+    public void CustomTitle_RoundTripsAndDefaultsToCurrentDesktopName()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            var id = Guid.NewGuid();
+            var desktop = Guid.NewGuid();
+            File.WriteAllText(path, JsonSerializer.Serialize(new[] { new { Id = id, DesktopId = desktop } }));
+            var store = new StickyNoteStore(path);
+            var note = store.Load().Single();
+            Assert.IsNull(note.CustomTitle);
+            Assert.AreEqual("Default", note.DisplayTitle("Default"));
+            Assert.AreEqual("Renamed desktop", note.DisplayTitle("Renamed desktop"));
+            note.CustomTitle = "  Project notes  ";
+            store.Save([note]);
+            var saved = store.Load().Single();
+            Assert.AreEqual("Project notes", saved.CustomTitle);
+            Assert.AreEqual("Project notes", saved.DisplayTitle("Other desktop"));
+            Assert.AreEqual(desktop, saved.DesktopId);
+            saved.CustomTitle = "   ";
+            store.Save([saved]);
+            Assert.AreEqual("Other desktop", store.Load().Single().DisplayTitle("Other desktop"));
+        }
+        finally { File.Delete(path); }
+    }
+
+    [TestMethod]
     public void TransparencyLevels_ProgressFromOpaqueToTranslucent()
     {
         Assert.AreEqual(1.0, StickyNoteTransparency.OpacityForLevel(1), 0.0001);

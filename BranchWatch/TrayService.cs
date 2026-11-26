@@ -230,7 +230,7 @@ public sealed class TrayService : IDisposable
 
             foreach (var note in _stickyNotes.Notes)
             {
-                var label = $"{note.Preview} · {_stickyNotes.DesktopName(note.DesktopId)}";
+                var label = $"{note.CustomTitle ?? note.Preview} · {_stickyNotes.DesktopName(note.DesktopId)}";
                 if (!note.IsOpen)
                 {
                     label += " (closed)";
