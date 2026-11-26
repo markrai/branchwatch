@@ -170,3 +170,5 @@ The [Phase 8F duplicate check](docs/desktop-memory-browser-reconciliation.md) pr
 The [Firefox Companion diagnostic](docs/desktop-memory-firefox-qualification.md) provides local connection and native foreground observations without collecting URLs. Firefox session capture and restoration remain disabled until a verified Firefox window association is available.
 
 Firefox Companion 0.2.0 adds an explicit two-marker correlation diagnostic in an extension-owned test tab; see the [Firefox qualification guide](docs/desktop-memory-firefox-qualification.md).
+
+[Firefox session preparation](docs/desktop-memory-firefox-session-preparation.md) adds offline tab planning and snapshot compatibility. Live Firefox URL operations remain locked.

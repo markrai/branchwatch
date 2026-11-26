@@ -45,7 +45,8 @@ internal sealed class BrowserRestoreQueue(Func<long>? clock = null)
         BrowserRestoreReply Rejected() => new(BrowserRestoreProtocol.Version, "rejected", request.ProfileId, request.Nonce);
         lock (_gate)
         {
-            if (_pending is not { } pending || Stopwatch.GetElapsedTime(pending.Started, _clock()) >= Lifetime
+            if (!BrowserTabCapture.SupportsLiveSession(envelope.Browser)
+                || _pending is not { } pending || Stopwatch.GetElapsedTime(pending.Started, _clock()) >= Lifetime
                 || request.Ticket != pending.Code || envelope.DesktopId != pending.Key.DesktopId
                 || envelope.Browser != pending.Context.Browser || request.ProfileId != pending.Context.ProfileId
                 || _attempted.Contains(pending.Key)) return Rejected();

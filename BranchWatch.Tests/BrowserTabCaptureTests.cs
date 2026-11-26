@@ -116,4 +116,51 @@ public sealed class BrowserTabCaptureTests
         }
         finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
     }
+    [TestMethod]
+    public void Firefox_SavedDataRoundTripsButLiveOperationsRemainLocked()
+    {
+        var context = new BrowserWindowContext("firefox", Profile, Tabs);
+        Assert.IsTrue(BrowserTabCapture.IsValid(context));
+        Assert.IsTrue(BrowserRestoreProtocol.HasValidRestoreTabs(context));
+        Assert.IsFalse(BrowserRestoreProtocol.CanRestore(context));
+        Assert.IsFalse(BrowserTabCapture.SupportsLiveSession("firefox"));
+        Assert.IsNull(BrowserTabCapture.BrowserFor(@"C:\Apps\firefox.exe", "MozillaWindowClass"));
+        Assert.AreEqual("firefox", BrowserTabCapture.SavedBrowserFor(@"C:\Apps\firefox.exe", "MozillaWindowClass"));
+        Assert.IsNull(BrowserTabCapture.SavedBrowserFor(@"C:\Apps\firefox.exe", "Chrome_WidgetWin_1"));
+        var desktop = Guid.NewGuid();
+        var id = Guid.NewGuid();
+        var request = new BrowserCaptureRequest(1, "capture", Profile, Nonce, Profile, 7, Tabs, 0);
+        var envelope = new BrowserCaptureEnvelope(request, "firefox", Token, desktop);
+        Assert.ThrowsExactly<InvalidDataException>(() => BrowserTabCapture.ParseEnvelope(BrowserCompanionProtocol.Encode(envelope)));
+        var inbox = new BrowserCaptureInbox();
+        Assert.ThrowsExactly<InvalidOperationException>(() => inbox.Arm(desktop, id, "firefox", Token));
+        Assert.IsFalse(inbox.TryReceive(envelope));
+        var key = new BrowserRestoreKey(desktop, DateTimeOffset.UtcNow, id);
+        Assert.ThrowsExactly<InvalidOperationException>(() => new BrowserRestoreQueue().Arm(key, context, () => true));
+        var restore = new BrowserRestoreEnvelope(new(2, "restore", Profile, Nonce, Profile, 7), "firefox", desktop);
+        Assert.ThrowsExactly<InvalidDataException>(() => BrowserRestoreProtocol.ParseEnvelope(BrowserCompanionProtocol.Encode(restore)));
+
+        var bounds = new ProbeRect(10, 10, 800, 600);
+        var window = new SnapshotWindow(id, "firefox", @"C:\Apps\firefox.exe", "Window", "MozillaWindowClass",
+            bounds, null, bounds, false, false, 1, 0, "main", 96, 0, ["main"]) { BrowserContext = context };
+        var screen = new ProbeRect(0, 0, 1920, 1080);
+        var snapshot = new DesktopSnapshot(desktop, "Work", key.CapturedUtc,
+            [new SnapshotMonitor("main", screen, screen, true, 0, 1920, 1080, 60, 100, [])], [window], 0, []);
+        Assert.ThrowsExactly<InvalidDataException>(() => DesktopSnapshotValidation.Validate(snapshot with
+        {
+            Windows = [window with { BrowserContext = context with { Browser = "chrome" } }]
+        }));
+        var folder = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store = new DesktopMemoryStore(Path.Combine(folder, "snapshots.json"));
+            store.Save(snapshot, null);
+            var saved = store.Load().Single().Windows.Single().BrowserContext!;
+            Assert.AreEqual("firefox", saved.Browser);
+            Assert.AreEqual(Profile, saved.ProfileId);
+            CollectionAssert.AreEqual(Tabs, saved.Tabs.ToArray());
+            Assert.IsFalse(BrowserRestoreProtocol.CanRestore(saved));
+        }
+        finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
+    }
 }

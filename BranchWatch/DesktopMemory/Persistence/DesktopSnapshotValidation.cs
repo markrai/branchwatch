@@ -33,7 +33,7 @@ internal static class DesktopSnapshotValidation
                 || window.EnumerationIndex < 0
                 || (window.FolderContext is not null && !ApplicationRestoreAdapters.IsValidContext(window, window.FolderContext))
                 || (window.BrowserContext is { } browser && (!BrowserTabCapture.IsValid(browser)
-                    || BrowserTabCapture.BrowserFor(window.ExecutablePath, window.ClassName) != browser.Browser)))
+                    || BrowserTabCapture.SavedBrowserFor(window.ExecutablePath, window.ClassName) != browser.Browser)))
                 throw new InvalidDataException("Invalid snapshot window.");
         }
 

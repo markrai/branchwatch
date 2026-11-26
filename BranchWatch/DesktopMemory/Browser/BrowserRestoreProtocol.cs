@@ -39,7 +39,7 @@ internal static class BrowserRestoreProtocol
         Exact(root, ["restoreRequest", "browser", "desktopId"]);
         var request = ParseRequest(root.GetProperty("restoreRequest"));
         var envelope = root.Deserialize<BrowserRestoreEnvelope>(Options) ?? throw new InvalidDataException("Invalid restore envelope.");
-        if (envelope.Browser is not ("chrome" or "edge") || envelope.DesktopId == Guid.Empty)
+        if (!BrowserTabCapture.SupportsLiveSession(envelope.Browser) || envelope.DesktopId == Guid.Empty)
             throw new InvalidDataException("Invalid restore observation.");
         return envelope with { RestoreRequest = request };
     }
@@ -67,6 +67,12 @@ internal static class BrowserRestoreProtocol
     }
 
     internal static bool CanRestore(BrowserWindowContext? context)
+    {
+        if (context is null || !BrowserTabCapture.SupportsLiveSession(context.Browser)) return false;
+        return HasValidRestoreTabs(context);
+    }
+
+    internal static bool HasValidRestoreTabs(BrowserWindowContext? context)
     {
         if (context is null || !BrowserTabCapture.IsValid(context) || context.Tabs.Count == 0) return false;
         var unpinned = false;
