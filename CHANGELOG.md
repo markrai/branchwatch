@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Commit pending sticky-note titles and capture final state before shutdown persistence while preserving open-note restoration.
+
 ### Added
 
 - Per-sticky-note one-shot alarms with a calendar, digital 12-hour AM/PM selector, persistent due and acknowledgement state, and a slow color-matched outline pulse. Click the note header to dismiss; the clock button can reschedule or remove an alarm.

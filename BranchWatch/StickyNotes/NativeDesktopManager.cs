@@ -2,7 +2,14 @@ using System.Runtime.InteropServices;
 
 namespace BranchWatch;
 
-internal sealed class NativeDesktopManager : IDisposable
+internal interface IStickyNoteDesktopManager : IDisposable
+{
+    Guid? GetDesktop(IntPtr window);
+    bool IsCurrent(IntPtr window);
+    bool Move(IntPtr window, Guid target);
+}
+
+internal sealed class NativeDesktopManager : IStickyNoteDesktopManager
 {
     private IVirtualDesktopManager? _manager;
 
@@ -10,7 +17,7 @@ internal sealed class NativeDesktopManager : IDisposable
         Activator.CreateInstance(Type.GetTypeFromCLSID(
             new Guid("AA509086-5CA9-4C25-8F95-589D3C07B48A"), throwOnError: true)!)!;
 
-    internal Guid? GetDesktop(IntPtr window)
+    public Guid? GetDesktop(IntPtr window)
     {
         try
         {
@@ -23,7 +30,7 @@ internal sealed class NativeDesktopManager : IDisposable
         }
     }
 
-    internal bool IsCurrent(IntPtr window)
+    public bool IsCurrent(IntPtr window)
     {
         try
         {
@@ -36,7 +43,7 @@ internal sealed class NativeDesktopManager : IDisposable
         }
     }
 
-    internal bool Move(IntPtr window, Guid target)
+    public bool Move(IntPtr window, Guid target)
     {
         try
         {
