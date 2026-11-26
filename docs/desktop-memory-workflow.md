@@ -14,4 +14,4 @@ All Phase 3–5 restrictions remain. No automatic restoration, window-state conv
 - Preview a snapshot with normal, review-required, and minimized/maximized placements; verify initial selection, individual selection, select all, clear, safe defaults and disabled ineligible controls.
 - Change fallback and refresh; verify new fallback placements are not silently selected. Switch desktops and verify restore disabled for inactive targets.
 - Select only one of several running windows, approve, confirm others were not moved. Repeat with missing-app launch enabled and confirm unselected apps do not launch. Check live result rows, cancellation, close/navigation, final count and keyboard accessibility.
-- Review layout at small settings-window size and mixed DPI. Phase 7 is physical qualification, not yet complete.
+- Review layout at small settings-window size and mixed DPI. Phase 7 provides the [hardware qualification harness](desktop-memory-hardware.md). Physical qualification is not yet complete.

@@ -1,0 +1,86 @@
+[
+  {
+    "id": "capture-isolation",
+    "name": "Capture and desktop isolation",
+    "check": "stable",
+    "required": "Use two desktops, distinct fixture windows and a pinned window. Verify active-only capture, correct membership, exclusion of BranchWatch and unrelated windows; check minimized/maximized windows are listed but not executable."
+  },
+  {
+    "id": "exact-reuse",
+    "name": "Exact restoration and repeat",
+    "check": "fixtureBounds",
+    "required": "Capture Default fixture at a normal position; move it; restore and repeat. Verify exact bounds, AlreadyPlaced, no extra instances and unrelated window unchanged."
+  },
+  {
+    "id": "selection",
+    "name": "Selective restore",
+    "check": "stable",
+    "required": "Select one of two distinct fixture windows and leave the other unselected. Verify only the selected window moves, unchecked app never launches, and progress/results reflect selection."
+  },
+  {
+    "id": "ambiguity",
+    "name": "Ambiguous identities",
+    "check": "stable",
+    "required": "Use two fixture instances with identical titles; verify neither ambiguous window moves or launches, even with only one selected."
+  },
+  {
+    "id": "reboot",
+    "name": "Cold reboot and launch",
+    "check": "reboot",
+    "required": "Save a single Default fixture snapshot, record before, restart Windows, verify no auto-restore, manually launch the qualification build, opt in to missing-app launch, restore, and verify bounds and repeat behavior."
+  },
+  {
+    "id": "rearrange",
+    "name": "Physical monitor rearrangement",
+    "check": "stable",
+    "required": "Rearrange displays in Windows while keeping hardware connected. Refresh and verify windows follow matched physical identities, not source names."
+  },
+  {
+    "id": "mixed-dpi-portrait",
+    "name": "Mixed DPI and portrait",
+    "check": "mixedDpiPortrait",
+    "required": "Use at least two monitors with different scale factors and a portrait display. Verify proportional preview and actual bounds, no double scaling and accessible results."
+  },
+  {
+    "id": "disconnect",
+    "name": "Disconnected monitor fallback",
+    "check": "disconnect",
+    "required": "Capture with secondary connected, disconnect it, verify default skip and explicit fallback selection; restore and verify windows remain accessible."
+  },
+  {
+    "id": "span",
+    "name": "Spanning window and display gaps",
+    "check": "stable",
+    "required": "Capture a spanning normal window; verify unchanged span, then change layout to create a gap and confirm review-required single-monitor fit."
+  },
+  {
+    "id": "drift-cancel",
+    "name": "Stale preview, desktop change and cancellation",
+    "check": "stable",
+    "required": "Change topology after preview, change desktop during restore, cancel during placement/launch; verify stale plan refusal and no subsequent requests, no rollback promises."
+  },
+  {
+    "id": "launch-guards",
+    "name": "Launch and identity safeguards",
+    "check": "stable",
+    "required": "Exercise launch disabled, already-running app on another desktop, duplicate saved windows, wrong title/delegation, missing executable and failed/timeout correlation. Verify no duplicate launches or unrelated moves."
+  },
+  {
+    "id": "adapters",
+    "name": "Application folder adapters",
+    "check": "stable",
+    "required": "Test installed Cursor, VS Code, Explorer and Windows Terminal using disposable folders with spaces. Verify approval target, missing folder blocking, direct correlation and brokered unverified results. Record unavailable adapters as Blocked."
+  },
+  {
+    "id": "persistence",
+    "name": "Persistence and recovery",
+    "check": "stable",
+    "required": "Use disposable desktop snapshots. Verify explicit save/replace/discard/delete, persistence across restart, stale/corrupt file refusal using a backed-up test copy, and no unintended writes."
+  },
+  {
+    "id": "ui-regression",
+    "name": "WPF UI and existing features",
+    "check": "stable",
+    "required": "Check keyboard navigation, narrow Settings, mixed scaling, selection controls, cancellation/close, progress, Git watcher, desktop overlay and sticky notes."
+  }
+]
