@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "BranchWatch Companion for Firefox (diagnostic)",
+  "version": "0.1.0",
+  "description": "Local connection and read-only foreground-window diagnostic; no tabs or URLs.",
+  "permissions": [
+    "nativeMessaging",
+    "storage"
+  ],
+  "incognito": "not_allowed",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "branchwatch-companion@branchwatch.local",
+      "strict_min_version": "128.0"
+    }
+  },
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

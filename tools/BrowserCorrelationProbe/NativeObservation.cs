@@ -9,7 +9,7 @@ internal sealed record NativeBrowserObservation(string Browser, uint ProcessId, 
 
 internal static class NativeObservation
 {
-    internal static BrowserProbeResponse Inspect(BrowserProbeRequest request, IntPtr parent)
+    internal static BrowserProbeResponse Inspect(BrowserProbeRequest request, IntPtr parent, bool firefoxDiagnostic = false)
     {
         BrowserProbeResponse Reject(string status) => new(1, request.WindowId, request.Nonce, status);
         var previous = SetThreadDpiAwarenessContext(new IntPtr(-4));
@@ -17,12 +17,12 @@ internal static class NativeObservation
         try
         {
             using var reader = new ProbeDesktopReader();
-            var first = Read(parent, reader);
-            var second = Read(parent, reader);
+            var first = Read(parent, reader, firefoxDiagnostic);
+            var second = Read(parent, reader, firefoxDiagnostic);
             if (first is null || second is null) return Reject("parent-unverified");
             if (first != second) return Reject("parent-changed");
             var geometry = Compare(request.Bounds, first.Bounds, first.Frame, first.Dpi);
-            return new(1, request.WindowId, request.Nonce, "observed-not-authorized", first.Browser,
+            return new(1, request.WindowId, request.Nonce, firefoxDiagnostic ? "foreground-candidate-not-authorized" : "observed-not-authorized", first.Browser,
                 $"0x{parent.ToInt64():X}", first.ProcessId, first.ThreadId, first.ProcessCreation.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 first.Membership, first.Dpi, first.Bounds, first.Frame, geometry);
         }
@@ -35,13 +35,14 @@ internal static class NativeObservation
             : browser == frame ? "exact-visible-frame"
             : "bounds-differ";
 
-    private static NativeBrowserObservation? Read(IntPtr parent, ProbeDesktopReader reader)
+    private static NativeBrowserObservation? Read(IntPtr parent, ProbeDesktopReader reader, bool firefoxDiagnostic)
     {
         if (parent == IntPtr.Zero || GetAncestor(parent, 2) != parent || !IsWindowVisible(parent)
             || IsIconic(parent) || IsZoomed(parent) || GetWindow(parent, 4) != IntPtr.Zero
             || GetDwmUInt(parent, 14, out var cloak, sizeof(uint)) < 0 || cloak != 0) return null;
         var cls = new StringBuilder(256);
-        if (GetClassName(parent, cls, cls.Capacity) <= 0 || cls.ToString() != "Chrome_WidgetWin_1") return null;
+        if (GetClassName(parent, cls, cls.Capacity) <= 0
+            || cls.ToString() != (firefoxDiagnostic ? "MozillaWindowClass" : "Chrome_WidgetWin_1")) return null;
         var thread = GetWindowThreadProcessId(parent, out var pid);
         if (thread == 0 || pid == 0) return null;
         var process = OpenProcess(0x1000, false, pid);
@@ -54,8 +55,9 @@ internal static class NativeObservation
                 || !GetProcessTimes(process, out var creation, out _, out _, out _) || creation <= 0) return null;
             var browser = (Path.GetFileName(path.ToString()) ?? string.Empty).ToLowerInvariant() switch
             {
-                "chrome.exe" => "chrome",
-                "msedge.exe" => "edge",
+                "chrome.exe" when !firefoxDiagnostic => "chrome",
+                "msedge.exe" when !firefoxDiagnostic => "edge",
+                "firefox.exe" when firefoxDiagnostic => "firefox",
                 _ => null
             };
             if (browser is null || !GetWindowRect(parent, out var rect)) return null;
