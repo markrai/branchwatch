@@ -4,7 +4,7 @@
 
 ### Added
 
-- Per-sticky-note one-shot alarms with a calendar, digital 24-hour selector, persistent due and acknowledgement state, and a slow color-matched outline pulse. Click the note header to dismiss; the clock button can reschedule or remove an alarm.
+- Per-sticky-note one-shot alarms with a calendar, digital 12-hour AM/PM selector, persistent due and acknowledgement state, and a slow color-matched outline pulse. Click the note header to dismiss; the clock button can reschedule or remove an alarm.
 
 ### Changed
 
