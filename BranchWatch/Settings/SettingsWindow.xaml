@@ -113,6 +113,7 @@
                     <ListBoxItem Tag="General"><StackPanel Orientation="Horizontal"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE713;" Width="25" FontSize="16"/><TextBlock Text="General"/></StackPanel></ListBoxItem>
                     <ListBoxItem Tag="GitWatcher"><StackPanel Orientation="Horizontal"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8B7;" Width="25" FontSize="16"/><TextBlock Text="Git Watcher"/></StackPanel></ListBoxItem>
                     <ListBoxItem Tag="VirtualDesktops"><StackPanel Orientation="Horizontal"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE7F4;" Width="25" FontSize="16"/><TextBlock Text="Virtual Desktops"/></StackPanel></ListBoxItem>
+                    <ListBoxItem Tag="DesktopMemory"><StackPanel Orientation="Horizontal"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE81C;" Width="25" FontSize="16"/><TextBlock Text="Desktop Memory"/></StackPanel></ListBoxItem>
                     <ListBoxItem Tag="StickyNotes"><StackPanel Orientation="Horizontal"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE70B;" Width="25" FontSize="16"/><TextBlock Text="Sticky Notes"/></StackPanel></ListBoxItem>
                     <ListBoxItem Tag="About"><StackPanel Orientation="Horizontal"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE946;" Width="25" FontSize="16"/><TextBlock Text="About"/></StackPanel></ListBoxItem>
                 </ListBox>
@@ -183,6 +184,7 @@
                             </StackPanel>
                         </Border>
                     </StackPanel>
+                    <StackPanel x:Name="MemoryPage" Visibility="Collapsed"><ContentControl x:Name="MemoryHost"/></StackPanel>
                     <StackPanel x:Name="NotesPage" Visibility="Collapsed">
                         <Border Style="{StaticResource SettingsCard}"><ContentControl x:Name="NotesHost"/></Border>
                     </StackPanel>

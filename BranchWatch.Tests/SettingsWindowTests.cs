@@ -24,7 +24,7 @@ public sealed class SettingsWindowTests
                     () => { }, () => { }, () => { }, () => { });
                 try
                 {
-                    var pages = new[] { window.GeneralPage, window.GitPage, window.DesktopsPage, window.NotesPage, window.AboutPage };
+                    var pages = new[] { window.GeneralPage, window.GitPage, window.DesktopsPage, window.MemoryPage, window.NotesPage, window.AboutPage };
                     foreach (var section in Enum.GetValues<SettingsSection>())
                     {
                         window.Navigate(section);

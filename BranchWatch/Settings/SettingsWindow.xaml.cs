@@ -16,6 +16,7 @@ internal enum SettingsSection
     General,
     GitWatcher,
     VirtualDesktops,
+    DesktopMemory,
     StickyNotes,
     About
 }
@@ -33,6 +34,7 @@ public partial class SettingsWindow : Window
     private readonly Action _toggleStartup;
     private readonly DesktopOverlaySettingsPage _desktopPage;
     private readonly GitOverlaySettingsPage _gitPage;
+    private readonly DesktopMemorySettingsPage _memoryPage;
     private bool _ready;
 
     internal SettingsWindow(SettingsService service, AppSettings settings, StickyNotesController stickyNotes,
@@ -63,9 +65,15 @@ public partial class SettingsWindow : Window
         GitOverlayHost.Content = _gitPage;
         DesktopOverlayHost.Content = _desktopPage;
         NotesHost.Content = new StickyNoteSettingsPage(service, settings, stickyNotes);
+        _memoryPage = new DesktopMemorySettingsPage(new DesktopMemoryStore(Path.Combine(StoragePath.Text, "desktop-memory", "snapshots.json")));
+        MemoryHost.Content = _memoryPage;
 
         _desktops.Monitor.StateChanged += OnDesktopStateChanged;
-        Closed += (_, _) => _desktops.Monitor.StateChanged -= OnDesktopStateChanged;
+        Closed += (_, _) =>
+        {
+            _desktops.Monitor.StateChanged -= OnDesktopStateChanged;
+            _memoryPage.Stop();
+        };
         _ready = true;
         Navigate(SettingsSection.General);
     }
@@ -95,19 +103,21 @@ public partial class SettingsWindow : Window
         GeneralPage.Visibility = section == SettingsSection.General ? Visibility.Visible : Visibility.Collapsed;
         GitPage.Visibility = section == SettingsSection.GitWatcher ? Visibility.Visible : Visibility.Collapsed;
         DesktopsPage.Visibility = section == SettingsSection.VirtualDesktops ? Visibility.Visible : Visibility.Collapsed;
+        MemoryPage.Visibility = section == SettingsSection.DesktopMemory ? Visibility.Visible : Visibility.Collapsed;
         NotesPage.Visibility = section == SettingsSection.StickyNotes ? Visibility.Visible : Visibility.Collapsed;
         AboutPage.Visibility = section == SettingsSection.About ? Visibility.Visible : Visibility.Collapsed;
         (SectionTitle.Text, SectionDescription.Text) = section switch
         {
             SettingsSection.GitWatcher => ("Git Watcher", "Choose what to monitor and customize the repository overlay."),
             SettingsSection.VirtualDesktops => ("Virtual Desktops", "Customize the desktop labels and their placement."),
+            SettingsSection.DesktopMemory => ("Desktop Memory", "Capture and inspect saved working environments."),
             SettingsSection.StickyNotes => ("Sticky Notes", "Set the appearance of new notes or update existing notes."),
             SettingsSection.About => ("About", "Application information and project links."),
             _ => ("General", "Manage startup and local application data.")
         };
         FooterText.Text = section == SettingsSection.StickyNotes
             ? "Use Save defaults or Apply to all notes to save appearance changes."
-            : "Changes are saved automatically.";
+            : section == SettingsSection.DesktopMemory ? "Snapshots are stored locally only when you choose Save snapshot." : "Changes are saved automatically.";
         RefreshRepositoryState();
         StartupCheck.IsChecked = _settings.StartWithWindows;
         if (section == SettingsSection.VirtualDesktops)
@@ -116,6 +126,7 @@ public partial class SettingsWindow : Window
             RebuildDesktopColors();
         }
 
+        if (section == SettingsSection.DesktopMemory) _memoryPage.RefreshDesktops();
         PageScroll.ScrollToTop();
     }
 
@@ -153,6 +164,7 @@ public partial class SettingsWindow : Window
 
     private void OnDesktopStateChanged(object? sender, VirtualDesktopDisplayState state)
     {
+        if (MemoryPage.Visibility == Visibility.Visible) _memoryPage.RefreshDesktops();
         if (DesktopsPage.Visibility == Visibility.Visible)
         {
             RebuildDesktopColors();

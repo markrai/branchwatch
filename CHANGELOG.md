@@ -4,6 +4,10 @@
 
 ### Added
 
+- Desktop Memory manual capture, local snapshot storage and inspection for the active virtual desktop. Restoration is not enabled yet.
+
+### Added
+
 - Collapse and expand sticky notes using the underline button, preserving expanded size and state across restarts.
 - Unified BranchWatch settings with sidebar navigation, a shared visual style, sticky note color swatches and per-desktop label colors.
 

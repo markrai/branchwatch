@@ -8,7 +8,7 @@ namespace BranchWatch;
 
 internal static class DesktopMemoryProbe
 {
-    internal static DesktopMemoryProbeReport Capture(bool includeIdentities)
+    internal static DesktopMemoryProbeReport Capture(bool includeIdentities, bool strictDesktop = false)
     {
         var start = DateTimeOffset.UtcNow;
         var warnings = new List<string>();
@@ -18,11 +18,11 @@ internal static class DesktopMemoryProbe
 
         try
         {
-            var before = ReadDesktops(includeIdentities);
+            var before = ReadDesktops(includeIdentities, strictDesktop);
             var monitors = ReadMonitors(includeIdentities, warnings);
             var windows = ReadWindows(includeIdentities, monitors, warnings);
             var afterMonitors = ReadMonitors(includeIdentities, warnings);
-            var after = ReadDesktops(includeIdentities);
+            var after = ReadDesktops(includeIdentities, strictDesktop);
             var stableTopology = monitors.Count > 0 && ProbePolicy.SameTopology(monitors, afterMonitors)
                 && !warnings.Any(w => w.StartsWith("GetMonitorInfo failed", StringComparison.Ordinal));
             var stableDesktop = before is not null && after is not null
@@ -47,9 +47,10 @@ internal static class DesktopMemoryProbe
         }
     }
 
-    private static ProbeDesktopState? ReadDesktops(bool includeIdentities)
+    private static ProbeDesktopState? ReadDesktops(bool includeIdentities, bool strictDesktop)
     {
-        var state = VirtualDesktopRegistryReader.TryGetDisplayState();
+        var state = strictDesktop ? VirtualDesktopRegistryReader.TryGetVerifiedDisplayState()
+            : VirtualDesktopRegistryReader.TryGetDisplayState();
         return state is null ? null : new ProbeDesktopState(state.ActiveDesktop.Id,
             state.AllDesktops.Select(d => new ProbeDesktop(d.Id, includeIdentities ? d.DisplayName : null)).ToArray());
     }
