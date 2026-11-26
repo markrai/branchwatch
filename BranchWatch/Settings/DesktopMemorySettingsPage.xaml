@@ -79,26 +79,69 @@
                     </WrapPanel>
                 </StackPanel>
                 <StackPanel x:Name="BrowserEditor" Visibility="Collapsed" Margin="0,14,0,0">
-                    <TextBlock Text="Browser tabs (experimental capture)" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                    <TextBlock Text="Choose a captured normal Chrome or Edge window. Generate a code, open Companion in that same window, and send its tabs. Import, review and explicitly save. URLs may contain private tokens." Foreground="#617083" TextWrapping="Wrap" Margin="0,0,0,8"/>
-                    <ComboBox x:Name="BrowserWindowPicker" DisplayMemberPath="Label" SelectedValuePath="Id" MinHeight="32" AutomationProperties.Name="Browser window to capture"/>
-                    <WrapPanel Margin="0,8,0,6">
-                        <Button x:Name="ArmBrowserButton" Content="Generate capture code" Click="OnArmBrowser" Margin="0,0,8,6"/>
-                        <Button x:Name="ImportBrowserButton" Content="Import received tabs" Click="OnImportBrowser" Margin="0,0,8,6"/>
-                        <Button x:Name="ClearBrowserButton" Content="Clear saved tabs from draft" Click="OnClearBrowser" Margin="0,0,0,6"/>
-                    </WrapPanel>
-                    <TextBox x:Name="BrowserTicketText" IsReadOnly="True" AutomationProperties.Name="One-time capture code" Margin="0,0,0,8"/>
+                    <TextBlock Text="Browser sessions" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                    <StackPanel x:Name="BrowserCaptureControls">
+                        <TextBlock Text="Choose a captured normal Chrome or Edge window, generate a code, and send tabs from Companion in that window." Foreground="#617083" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                        <ComboBox x:Name="BrowserWindowPicker" DisplayMemberPath="Label" SelectedValuePath="Id" MinHeight="32" SelectionChanged="OnBrowserWindowSelected" AutomationProperties.Name="Browser window to capture"/>
+                        <WrapPanel Margin="0,8,0,6">
+                            <Button x:Name="ArmBrowserButton" Content="Generate capture code" Click="OnArmBrowser" Margin="0,0,8,6"/>
+                            <Button x:Name="ImportBrowserButton" Content="Import received tabs" Click="OnImportBrowser" Margin="0,0,8,6"/>
+                        </WrapPanel>
+                        <TextBox x:Name="BrowserTicketText" IsReadOnly="True" AutomationProperties.Name="One-time capture code" Margin="0,0,0,8"/>
+                    </StackPanel>
+                    <TextBlock Text="Review full URLs before saving. Query strings and fragments may contain private tokens. Tab selection does not change your live browser." Foreground="#8C5918" TextWrapping="Wrap" Margin="0,6,0,8"/>
+                    <TextBlock x:Name="BrowserReviewSummary" Foreground="#315EAE" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,8" AutomationProperties.LiveSetting="Polite"/>
                     <ItemsControl x:Name="BrowserRows">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <StackPanel Margin="0,4,0,8">
-                                    <TextBlock Text="{Binding Label}" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                                    <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" Foreground="#617083" FontSize="12"/>
-                                </StackPanel>
+                                <Border BorderBrush="#DDE4ED" BorderThickness="0,1,0,0" Padding="0,10" Margin="0,0,0,6">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Label}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding Detail}" Foreground="#617083" TextWrapping="Wrap" FontSize="12" Margin="0,2,0,6"/>
+                                        <WrapPanel Margin="0,0,0,6" IsEnabled="{Binding Editable}">
+                                            <WrapPanel.Style>
+                                                <Style TargetType="WrapPanel">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Editable}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </WrapPanel.Style>
+                                            <Button Content="Select all tabs" Tag="all" Click="OnSelectBrowserTabs" Margin="0,0,8,4"/>
+                                            <Button Content="Clear selection" Tag="none" Click="OnSelectBrowserTabs" Margin="0,0,0,4"/>
+                                        </WrapPanel>
+                                        <TextBlock Text="No tabs selected for this saved browser window." TextWrapping="Wrap" Foreground="#617083">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Tabs.Length}" Value="0">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <ItemsControl ItemsSource="{Binding Tabs}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <CheckBox IsChecked="{Binding Selected, Mode=OneWay}" IsEnabled="{Binding Editable}" Click="OnBrowserTabSelectionChanged" AutomationProperties.Name="{Binding Url}" Margin="0,3,0,5" VerticalContentAlignment="Top">
+                                                        <StackPanel>
+                                                            <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="#617083" TextWrapping="Wrap"/>
+                                                            <TextBlock Text="{Binding Url}" TextWrapping="Wrap" ToolTip="{Binding Url}"/>
+                                                        </StackPanel>
+                                                    </CheckBox>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <TextBlock Text="Browser tab restoration is not enabled yet." Foreground="#617083" TextWrapping="Wrap"/>
+                    <TextBlock Text="Browser tab restoration is not enabled yet. Excluding all tabs retains a browser session with no URLs." Foreground="#617083" TextWrapping="Wrap"/>
                 </StackPanel>
                 <TextBlock x:Name="WarningsText" Foreground="#8C5918" TextWrapping="Wrap" Margin="0,12,0,0"/>
                 <TextBlock Text="Restore matching normal windows. Optional folder adapters can reopen a chosen project or directory." Foreground="#617083" TextWrapping="Wrap" Margin="0,8,0,0"/>

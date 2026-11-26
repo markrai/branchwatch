@@ -39,6 +39,8 @@ public sealed class SettingsWindowTests
                     Assert.AreEqual(Visibility.Collapsed, memory.RestoreResultsCard.Visibility);
                     Assert.AreEqual(Visibility.Collapsed, memory.RestoreProgress.Visibility);
                     Assert.IsFalse(memory.RestoreButton.IsEnabled);
+                    Assert.AreEqual(Visibility.Collapsed, memory.BrowserEditor.Visibility);
+                    Assert.AreEqual(Visibility.Collapsed, memory.BrowserReviewSummary.Visibility);
                     Assert.AreEqual(false, memory.LaunchMissingCheck.IsChecked);
                     window.Navigate(SettingsSection.StickyNotes);
                     var page = (StickyNoteSettingsPage)window.NotesHost.Content;

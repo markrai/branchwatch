@@ -42,7 +42,7 @@ internal static class BrowserTabCapture
 
     internal static bool IsValid(BrowserWindowContext? context) => context is not null
         && context.Browser is "chrome" or "edge" && IsId(context.ProfileId)
-        && context.Tabs is { Count: > 0 and <= MaxTabs }
+        && context.Tabs is { Count: <= MaxTabs }
         && context.Tabs.All(t => t is not null && IsUrl(t.Url))
         && context.Tabs.Count(t => t.Active) <= 1;
 
@@ -59,7 +59,7 @@ internal static class BrowserTabCapture
         var request = root.Deserialize<BrowserCaptureRequest>(Options) ?? throw new InvalidDataException("Invalid capture request.");
         if (request.Version != 1 || request.Command != "capture" || !IsId(request.Nonce)
             || !IsId(request.Ticket) || request.WindowId < 0 || request.Omitted < 0
-            || !IsValid(new("chrome", request.ProfileId, request.Tabs)))
+            || !IsValid(new("chrome", request.ProfileId, request.Tabs)) || request.Tabs.Count == 0)
             throw new InvalidDataException("Invalid tab capture.");
         return request;
     }
