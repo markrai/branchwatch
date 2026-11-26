@@ -8,7 +8,9 @@ internal sealed class MissingApplicationLaunchService(IExistingWindowRestoreEnvi
 
     internal MissingApplicationLaunchPreparation Prepare(ExistingRestorePreparation existing, CancellationToken cancellation)
     {
+        cancellation.ThrowIfCancellationRequested();
         var inventory = windows.Inspect();
+        cancellation.ThrowIfCancellationRequested();
         EnsureCurrent(existing, inventory);
         var fresh = ExistingWindowRestoreMatcher.Match(existing.Snapshot, existing.Plan, inventory);
         var items = new List<MissingApplicationLaunchItem>();
@@ -108,6 +110,7 @@ internal sealed class MissingApplicationLaunchService(IExistingWindowRestoreEnvi
                     }
                     if (poll + 1 < MaximumPolls && !launcher.WaitForInventory(cancellation)) break;
                 }
+                cancellation.ThrowIfCancellationRequested();
                 if (correlated is null)
                 {
                     stopped = true;

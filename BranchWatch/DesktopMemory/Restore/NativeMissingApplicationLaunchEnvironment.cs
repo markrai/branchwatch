@@ -27,7 +27,7 @@ internal sealed class NativeMissingApplicationLaunchEnvironment : IMissingApplic
             var attributes = File.GetAttributes(path);
             if ((attributes & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0)
                 return "Executable is a directory, alias or reparse point.";
-            for (var directory = new DirectoryInfo(Path.GetDirectoryName(path)!); directory is not null; directory = directory.Parent)
+            for (DirectoryInfo? directory = new DirectoryInfo(Path.GetDirectoryName(path)!); directory is not null; directory = directory.Parent)
             {
                 if ((directory.Attributes & FileAttributes.ReparsePoint) != 0)
                     return "Executable is beneath a reparse-point directory.";
@@ -74,7 +74,9 @@ internal sealed class NativeMissingApplicationLaunchEnvironment : IMissingApplic
                 WorkingDirectory = Path.GetDirectoryName(path)!,
                 UseShellExecute = false
             }) ?? throw new InvalidOperationException("Windows did not return a process.");
-            return new((uint)process.Id, process.StartTime.ToUniversalTime().ToFileTimeUtc());
+            if (!ProbeNative.GetProcessTimes(process.Handle, out var creation, out _, out _, out _) || creation <= 0)
+                throw new InvalidOperationException("The started process identity could not be verified.");
+            return new((uint)process.Id, creation);
         }
     }
 
@@ -83,7 +85,15 @@ internal sealed class NativeMissingApplicationLaunchEnvironment : IMissingApplic
         try
         {
             using var process = Process.GetProcessById(checked((int)identity.ProcessId));
-            return !process.HasExited && process.StartTime.ToUniversalTime().ToFileTimeUtc() == identity.CreatedFileTime;
+            if (process.HasExited) return false;
+            var handle = ProbeNative.OpenProcess(0x1000, false, identity.ProcessId);
+            if (handle == IntPtr.Zero) return false;
+            try
+            {
+                return ProbeNative.GetProcessTimes(handle, out var creation, out _, out _, out _)
+                    && creation == identity.CreatedFileTime && !process.HasExited;
+            }
+            finally { ProbeNative.CloseHandle(handle); }
         }
         catch (Exception) { return false; }
     }
