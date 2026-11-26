@@ -44,7 +44,7 @@
                     IsSnapToTickEnabled="True" TickPlacement="BottomRight"
                     ValueChanged="OnTransparencyChanged" AutomationProperties.Name="Default note transparency"/>
             <DockPanel Margin="0,4,0,6">
-                <TextBlock Text="1 · Opaque" DockPanel.Dock="Left"/>
+                <TextBlock Text="1 · Opaque &amp; editable" DockPanel.Dock="Left"/>
                 <TextBlock Text="10 · Most transparent" TextAlignment="Right"/>
             </DockPanel>
             <TextBlock x:Name="TransparencyLabel" TextAlignment="Center" Margin="0,0,0,16"/>

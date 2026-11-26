@@ -12,7 +12,7 @@ public sealed class StickyNoteStoreTests
         var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "notes.json");
         try
         {
-            var first = new StickyNote { DesktopId = Guid.NewGuid(), Text = "first\nline", Color = "Blue", TransparencyLevel = 8, Left = -250, Top = 80, Width = 420, Height = 300 };
+            var first = new StickyNote { DesktopId = Guid.NewGuid(), Text = "first\nline", Color = "Blue", TransparencyLevel = 8, IsCollapsed = true, Left = -250, Top = 80, Width = 420, Height = 300 };
             var second = new StickyNote { DesktopId = Guid.NewGuid(), Text = "second", IsOpen = false };
             var store = new StickyNoteStore(path);
             store.Save([first, second]);
@@ -30,6 +30,8 @@ public sealed class StickyNoteStoreTests
             Assert.AreEqual(first.Width, notes[0].Width);
             Assert.AreEqual(first.Height, notes[0].Height);
             Assert.IsTrue(notes[0].IsOpen);
+            Assert.IsTrue(notes[0].IsCollapsed);
+            Assert.IsFalse(notes[1].IsCollapsed);
             Assert.IsFalse(notes[1].IsOpen);
             Assert.AreEqual(second.DesktopId, notes[1].DesktopId);
 
@@ -57,6 +59,7 @@ public sealed class StickyNoteStoreTests
             var store = new StickyNoteStore(path);
             File.WriteAllText(path, JsonSerializer.Serialize(new[] { new { Id = id, DesktopId = desktop } }));
             Assert.AreEqual(3, store.Load()[0].TransparencyLevel);
+            Assert.IsFalse(store.Load()[0].IsCollapsed);
 
             File.WriteAllText(path, JsonSerializer.Serialize(new[]
             {

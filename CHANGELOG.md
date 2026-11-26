@@ -4,10 +4,12 @@
 
 ### Added
 
+- Collapse and expand sticky notes using the underline button, preserving expanded size and state across restarts.
 - Unified BranchWatch settings with sidebar navigation, a shared visual style, sticky note color swatches and per-desktop label colors.
 
 ### Changed
 
+- Label transparency level 1 as opaque & editable.
 - Group tray actions by Git Watcher, Virtual Desktops and Sticky Notes; open the unified settings window at the relevant section.
 
 ### Fixed
