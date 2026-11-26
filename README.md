@@ -168,3 +168,5 @@ The [experimental browser reopening workflow](docs/desktop-memory-browser-restor
 The [Phase 8F duplicate check](docs/desktop-memory-browser-reconciliation.md) prevents reopening when existing profile windows contain saved URLs or the inventory is unverified.
 
 The [Firefox Companion diagnostic](docs/desktop-memory-firefox-qualification.md) provides local connection and native foreground observations without collecting URLs. Firefox session capture and restoration remain disabled until a verified Firefox window association is available.
+
+Firefox Companion 0.2.0 adds an explicit two-marker correlation diagnostic in an extension-owned test tab; see the [Firefox qualification guide](docs/desktop-memory-firefox-qualification.md).
