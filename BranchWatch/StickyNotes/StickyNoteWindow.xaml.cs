@@ -19,10 +19,7 @@ public partial class StickyNoteWindow : Window
     private readonly StickyNote _note;
     private readonly StickyNotesController _controller;
     private bool _trackingBounds;
-    private StickyNotePassiveBody? _passiveBody;
-    private bool _desktopVerified;
-    private bool _passiveBodyFailed;
-    private bool _refreshingPassiveBody;
+    private readonly StickyNotePassiveBodyLifecycle _passiveBody;
     private readonly StickyNoteInteraction _interaction;
     private StickyNoteResizeBounds? _shrinkStart;
     private NativePoint _shrinkCursor;
@@ -44,6 +41,9 @@ public partial class StickyNoteWindow : Window
         _editTimer.Tick += (_, _) => ExpireTemporaryEditing();
         InitializeComponent();
         _alarmPulse = new StickyNoteAlarmPulse(AlarmOutline);
+        _passiveBody = new StickyNotePassiveBodyLifecycle(note,
+            () => new StickyNotePassiveBody(this, BodyHost, controller, note),
+            UpdateInputPresentation, controller.ReportClickThroughFailure);
         _expandedMinHeight = MinHeight;
 
         Editor.Text = note.Text;
@@ -60,7 +60,7 @@ public partial class StickyNoteWindow : Window
         {
             _note.Text = Editor.Text;
             _controller.MarkDirty();
-            _passiveBody?.UpdateContent(_note);
+            _passiveBody.UpdateContent();
         };
         LocationChanged += (_, _) => { CaptureBounds(); AlignPassiveBody(); };
         SizeChanged += (_, _) => { CaptureBounds(); AlignPassiveBody(); };
@@ -95,7 +95,7 @@ public partial class StickyNoteWindow : Window
             _alarmPulse.Update(false, StickyNoteAppearance.ResolveColor(_note.Color).Alarm);
             FinishRename(commit: true, focusHeader: false);
             EndTemporaryEditing();
-            RemovePassiveBody();
+            _passiveBody.Dispose();
         };
         LayoutUpdated += (_, _) => AlignPassiveBody();
     }
@@ -235,7 +235,7 @@ public partial class StickyNoteWindow : Window
         _trackingBounds = true;
         _note.EnsureOriginalSize();
         CaptureBounds();
-        _desktopVerified = true;
+        _passiveBody.Enable();
         RefreshPassiveBody();
     }
 
@@ -309,11 +309,11 @@ public partial class StickyNoteWindow : Window
             _note.IsCollapsed = collapsed;
             if (collapsed)
             {
-                RemovePassiveBody();
+                _passiveBody.Remove();
             }
             else
             {
-                _passiveBodyFailed = false;
+                _passiveBody.ResetFailure();
             }
 
             ApplyCollapsedLayout();
@@ -373,11 +373,11 @@ public partial class StickyNoteWindow : Window
     {
         StopTemporaryEditing();
         _note.TransparencyLevel = level;
-        _passiveBodyFailed = false;
+        _passiveBody.ResetFailure();
         RefreshTransparencyPresentation();
     }
 
-    internal bool IsBodyClickThrough => _passiveBody is { IsVisible: true };
+    internal bool IsBodyClickThrough => _passiveBody.IsVisible;
 
     private int EffectiveTransparencyLevel => _interaction.EffectiveTransparencyLevel;
     private bool WantsClickThrough => _interaction.WantsClickThrough;
@@ -465,7 +465,7 @@ public partial class StickyNoteWindow : Window
     private void RefreshTransparencyPresentation()
     {
         NoteSurface.Opacity = StickyNoteTransparency.OpacityForLevel(EffectiveTransparencyLevel);
-        if (!WantsClickThrough) RemovePassiveBody();
+        if (!WantsClickThrough) _passiveBody.Remove();
         UpdateInputPresentation();
         RefreshPassiveBody();
     }
@@ -489,112 +489,28 @@ public partial class StickyNoteWindow : Window
 
     internal void RefreshPassiveBody()
     {
-        if (_desktopVerified && !_interaction.IsClosing && _interaction.IsTemporaryEditing && !_controller.IsNoteOnCurrentDesktop(this))
+        if (!_passiveBody.IsEnabled || _interaction.IsClosing) return;
+        var current = (_interaction.IsTemporaryEditing || CanPresentPassiveBody)
+            && _controller.IsNoteOnCurrentDesktop(this);
+        if (_interaction.IsTemporaryEditing && !current && StopTemporaryEditing())
         {
-            if (StopTemporaryEditing())
-            {
-                NoteSurface.Opacity = StickyNoteTransparency.OpacityForLevel(EffectiveTransparencyLevel);
-                UpdateInputPresentation();
-            }
-        }
-        if (!_desktopVerified || _interaction.IsClosing || _changingCollapse || _refreshingPassiveBody)
-        {
-            return;
-        }
-
-        _refreshingPassiveBody = true;
-        try
-        {
-            RefreshPassiveBodyCore();
-        }
-        finally
-        {
-            _refreshingPassiveBody = false;
-        }
-    }
-
-    private void RefreshPassiveBodyCore()
-    {
-        if (_note.IsCollapsed || !WantsClickThrough || !IsVisible || WindowState == WindowState.Minimized
-            || !_controller.IsNoteOnCurrentDesktop(this))
-        {
-            RemovePassiveBody();
-            return;
-        }
-
-        if (_passiveBodyFailed || !IsLoaded || BodyHost.ActualWidth <= 0 || BodyHost.ActualHeight <= 0)
-        {
-            return;
-        }
-
-        if (_passiveBody is null)
-        {
-            var body = new StickyNotePassiveBody(this, _note);
-            _passiveBody = body;
-            if (!body.TryShow(BodyHost, _controller))
-            {
-                _passiveBodyFailed = true;
-                var detail = body.LastError;
-                RemovePassiveBody();
-                _controller.ReportClickThroughFailure(detail);
-                return;
-            }
-
+            NoteSurface.Opacity = StickyNoteTransparency.OpacityForLevel(EffectiveTransparencyLevel);
             UpdateInputPresentation();
         }
-        else if (!_controller.IsPassiveBodyOnOwnerDesktop(_passiveBody, this, out _))
-        {
-            RemovePassiveBody();
-            return;
-        }
 
-        AlignPassiveBodyCore();
-        _passiveBody?.UpdateContent(_note);
+        if (_changingCollapse) return;
+        _passiveBody.Refresh(CanPresentPassiveBody && current, IsBodyLayoutReady);
     }
+
+    private bool CanPresentPassiveBody => !_note.IsCollapsed && WantsClickThrough && IsVisible
+        && WindowState != WindowState.Minimized;
+
+    private bool IsBodyLayoutReady => IsLoaded && BodyHost.ActualWidth > 0 && BodyHost.ActualHeight > 0;
 
     private void AlignPassiveBody()
     {
-        if (_interaction.IsClosing || _changingCollapse || _note.IsCollapsed || _refreshingPassiveBody || _passiveBody is null)
-        {
-            return;
-        }
-
-        _refreshingPassiveBody = true;
-        try
-        {
-            AlignPassiveBodyCore();
-        }
-        finally
-        {
-            _refreshingPassiveBody = false;
-        }
-    }
-
-    private void AlignPassiveBodyCore()
-    {
-        if (_passiveBody is not null && IsVisible && WindowState != WindowState.Minimized
-            && BodyHost.ActualWidth > 0 && BodyHost.ActualHeight > 0 && !_passiveBody.TryAlign(BodyHost))
-        {
-            _passiveBodyFailed = true;
-            var detail = _passiveBody.LastError;
-            RemovePassiveBody();
-            _controller.ReportClickThroughFailure(detail);
-        }
-    }
-
-    private void RemovePassiveBody()
-    {
-        if (_passiveBody is not { } body)
-        {
-            return;
-        }
-
-        _passiveBody = null;
-        body.Close();
-        if (!_interaction.IsClosing)
-        {
-            UpdateInputPresentation();
-        }
+        if (_interaction.IsClosing || _changingCollapse) return;
+        _passiveBody.Align(CanPresentPassiveBody, IsBodyLayoutReady);
     }
 
     private static SolidColorBrush BrushFor(string value) =>
@@ -715,7 +631,7 @@ public partial class StickyNoteWindow : Window
         AlarmOverlay.Height = passive ? HeaderRow.Height.Value : double.NaN;
         AlarmOutline.BorderThickness = passive ? new Thickness(3, 3, 3, 0) : new Thickness(3);
         _alarmPulse.Update(ringing, StickyNoteAppearance.ResolveColor(_note.Color).Alarm);
-        _passiveBody?.UpdateContent(_note);
+        _passiveBody.UpdateContent();
     }
 
     private void NewClick(object sender, RoutedEventArgs e) => _controller.CreateNote();

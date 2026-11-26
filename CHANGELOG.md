@@ -4,6 +4,10 @@
 
 ### Changed
 
+- Isolate sticky-note passive-body ownership and native lifecycle from the WPF window, preserving desktop affinity and click-through fallback.
+
+### Changed
+
 - Centralize sticky-note editing, rename, alarm acknowledgement and dialog/lifecycle interaction policy in a WPF-independent coordinator.
 
 ### Fixed
