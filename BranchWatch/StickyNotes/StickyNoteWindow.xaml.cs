@@ -36,6 +36,8 @@ public partial class StickyNoteWindow : Window
     private bool _renaming;
     private string? _renameOriginalText;
     private System.Windows.Point? _titlePress;
+    private readonly StickyNoteAlarmPulse _alarmPulse;
+    private bool _alarmDialogOpen;
 
     internal StickyNoteWindow(StickyNote note, StickyNotesController controller)
     {
@@ -44,6 +46,7 @@ public partial class StickyNoteWindow : Window
         _editTimer = new DispatcherTimer(DispatcherPriority.Input, Dispatcher) { Interval = StickyNoteTemporaryEditing.Duration };
         _editTimer.Tick += (_, _) => ExpireTemporaryEditing();
         InitializeComponent();
+        _alarmPulse = new StickyNoteAlarmPulse(AlarmOutline);
         _expandedMinHeight = MinHeight;
 
         Editor.Text = note.Text;
@@ -55,6 +58,7 @@ public partial class StickyNoteWindow : Window
         _expandedHeight = Height;
         ApplyCollapsedLayout();
         ApplyTransparency(_note.TransparencyLevel);
+        RefreshAlarmPresentation();
         Editor.TextChanged += (_, _) =>
         {
             _note.Text = Editor.Text;
@@ -91,6 +95,7 @@ public partial class StickyNoteWindow : Window
         Closing += (_, _) =>
         {
             _closing = true;
+            _alarmPulse.Update(false, StickyNoteAppearance.ResolveColor(_note.Color).Alarm);
             FinishRename(commit: true, focusHeader: false);
             EndTemporaryEditing();
             RemovePassiveBody();
@@ -194,7 +199,7 @@ public partial class StickyNoteWindow : Window
         if (_titlePress is null) return;
         ReleaseTitlePress();
         e.Handled = true;
-        if (DesktopLabel.IsMouseOver) ToggleTemporaryEditing();
+        if (DesktopLabel.IsMouseOver) HandleHeaderClick();
     }
 
     private void TitleLostMouseCapture(object sender, System.Windows.Input.MouseEventArgs e) => _titlePress = null;
@@ -368,7 +373,7 @@ public partial class StickyNoteWindow : Window
         HeaderSurface.Background = BrushFor(palette.Header);
         ShrinkGrip.Background = BrushFor(palette.Body);
         UpdateInputPresentation();
-        _passiveBody?.UpdateContent(_note);
+        RefreshAlarmPresentation();
     }
 
     internal void ApplyAppearance(StickyNoteAppearance appearance)
@@ -475,6 +480,7 @@ public partial class StickyNoteWindow : Window
         {
             OptionsButton.Focus();
         }
+        RefreshAlarmPresentation();
     }
 
     internal void RefreshPassiveBody()
@@ -657,8 +663,63 @@ public partial class StickyNoteWindow : Window
             && Math.Abs((long)end.X - start.X) < SystemParameters.MinimumHorizontalDragDistance * VisualTreeHelper.GetDpi(this).DpiScaleX
             && Math.Abs((long)end.Y - start.Y) < SystemParameters.MinimumVerticalDragDistance * VisualTreeHelper.GetDpi(this).DpiScaleY)
         {
-            ToggleTemporaryEditing();
+            HandleHeaderClick();
         }
+    }
+
+    internal void HandleHeaderClick()
+    {
+        _note.AdvanceAlarm(DateTimeOffset.UtcNow);
+        if (_note.IsAlarmRinging)
+        {
+            _note.ClearAlarm();
+            _controller.AlarmChanged();
+            RefreshAlarmPresentation();
+            return;
+        }
+        ToggleTemporaryEditing();
+    }
+
+    private void AlarmClick(object sender, RoutedEventArgs e)
+    {
+        if (_closing || _alarmDialogOpen) return;
+        FinishEditing();
+        _alarmDialogOpen = true;
+        try
+        {
+            var dialog = new StickyNoteAlarmDialog(_note.AlarmDueUtc, _note.IsAlarmRinging) { Owner = this, Topmost = true };
+            if (dialog.ShowDialog() != true) return;
+            if (dialog.RemoveAlarm)
+            {
+                if (_note.ClearAlarm()) _controller.AlarmChanged();
+            }
+            else if (dialog.SelectedDueUtc is { } due && _note.SetAlarm(due, DateTimeOffset.UtcNow))
+                _controller.AlarmChanged();
+            else
+                WpfMessageBox.Show(this, "Choose a future alarm time.", "Sticky note alarm", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        finally
+        {
+            _alarmDialogOpen = false;
+            RefreshAlarmPresentation();
+        }
+    }
+
+    internal void RefreshAlarmPresentation()
+    {
+        if (_closing) return;
+        var ringing = _note.IsAlarmRinging;
+        AlarmDot.Visibility = _note.AlarmDueUtc.HasValue ? Visibility.Visible : Visibility.Collapsed;
+        var label = ringing ? "Alarm due · click header to dismiss"
+            : _note.AlarmDueUtc is { } due ? $"Alarm set · {due.ToLocalTime():g}" : "Set alarm";
+        AlarmButton.ToolTip = label;
+        System.Windows.Automation.AutomationProperties.SetName(AlarmButton, label);
+        var passive = IsBodyClickThrough && WantsClickThrough;
+        AlarmOverlay.VerticalAlignment = passive ? VerticalAlignment.Top : VerticalAlignment.Stretch;
+        AlarmOverlay.Height = passive ? HeaderRow.Height.Value : double.NaN;
+        AlarmOutline.BorderThickness = passive ? new Thickness(3, 3, 3, 0) : new Thickness(3);
+        _alarmPulse.Update(ringing, StickyNoteAppearance.ResolveColor(_note.Color).Alarm);
+        _passiveBody?.UpdateContent(_note);
     }
 
     private void NewClick(object sender, RoutedEventArgs e) => _controller.CreateNote();

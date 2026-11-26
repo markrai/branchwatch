@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Per-sticky-note one-shot alarms with a calendar, digital 24-hour selector, persistent due and acknowledgement state, and a slow color-matched outline pulse. Click the note header to dismiss; the clock button can reschedule or remove an alarm.
+
 ### Changed
 
 - Sticky notes open directly into text editing when created, Escape leaves editing and restores saved transparency, double-clicking the title renames it inline, and note bodies use a slim rounded vertical scrollbar.

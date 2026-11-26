@@ -22,6 +22,8 @@ internal sealed class StickyNotePassiveBody
     private readonly Window _window;
     private readonly WpfBorder _surface;
     private readonly WpfTextBox _text;
+    private readonly System.Windows.Controls.Grid _root;
+    private readonly StickyNoteAlarmPulse _alarmPulse;
     private IntPtr _handle;
     private (int X, int Y, int Width, int Height)? _bounds;
     private string? _color;
@@ -51,7 +53,13 @@ internal sealed class StickyNotePassiveBody
             Source = new Uri("pack://application:,,,/BranchWatch;component/StickyNotes/StickyNoteScrollBar.xaml")
         };
         _surface = new WpfBorder { Child = _text };
-        _surface.SizeChanged += (_, e) => _surface.Clip = StickyNoteResizeGeometry.PassiveBodyClip(e.NewSize.Width, e.NewSize.Height);
+        _root = new System.Windows.Controls.Grid { ClipToBounds = true };
+        _root.Children.Add(_surface);
+        var outline = new WpfBorder { BorderThickness = new Thickness(3, 0, 3, 3), CornerRadius = new CornerRadius(0, 0, 3, 3),
+            IsHitTestVisible = false, Visibility = Visibility.Collapsed };
+        _root.Children.Add(outline);
+        _alarmPulse = new StickyNoteAlarmPulse(outline);
+        _root.SizeChanged += (_, e) => _root.Clip = StickyNoteResizeGeometry.PassiveBodyClip(e.NewSize.Width, e.NewSize.Height);
         _window = new Window
         {
             Owner = owner,
@@ -67,7 +75,7 @@ internal sealed class StickyNotePassiveBody
             UseLayoutRounding = true,
             Width = 1,
             Height = 1,
-            Content = _surface
+            Content = _root
         };
         UpdateContent(note);
     }
@@ -95,6 +103,7 @@ internal sealed class StickyNotePassiveBody
             _level = note.TransparencyLevel;
             _surface.Opacity = StickyNoteTransparency.OpacityForLevel(_level);
         }
+        _alarmPulse.Update(note.IsAlarmRinging, StickyNoteAppearance.ResolveColor(note.Color).Alarm);
     }
 
     internal bool TryShow(FrameworkElement host, StickyNotesController controller)
@@ -111,7 +120,7 @@ internal sealed class StickyNotePassiveBody
             return Fail("The note is no longer on the current desktop.");
         }
 
-        _surface.Opacity = 0;
+        _root.Opacity = 0;
         _handle = new WindowInteropHelper(_window).EnsureHandle();
         if (_handle == IntPtr.Zero)
         {
@@ -140,7 +149,7 @@ internal sealed class StickyNotePassiveBody
             return false;
         }
 
-        _surface.Opacity = StickyNoteTransparency.OpacityForLevel(_level);
+        _root.Opacity = 1;
         return true;
     }
 
@@ -204,7 +213,11 @@ internal sealed class StickyNotePassiveBody
         return true;
     }
 
-    internal void Close() => _window.Close();
+    internal void Close()
+    {
+        _alarmPulse.Update(false, "");
+        _window.Close();
+    }
 
     private static SolidColorBrush BrushFor(string value) =>
         new((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(value)!);

@@ -231,6 +231,8 @@ public sealed class TrayService : IDisposable
             foreach (var note in _stickyNotes.Notes)
             {
                 var label = $"{note.CustomTitle ?? note.Preview} · {_stickyNotes.DesktopName(note.DesktopId)}";
+                if (note.IsAlarmRinging) label += " (alarm due)";
+                else if (note.AlarmDueUtc is not null) label += " (alarm set)";
                 if (!note.IsOpen)
                 {
                     label += " (closed)";

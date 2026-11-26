@@ -25,6 +25,33 @@ internal sealed class StickyNote
 
     internal string DisplayTitle(string desktopName) => CustomTitle ?? desktopName;
     public string Color { get; set; } = "Yellow";
+    public DateTimeOffset? AlarmDueUtc { get; set; }
+    public bool AlarmTriggered { get; set; }
+
+    internal bool IsAlarmRinging => AlarmDueUtc.HasValue && AlarmTriggered;
+
+    internal bool AdvanceAlarm(DateTimeOffset now)
+    {
+        if (AlarmDueUtc is not { } due || AlarmTriggered || due > now) return false;
+        AlarmTriggered = true;
+        return true;
+    }
+
+    internal bool SetAlarm(DateTimeOffset due, DateTimeOffset now)
+    {
+        if (due <= now) return false;
+        AlarmDueUtc = due.ToUniversalTime();
+        AlarmTriggered = false;
+        return true;
+    }
+
+    internal bool ClearAlarm()
+    {
+        if (AlarmDueUtc is null && !AlarmTriggered) return false;
+        AlarmDueUtc = null;
+        AlarmTriggered = false;
+        return true;
+    }
     private int _transparencyLevel = StickyNoteTransparency.DefaultLevel;
 
     public int TransparencyLevel
