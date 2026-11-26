@@ -131,10 +131,10 @@ public sealed class SettingsWindowTests
                 Assert.IsNull(window.DesktopOverlayHost.Content);
                 window.Navigate(SettingsSection.VirtualDesktops);
                 var desktop = (DesktopOverlaySettingsPage)window.DesktopOverlayHost.Content;
-                Assert.IsFalse(desktop.ShowOverlayCheckBox.IsChecked == true);
+                Assert.AreNotEqual(true, desktop.ShowOverlayCheckBox.IsChecked);
                 settings.VirtualDesktopOverlayVisible = true;
                 window.RefreshExternalSettings();
-                Assert.IsTrue(desktop.ShowOverlayCheckBox.IsChecked == true);
+                Assert.AreEqual(true, desktop.ShowOverlayCheckBox.IsChecked);
                 window.Navigate(SettingsSection.GitWatcher);
                 Assert.AreSame(git, window.GitOverlayHost.Content);
                 window.Navigate(SettingsSection.VirtualDesktops);
