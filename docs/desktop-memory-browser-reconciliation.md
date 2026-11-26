@@ -25,3 +25,5 @@ All outcomes still consume the previously issued one-time request. Even if nothi
 - Verify a stable disjoint profile permits the existing new-window operation. Test query/fragment distinctions and intentional duplicate URLs.
 - Inspect browser popup status after it closes; verify the one-time native approval still blocks repeated issuance. No extra URL inventory is transmitted or stored by the reconciliation path.
 - Verify an old v1 restore client cannot redeem a code with the updated application. Hello and capture still use v1.
+
+Phase 8G introduces a separate [Firefox diagnostic](desktop-memory-firefox-qualification.md). Firefox does not use Chromium's parent-window argument; no Firefox tab operation is authorized by this diagnostic.

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>FirefoxCompanionHost</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../BranchWatch/DesktopMemory/Browser/BrowserCompanionProtocol.cs" Link="BrowserCompanionProtocol.cs"/>
+    <Compile Include="../../BranchWatch/Ipc/BranchWatchApplicationIdentity.cs" Link="BranchWatchApplicationIdentity.cs"/>
+    <Compile Include="../../BranchWatch/DesktopMemory/Qualification/ProbeNative.cs" Link="ProbeNative.cs"/>
+    <Compile Include="../../BranchWatch/DesktopMemory/Qualification/ProbeDesktopReader.cs" Link="ProbeDesktopReader.cs"/>
+    <Compile Include="../../BranchWatch/DesktopMemory/Qualification/ProbeModels.cs" Link="ProbeModels.cs"/>
+    <Compile Include="../BrowserCorrelationProbe/Protocol.cs" Link="CorrelationProtocol.cs"/>
+    <Compile Include="../BrowserCorrelationProbe/NativeObservation.cs" Link="NativeObservation.cs"/>
+  </ItemGroup>
+</Project>
