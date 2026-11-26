@@ -4,6 +4,7 @@ using System.Windows.Media;
 namespace BranchWatch.Tests;
 
 [TestClass]
+[DoNotParallelize]
 public sealed class VirtualDesktopOverlayActiveWidthTests
 {
     private static readonly Guid IdOm = Guid.Parse("11111111-1111-1111-1111-111111111111");

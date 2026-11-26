@@ -6,6 +6,7 @@ using System.Windows.Media;
 namespace BranchWatch.Tests;
 
 [TestClass]
+[DoNotParallelize]
 public sealed class StickyNoteWindowTests
 {
     [TestMethod]

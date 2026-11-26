@@ -7,6 +7,11 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        if (DesktopMemoryProbeCommand.TryExecute(args, out var probeExitCode))
+        {
+            return probeExitCode;
+        }
+
         if (ActivityCommand.TryExecute(args, out var exitCode))
         {
             return exitCode;

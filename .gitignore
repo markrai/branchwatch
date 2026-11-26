@@ -45,3 +45,9 @@ docs/draft/
 sticky-notes.json
 sticky-notes.json.*
 settings.json
+
+desktop-memory-probe-*.json
+desktop-memory-probe-*.json.*
+snapshots.json
+snapshots.json.*
+snapshots.backup.json
