@@ -254,8 +254,8 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     }
 
     private SnapshotWindow? SelectedFolderWindow =>
-        FolderWindowPicker.SelectedValue is Guid id && _draft?.DesktopId == SelectedId
-            ? _draft.Windows.SingleOrDefault(w => w.Id == id) : null;
+        FolderWindowPicker.SelectedValue is Guid id && _draft is { } draft && draft.DesktopId == SelectedId
+            ? draft.Windows.SingleOrDefault(w => w.Id == id) : null;
 
     private void OnFolderWindowSelected(object sender, SelectionChangedEventArgs e)
     {
