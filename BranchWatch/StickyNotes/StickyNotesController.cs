@@ -274,7 +274,7 @@ public sealed class StickyNotesController : IDisposable
         return true;
     }
 
-    private void ScheduleRestore(Guid desktopId)
+    internal void ScheduleRestore(Guid desktopId)
     {
         _restoreDesktop = StickyNote.ForDesktop(_notes, desktopId).Any(note => !_windows.ContainsKey(note.Id))
             ? desktopId : null;
