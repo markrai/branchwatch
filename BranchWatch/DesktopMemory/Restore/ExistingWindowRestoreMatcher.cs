@@ -22,7 +22,7 @@ internal static class ExistingWindowRestoreMatcher
 
             if (saved.BrowserContext is not null)
             {
-                items.Add(Item(ExistingRestoreStatus.UnsupportedState, "Saved browser tabs require a profile-aware restoration adapter, not yet enabled."));
+                items.Add(Item(ExistingRestoreStatus.UnsupportedState, "Saved browser tabs use the separate Companion reopen action; native placement is not enabled."));
                 continue;
             }
             if (placement.State != PlannedWindowState.Normal)
