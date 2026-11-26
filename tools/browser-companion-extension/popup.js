@@ -1,15 +1,15 @@
 const button = document.getElementById("check");
-const status = document.getElementById("status");
+const output = document.getElementById("status");
 button.addEventListener("click", async () => {
     button.disabled = true;
-    status.textContent = "Checking...";
+    output.textContent = "Checking...";
     try {
         const reply = await chrome.runtime.sendMessage({ command: "checkConnection" });
-        status.textContent = reply?.status === "connected"
+        output.textContent = reply?.status === "connected"
             ? "Connected to BranchWatch. Local profile ID: " + reply.profileId
             : "Unavailable. Check that BranchWatch is running and the native host is registered.";
     } catch {
-        status.textContent = "Unavailable. Check the extension and native host registration.";
+        output.textContent = "Unavailable. Check the extension and native host registration.";
     } finally {
         button.disabled = false;
     }

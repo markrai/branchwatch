@@ -13,7 +13,14 @@ internal static class BrowserCompanionProtocol
 {
     internal const int MaximumBytes = 1024;
     internal static readonly TimeSpan Timeout = TimeSpan.FromSeconds(3);
-    internal static string PipeName => $"BranchWatch-Browser-v1-{BranchWatchApplicationIdentity.UserHash}-{Process.GetCurrentProcess().SessionId}";
+    internal static string PipeName
+    {
+        get
+        {
+            using var process = Process.GetCurrentProcess();
+            return $"BranchWatch-Browser-v1-{BranchWatchApplicationIdentity.UserHash}-{process.SessionId}";
+        }
+    }
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
 
     internal static CompanionHello ParseHello(byte[] bytes)

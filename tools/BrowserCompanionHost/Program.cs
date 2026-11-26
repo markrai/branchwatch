@@ -14,7 +14,7 @@ internal static class Program
                 Console.OpenStandardInput(), deadline.Token));
             CompanionReply reply;
             try { reply = await BrowserCompanionProtocol.ConnectAsync(BrowserCompanionProtocol.PipeName, request, deadline.Token); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or OperationCanceledException
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or OperationCanceledException
                 or JsonException or InvalidOperationException or FormatException)
             {
                 reply = new(1, "unavailable", request.ProfileId, request.Nonce);
@@ -32,7 +32,7 @@ internal static class Program
     private static bool AllowedOrigin(string[] args)
     {
         if (args.Length != 2 || !args[1].StartsWith("--parent-window=", StringComparison.Ordinal)
-            || !ulong.TryParse(args[1].AsSpan(16), out _)) return false;
+            || !ulong.TryParse(args[1].AsSpan(16), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out _)) return false;
         var origin = args[0];
         const string prefix = "chrome-extension://";
         if (!origin.StartsWith(prefix, StringComparison.Ordinal) || !origin.EndsWith('/') || origin.Length != prefix.Length + 33

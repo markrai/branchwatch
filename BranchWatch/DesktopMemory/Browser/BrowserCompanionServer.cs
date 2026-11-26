@@ -36,7 +36,7 @@ internal sealed class BrowserCompanionServer(string pipeName) : IDisposable
                     await BrowserCompanionProtocol.WriteAsync(pipe, BrowserCompanionProtocol.Encode(response), deadline.Token)
                         .ConfigureAwait(false);
                 }
-                catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException
+                catch (Exception ex) when (ex is IOException or InvalidDataException or System.Text.Json.JsonException
                     or InvalidOperationException or FormatException or OperationCanceledException)
                 {
                     Trace.TraceInformation("Browser companion request ended: {0}", ex.GetType().Name);
