@@ -1,0 +1,33 @@
+<Window x:Class="BranchWatch.StickyNoteAlarmDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Set note alarm" Width="326" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" FontFamily="Segoe UI"
+        Background="#F8FAFC" Foreground="#253247">
+    <StackPanel Margin="18">
+        <TextBlock Text="Set an alarm" FontSize="21" FontWeight="SemiBold"/>
+        <TextBlock Text="One reminder for this note." Margin="0,3,0,13" Foreground="#617083"/>
+        <TextBlock Text="DATE" FontSize="11" FontWeight="SemiBold" Foreground="#617083"/>
+        <Calendar x:Name="AlarmCalendar" SelectionMode="SingleDate" HorizontalAlignment="Center"
+                  Margin="0,5,0,12" AutomationProperties.Name="Alarm date"/>
+        <TextBlock Text="TIME · LOCAL" FontSize="11" FontWeight="SemiBold" Foreground="#617083"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,7,0,2">
+            <ComboBox x:Name="HourPicker" Width="92" Height="40" FontSize="23" HorizontalContentAlignment="Center"
+                      AutomationProperties.Name="Hour (24-hour)"/>
+            <TextBlock Text=":" FontSize="24" VerticalAlignment="Center" Margin="9,0"/>
+            <ComboBox x:Name="MinutePicker" Width="92" Height="40" FontSize="23" HorizontalContentAlignment="Center"
+                      AutomationProperties.Name="Minute"/>
+        </StackPanel>
+        <TextBlock Text="24-hour time" HorizontalAlignment="Center" Foreground="#617083" FontSize="11" Margin="0,4,0,8"/>
+        <TextBlock x:Name="ValidationText" Foreground="#A52C2C" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+        <Grid Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Button x:Name="RemoveButton" Content="Remove" Click="RemoveClick" Padding="9,7" HorizontalAlignment="Left"/>
+            <Button Grid.Column="1" Content="Cancel" IsCancel="True" Padding="11,7" Margin="0,0,7,0"/>
+            <Button Grid.Column="2" Content="Set alarm" IsDefault="True" Click="SetClick" Padding="14,7"
+                    Background="#315EAE" Foreground="White" FontWeight="SemiBold"/>
+        </Grid>
+    </StackPanel>
+</Window>

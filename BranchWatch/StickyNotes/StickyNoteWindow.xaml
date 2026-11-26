@@ -12,7 +12,7 @@
     </shell:WindowChrome.WindowChrome>
     <Window.Resources>
         <Style x:Key="HeaderButton" TargetType="Button">
-            <Setter Property="Width" Value="34"/>
+            <Setter Property="Width" Value="29"/>
             <Setter Property="Height" Value="30"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -43,6 +43,7 @@
             </Setter>
         </Style>
     </Window.Resources>
+    <Grid ClipToBounds="True">
     <Border x:Name="NoteSurface" BorderBrush="#33000000" BorderThickness="1">
         <Grid>
             <Grid.RowDefinitions>
@@ -55,6 +56,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
@@ -77,10 +79,19 @@
                               StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                               IsHitTestVisible="False"/>
                     </Button>
-                    <Button x:Name="OptionsButton" Grid.Column="3" Style="{StaticResource HeaderButton}"
+                    <Button x:Name="AlarmButton" Grid.Column="3" Style="{StaticResource HeaderButton}"
+                            Click="AlarmClick" ToolTip="Set alarm" AutomationProperties.Name="Set alarm">
+                        <Grid Width="17" Height="17" IsHitTestVisible="False">
+                            <Path Data="M 8.5,1.5 A 7,7 0 1 1 8.49,1.5 M 8.5,4.5 L 8.5,8.5 L 11.5,10.5"
+                                  Stroke="#332D24" StrokeThickness="1.45" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                            <Ellipse x:Name="AlarmDot" Width="5" Height="5" Fill="#332D24" HorizontalAlignment="Right"
+                                     VerticalAlignment="Top" Visibility="Collapsed"/>
+                        </Grid>
+                    </Button>
+                    <Button x:Name="OptionsButton" Grid.Column="4" Style="{StaticResource HeaderButton}"
                             Content="⋯" Click="OptionsClick" ToolTip="Note options"
                             AutomationProperties.Name="Note options"/>
-                    <Button Grid.Column="4" Style="{StaticResource HeaderButton}" Content="×"
+                    <Button Grid.Column="5" Style="{StaticResource HeaderButton}" Content="×"
                             Click="CloseClick" ToolTip="Close note" AutomationProperties.Name="Close note"/>
                 </Grid>
             </Border>
@@ -122,4 +133,7 @@
             </Grid>
         </Grid>
     </Border>
+    <Border x:Name="AlarmOutline" Margin="1" Visibility="Collapsed" IsHitTestVisible="False"
+            Focusable="False" BorderThickness="3" CornerRadius="3"/>
+    </Grid>
 </Window>

@@ -99,6 +99,8 @@ public sealed class StickyNotesController : IDisposable
             return;
         }
 
+        AdvanceAlarms(DateTimeOffset.UtcNow);
+        Save();
         _monitor.StateChanged += OnDesktopChanged;
         _timer.Start();
         if (_monitor.CurrentState is { } state)
@@ -332,12 +334,26 @@ public sealed class StickyNotesController : IDisposable
         }
     }
 
+    internal void AlarmChanged()
+    {
+        MarkDirty();
+        Save();
+    }
+
+    private void AdvanceAlarms(DateTimeOffset now)
+    {
+        foreach (var note in _notes)
+            if (note.AdvanceAlarm(now)) MarkDirty();
+    }
+
     private void OnTimerTick(object? sender, EventArgs e)
     {
+        AdvanceAlarms(DateTimeOffset.UtcNow);
         SynchronizeAssignments();
         RestorePending();
         foreach (var window in _windows.Values)
         {
+            window.RefreshAlarmPresentation();
             window.RefreshPassiveBody();
         }
         Save();
