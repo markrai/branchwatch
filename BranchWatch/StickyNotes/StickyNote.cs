@@ -15,6 +15,7 @@ internal sealed class StickyNote
     }
 
     public bool IsOpen { get; set; } = true;
+    public bool IsCollapsed { get; set; }
     public double Left { get; set; }
     public double Top { get; set; }
     internal const double DefaultWidth = 300;

@@ -25,16 +25,22 @@ public partial class StickyNoteWindow : Window
     private StickyNoteResizeBounds? _shrinkStart;
     private NativePoint _shrinkCursor;
     private DpiScale _shrinkDpi;
+    private readonly double _expandedMinHeight;
+    private double _expandedHeight;
+    private bool _changingCollapse;
 
     internal StickyNoteWindow(StickyNote note, StickyNotesController controller)
     {
         _note = note;
         _controller = controller;
         InitializeComponent();
+        _expandedMinHeight = MinHeight;
 
         Editor.Text = note.Text;
         ApplyColor();
         ApplyBounds();
+        _expandedHeight = Height;
+        ApplyCollapsedLayout();
         ApplyTransparency(_note.TransparencyLevel);
         Editor.TextChanged += (_, _) =>
         {
@@ -66,7 +72,7 @@ public partial class StickyNoteWindow : Window
     internal void FocusEditor()
     {
         Activate();
-        if (_note.TransparencyLevel == StickyNoteTransparency.MinLevel)
+        if (!_note.IsCollapsed && _note.TransparencyLevel == StickyNoteTransparency.MinLevel)
         {
             Editor.Focus();
         }
@@ -87,7 +93,7 @@ public partial class StickyNoteWindow : Window
 
     internal void CaptureBounds()
     {
-        if (!_trackingBounds || !IsLoaded || WindowState != WindowState.Normal
+        if (_changingCollapse || !_trackingBounds || !IsLoaded || WindowState != WindowState.Normal
             || ActualWidth <= 0 || ActualHeight <= 0)
         {
             return;
@@ -96,7 +102,11 @@ public partial class StickyNoteWindow : Window
         _note.Left = Left;
         _note.Top = Top;
         _note.Width = ActualWidth;
-        _note.Height = ActualHeight;
+        if (!_note.IsCollapsed)
+        {
+            _expandedHeight = ActualHeight;
+            _note.Height = _expandedHeight;
+        }
         _controller.MarkDirty();
     }
 
@@ -121,6 +131,77 @@ public partial class StickyNoteWindow : Window
         Left = left;
         Top = top;
     }
+
+    internal void SetCollapsed(bool collapsed)
+    {
+        if (_note.IsCollapsed == collapsed)
+        {
+            return;
+        }
+
+        _changingCollapse = true;
+        try
+        {
+            if (collapsed)
+            {
+                _expandedHeight = Height;
+                _note.Height = _expandedHeight;
+                _shrinkStart = null;
+                if (ShrinkGrip.IsDragging)
+                {
+                    ShrinkGrip.CancelDrag();
+                }
+                if (Editor.IsKeyboardFocusWithin)
+                {
+                    CollapseButton.Focus();
+                }
+            }
+
+            _note.IsCollapsed = collapsed;
+            if (collapsed)
+            {
+                RemovePassiveBody();
+            }
+            else
+            {
+                _passiveBodyFailed = false;
+            }
+
+            ApplyCollapsedLayout();
+            UpdateLayout();
+        }
+        finally
+        {
+            _changingCollapse = false;
+        }
+
+        CaptureBounds();
+        _controller.MarkDirty();
+        RefreshPassiveBody();
+    }
+
+    private void ApplyCollapsedLayout()
+    {
+        var collapsed = _note.IsCollapsed;
+        BodyHost.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
+        if (collapsed)
+        {
+            var headerHeight = HeaderRow.Height.Value + NoteSurface.BorderThickness.Top + NoteSurface.BorderThickness.Bottom;
+            MinHeight = headerHeight;
+            Height = headerHeight;
+        }
+        else
+        {
+            MinHeight = _expandedMinHeight;
+            Height = Math.Max(_expandedMinHeight, _expandedHeight);
+        }
+
+        var label = collapsed ? "Expand note" : "Collapse note";
+        CollapseButton.ToolTip = label;
+        System.Windows.Automation.AutomationProperties.SetName(CollapseButton, label);
+    }
+
+    private void CollapseClick(object sender, RoutedEventArgs e) => SetCollapsed(!_note.IsCollapsed);
 
     private void ApplyColor()
     {
@@ -170,7 +251,7 @@ public partial class StickyNoteWindow : Window
 
     internal void RefreshPassiveBody()
     {
-        if (!_desktopVerified || _closing || _refreshingPassiveBody)
+        if (!_desktopVerified || _closing || _changingCollapse || _refreshingPassiveBody)
         {
             return;
         }
@@ -188,7 +269,7 @@ public partial class StickyNoteWindow : Window
 
     private void RefreshPassiveBodyCore()
     {
-        if (!WantsClickThrough || !IsVisible || WindowState == WindowState.Minimized
+        if (_note.IsCollapsed || !WantsClickThrough || !IsVisible || WindowState == WindowState.Minimized
             || !_controller.IsNoteOnCurrentDesktop(this))
         {
             RemovePassiveBody();
@@ -227,7 +308,7 @@ public partial class StickyNoteWindow : Window
 
     private void AlignPassiveBody()
     {
-        if (_closing || _refreshingPassiveBody || _passiveBody is null)
+        if (_closing || _changingCollapse || _note.IsCollapsed || _refreshingPassiveBody || _passiveBody is null)
         {
             return;
         }
@@ -276,7 +357,7 @@ public partial class StickyNoteWindow : Window
     private void ShrinkDragStarted(object sender, DragStartedEventArgs e)
     {
         _shrinkStart = null;
-        if (WindowState != WindowState.Normal || !GetCursorPos(out _shrinkCursor))
+        if (_note.IsCollapsed || WindowState != WindowState.Normal || !GetCursorPos(out _shrinkCursor))
         {
             return;
         }
@@ -365,7 +446,7 @@ public partial class StickyNoteWindow : Window
             var selectedLevel = level;
             var label = level switch
             {
-                StickyNoteTransparency.MinLevel => "1 (opaque)",
+                StickyNoteTransparency.MinLevel => "1 (opaque & editable)",
                 StickyNoteTransparency.MaxLevel => "10 (most transparent)",
                 _ => level.ToString()
             };

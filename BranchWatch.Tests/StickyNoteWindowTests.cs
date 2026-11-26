@@ -74,6 +74,90 @@ public sealed class StickyNoteWindowTests
         }
     }
 
+    [TestMethod]
+    public void Collapse_HidesBodyAndRestoresExpandedDimensionsAcrossAppearanceChanges()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                using var monitor = new VirtualDesktopMonitor();
+                using var controller = new StickyNotesController(monitor,
+                    Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "notes.json"));
+                var note = new StickyNote { DesktopId = Guid.NewGuid(), Text = "Keep this", Width = 250, Height = 190, TransparencyLevel = 8 };
+                var window = new StickyNoteWindow(note, controller);
+                try
+                {
+                    var left = window.Left;
+                    var top = window.Top;
+                    var width = window.Width;
+                    window.SetCollapsed(true);
+                    Assert.IsTrue(note.IsCollapsed);
+                    Assert.AreEqual(Visibility.Collapsed, window.BodyHost.Visibility);
+                    Assert.AreEqual(38.0, window.Height);
+                    Assert.AreEqual(190.0, note.Height);
+                    Assert.IsFalse(window.IsBodyClickThrough);
+                    Assert.AreEqual("Expand note", window.CollapseButton.ToolTip);
+                    Assert.AreEqual(2, System.Windows.Controls.Grid.GetColumn(window.CollapseButton));
+                    Assert.AreEqual(3, System.Windows.Controls.Grid.GetColumn(window.OptionsButton));
+
+                    foreach (var level in new[] { 1, 10, 3 })
+                    {
+                        window.ApplyTransparency(level);
+                        Assert.AreEqual(38.0, window.Height);
+                        Assert.IsFalse(window.IsBodyClickThrough);
+                    }
+
+                    window.SetCollapsed(false);
+                    Assert.IsFalse(note.IsCollapsed);
+                    Assert.AreEqual(Visibility.Visible, window.BodyHost.Visibility);
+                    Assert.AreEqual(190.0, window.Height);
+                    Assert.AreEqual(150.0, window.MinHeight);
+                    Assert.AreEqual(width, window.Width);
+                    Assert.AreEqual(left, window.Left);
+                    Assert.AreEqual(top, window.Top);
+                    Assert.AreEqual("Keep this", window.Editor.Text);
+                    Assert.AreEqual("Collapse note", window.CollapseButton.ToolTip);
+                    Assert.IsTrue(window.Topmost);
+
+                    window.SetCollapsed(true);
+                    window.Close();
+                    var restored = new StickyNoteWindow(note, controller);
+                    try
+                    {
+                        Assert.AreEqual(38.0, restored.Height);
+                        restored.SetCollapsed(false);
+                        Assert.AreEqual(190.0, restored.Height);
+                        Assert.AreEqual("Keep this", restored.Editor.Text);
+                    }
+                    finally
+                    {
+                        restored.Close();
+                    }
+                }
+                finally
+                {
+                    if (!note.IsCollapsed && window.IsLoaded)
+                    {
+                        window.Close();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                failure = ex;
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if (failure is not null)
+        {
+            throw failure;
+        }
+    }
+
     private static void AssertSurfaceAlignment(StickyNoteWindow window)
     {
         foreach (var width in new[] { 220.0, 300.0, 460.0 })
