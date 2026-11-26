@@ -247,6 +247,156 @@ public sealed class MissingApplicationLaunchTests
         Assert.AreEqual(result[1], progress.Single());
     }
 
+    [TestMethod]
+    public void RestoreSession_PreparesWithoutSideEffectsAndExecutesOnlyOnceAfterApproval()
+    {
+        var a = Saved("Existing");
+        var b = Saved("Missing", @"C:\Apps\Other.exe", 1);
+        var snapshot = new DesktopSnapshot(Desktop, "Work", Captured, [Monitor], [a, b], 0, []);
+        var env = new FakeEnvironment(Inventory(Live(a, 1, 5, 100)));
+        var request = Request(snapshot, [a.Id, b.Id], launchMissing: true);
+        using var session = new DesktopRestoreSession(request, () => [snapshot], env, env);
+        var prepared = session.Prepare();
+        Assert.HasCount(1, prepared.Ready);
+        Assert.HasCount(1, prepared.LaunchReady);
+        Assert.IsEmpty(env.Applied);
+        Assert.AreEqual(0, env.LaunchCount);
+        Assert.IsFalse(session.ExecutionStarted);
+        Assert.ThrowsExactly<InvalidOperationException>(() => session.ExecuteApproved(prepared with { }));
+        Assert.ThrowsExactly<InvalidOperationException>(() => session.Prepare());
+        env.AfterLaunch = () => env.Current = Inventory(Live(a, 1, 5, 100),
+            Live(b, 10, ProcessIdentity.ProcessId, ProcessIdentity.CreatedFileTime));
+        var reported = new List<ExistingRestoreOutcome>();
+        var activeAtReport = new List<bool>();
+        var results = session.ExecuteApproved(prepared, outcome =>
+        {
+            reported.Add(outcome);
+            activeAtReport.Add(session.IsExecuting);
+        });
+        Assert.AreEqual(ExistingRestoreStatus.Restored, results[0].Status);
+        Assert.AreEqual(ExistingRestoreStatus.LaunchedAndRestored, results[1].Status);
+        Assert.AreEqual(1, env.LaunchCount);
+        Assert.HasCount(2, env.Applied);
+        CollectionAssert.AreEqual(results.ToArray(), reported.ToArray());
+        Assert.IsTrue(activeAtReport.All(active => active));
+        Assert.HasCount(2, session.ProgressSnapshot());
+        Assert.AreEqual(results[1], session.ProgressSnapshot()[b.Id]);
+        Assert.IsTrue(session.ExecutionStarted);
+        Assert.IsFalse(session.IsExecuting);
+        Assert.ThrowsExactly<InvalidOperationException>(() => session.ExecuteApproved(prepared));
+        Assert.AreEqual(1, env.LaunchCount);
+    }
+
+    [TestMethod]
+    public void RestoreSession_CopiesSelectionAndNeverLaunchesWithoutOptIn()
+    {
+        var a = Saved("Existing");
+        var b = Saved("Missing", @"C:\Apps\Other.exe", 1);
+        var snapshot = new DesktopSnapshot(Desktop, "Work", Captured, [Monitor], [a, b], 0, []);
+        var env = new FakeEnvironment(Inventory(Live(a, 1, 5, 100)));
+        var selected = new HashSet<Guid> { b.Id };
+        using var session = new DesktopRestoreSession(Request(snapshot, selected, launchMissing: false), () => [snapshot], env, env);
+        selected.Clear();
+        selected.Add(a.Id);
+        var prepared = session.Prepare();
+        Assert.IsNull(prepared.Launches);
+        Assert.IsEmpty(prepared.Ready);
+        var results = session.ExecuteApproved(prepared);
+        Assert.AreEqual(ExistingRestoreStatus.UserSkipped, results[0].Status);
+        Assert.AreEqual(ExistingRestoreStatus.MissingWindow, results[1].Status);
+        Assert.IsEmpty(env.Applied);
+        Assert.AreEqual(0, env.LaunchCount);
+    }
+
+    [TestMethod]
+    public void RestoreSession_CancelBeforePreparationOrExecutionNeverIssuesNativeRequests()
+    {
+        var a = Saved("Existing");
+        var snapshot = new DesktopSnapshot(Desktop, "Work", Captured, [Monitor], [a], 0, []);
+        var env = new FakeEnvironment(Inventory(Live(a, 1, 5, 100)));
+        var request = Request(snapshot, [a.Id], launchMissing: true);
+        using var before = new DesktopRestoreSession(request, () => [snapshot], env, env);
+        before.Cancel();
+        Assert.ThrowsExactly<OperationCanceledException>(() => before.Prepare());
+        Assert.IsFalse(before.ExecutionStarted);
+        using var after = new DesktopRestoreSession(request, () => [snapshot], env, env);
+        var prepared = after.Prepare();
+        after.Cancel();
+        Assert.ThrowsExactly<OperationCanceledException>(() => after.ExecuteApproved(prepared));
+        Assert.IsFalse(after.ExecutionStarted);
+        Assert.IsEmpty(env.Applied);
+        Assert.AreEqual(0, env.LaunchCount);
+    }
+
+    [TestMethod]
+    public void RestoreSession_CancellationAfterFirstMoveStopsRemainingMovesAndLaunches()
+    {
+        var a = Saved("First");
+        var b = Saved("Second", @"C:\Apps\Second.exe", 1);
+        var c = Saved("Missing", @"C:\Apps\Third.exe", 2);
+        var snapshot = new DesktopSnapshot(Desktop, "Work", Captured, [Monitor], [a, b, c], 0, []);
+        var env = new FakeEnvironment(Inventory(Live(a, 1, 5, 100), Live(b, 2, 6, 101)));
+        using var session = new DesktopRestoreSession(Request(snapshot, [a.Id, b.Id, c.Id], launchMissing: true),
+            () => [snapshot], env, env);
+        var prepared = session.Prepare();
+        var results = session.ExecuteApproved(prepared, outcome =>
+        {
+            if (outcome.WindowId == a.Id) session.Cancel();
+        });
+        Assert.AreEqual(ExistingRestoreStatus.Restored, results[0].Status);
+        Assert.AreEqual(ExistingRestoreStatus.Cancelled, results[1].Status);
+        Assert.AreEqual(ExistingRestoreStatus.Cancelled, results[2].Status);
+        Assert.HasCount(1, env.Applied);
+        Assert.AreEqual(0, env.LaunchCount);
+        Assert.IsTrue(session.ExecutionStarted);
+        Assert.HasCount(3, session.ProgressSnapshot());
+    }
+
+    [TestMethod]
+    public void RestoreSession_RejectsChangedSavedSnapshotBeforeBothPhases()
+    {
+        var a = Saved("Existing");
+        var snapshot = new DesktopSnapshot(Desktop, "Work", Captured, [Monitor], [a], 0, []);
+        var current = snapshot with { DesktopName = "Changed" };
+        var env = new FakeEnvironment(Inventory(Live(a, 1, 5, 100)));
+        var request = Request(snapshot, [a.Id], launchMissing: false);
+        using var stale = new DesktopRestoreSession(request, () => [current], env, env);
+        Assert.ThrowsExactly<InvalidOperationException>(() => stale.Prepare());
+        current = snapshot;
+        using var session = new DesktopRestoreSession(request, () => [current], env, env);
+        var prepared = session.Prepare();
+        current = snapshot with { Windows = [a with { Title = "Different" }] };
+        Assert.ThrowsExactly<InvalidOperationException>(() => session.ExecuteApproved(prepared));
+        Assert.IsFalse(session.ExecutionStarted);
+        Assert.IsEmpty(env.Applied);
+        Assert.AreEqual(0, env.LaunchCount);
+    }
+
+    [TestMethod]
+    public void RestoreSession_RejectsForeignApprovalAndObserverFailureDoesNotInterruptExecution()
+    {
+        var a = Saved("Existing");
+        var snapshot = new DesktopSnapshot(Desktop, "Work", Captured, [Monitor], [a], 0, []);
+        var env = new FakeEnvironment(Inventory(Live(a, 1, 5, 100)));
+        var request = Request(snapshot, [a.Id], launchMissing: false);
+        using var first = new DesktopRestoreSession(request, () => [snapshot], env, env);
+        using var second = new DesktopRestoreSession(request, () => [snapshot], env, env);
+        var foreign = first.Prepare();
+        var approved = second.Prepare();
+        Assert.ThrowsExactly<InvalidOperationException>(() => second.ExecuteApproved(foreign));
+        var results = second.ExecuteApproved(approved, _ => throw new InvalidOperationException("Observer failed"));
+        Assert.AreEqual(ExistingRestoreStatus.Restored, results.Single().Status);
+        Assert.HasCount(1, second.ProgressSnapshot());
+        Assert.HasCount(1, env.Applied);
+        first.Dispose();
+        first.Cancel();
+        Assert.ThrowsExactly<InvalidOperationException>(() => first.ExecuteApproved(foreign));
+    }
+
+    private static DesktopRestoreRequest Request(DesktopSnapshot snapshot, IEnumerable<Guid> selected, bool launchMissing) =>
+        new(snapshot, DesktopPlacementPlanner.Plan(snapshot, Topology), UnmatchedMonitorPolicy.Skip,
+            selected is IReadOnlySet<Guid> set ? set : selected.ToHashSet(), launchMissing);
+
     private static SnapshotWindow Saved(string title, string path = @"C:\Apps\Editor.exe", int index = 0) =>
         new(Guid.NewGuid(), "Editor", path, title, "EditorWindow", Bounds, null, Bounds,
             false, false, 1, 0, "main", 96, index, ["main"]);

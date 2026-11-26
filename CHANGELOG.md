@@ -4,6 +4,10 @@
 
 ### Changed
 
+- Extract Desktop Memory restore preparation, execution, cancellation and progress into a single-use session, retaining explicit confirmation and native safety checks.
+
+### Changed
+
 - Extract Desktop Memory capture, transient draft identities and reviewed snapshot persistence from the settings page; share the STA execution helper.
 
 ### Changed
