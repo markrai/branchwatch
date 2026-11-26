@@ -4,6 +4,10 @@
 
 ### Changed
 
+- Separate tray menu rendering, menu state projection and settings-window lifetime from application command coordination; guard deferred commands and share Git overlay visibility persistence.
+
+### Changed
+
 - Centralize Desktop Memory browser authorization, ticket lifecycle and native correlation checks; revalidate restore approvals after cancellable saved-session verification.
 
 ### Changed
