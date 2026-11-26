@@ -1,3 +1,4 @@
+importScripts("restore.js");
 const host = "com.branchwatch.companion";
 const idPattern = /^[0-9a-f]{32}$/;
 const randomId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, "0")).join("");
@@ -30,8 +31,32 @@ async function checkConnection() {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL("popup.html")
-        || !["checkConnection", "getProfileId"].includes(message?.command)) return false;
-    const work = message.command === "checkConnection" ? checkConnection() : getProfileId().then(profileId => ({ profileId }));
+        || !["checkConnection", "getProfileId", "reopenApproved", "getRestoreStatus"].includes(message?.command)) return false;
+    const work = message.command === "checkConnection" ? checkConnection()
+        : message.command === "getProfileId" ? getProfileId().then(profileId => ({ profileId }))
+        : message.command === "getRestoreStatus" ? chrome.storage.session.get("restoreStatus").then(s => s.restoreStatus ?? { status: "not-started" })
+        : executeApprovedRestore(message);
     work.then(sendResponse, () => sendResponse({ status: "unavailable" }));
     return true;
 });
+
+
+let restoring = false;
+async function executeApprovedRestore(message) {
+    if (restoring) return { status: "busy" };
+    const { reply, nonce, sourceWindowId } = message;
+    if (!idPattern.test(nonce ?? "") || !Number.isSafeInteger(sourceWindowId) || reply?.version !== 1
+        || reply.status !== "authorized" || reply.nonce !== nonce || !validRestoreTabs(reply.tabs)) return { status: "rejected" };
+    restoring = true;
+    try {
+        if (reply.profileId !== await getProfileId()) return { status: "rejected" };
+        const { restoreStatus } = await chrome.storage.session.get("restoreStatus");
+        if (restoreStatus?.nonce === nonce) return { status: "rejected" };
+        await chrome.storage.session.set({ restoreStatus: { status: "in-progress", nonce } });
+        const result = await reopenSavedTabs(chrome, sourceWindowId, reply.tabs);
+        await chrome.storage.session.set({ restoreStatus: { ...result, nonce } });
+        return result;
+    } catch {
+        return { status: "uncertain" };
+    } finally { restoring = false; }
+}

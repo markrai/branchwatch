@@ -124,6 +124,19 @@
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
+                                        <TextBlock Text="{Binding RestoreHint}" Foreground="#617083" TextWrapping="Wrap" Margin="0,4,0,4"/>
+                                        <Button Content="Reopen saved tabs" Click="OnArmBrowserRestore" HorizontalAlignment="Left" Margin="0,0,0,6">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Restorable}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
                                         <ItemsControl ItemsSource="{Binding Tabs}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
@@ -141,7 +154,14 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <TextBlock Text="Browser tab restoration is not enabled yet. Excluding all tabs retains a browser session with no URLs." Foreground="#617083" TextWrapping="Wrap"/>
+                    <StackPanel x:Name="BrowserRestoreControls" Visibility="Collapsed" Margin="0,8,0,0">
+                        <TextBlock Text="Experimental browser reopening · one session at a time" FontWeight="SemiBold"/>
+                        <TextBlock Text="Open the matching Chrome or Edge profile yourself, then redeem the code in Companion. Native window placement and existing-session reconciliation are not enabled." Foreground="#617083" TextWrapping="Wrap" Margin="0,4,0,6"/>
+                        <TextBox x:Name="BrowserRestoreCode" IsReadOnly="True" AutomationProperties.Name="One-time browser restore code" Margin="0,0,0,6"/>
+                        <Button Content="Cancel restore code" Click="OnCancelBrowserRestore" HorizontalAlignment="Left" Margin="0,0,0,6"/>
+                        <TextBlock x:Name="BrowserRestoreStatus" Foreground="#315EAE" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+                    </StackPanel>
+                    <TextBlock Text="Excluding all tabs retains a browser session with no URLs; it cannot be reopened." Foreground="#617083" TextWrapping="Wrap"/>
                 </StackPanel>
                 <TextBlock x:Name="WarningsText" Foreground="#8C5918" TextWrapping="Wrap" Margin="0,12,0,0"/>
                 <TextBlock Text="Restore matching normal windows. Optional folder adapters can reopen a chosen project or directory." Foreground="#617083" TextWrapping="Wrap" Margin="0,8,0,0"/>
