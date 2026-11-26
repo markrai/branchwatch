@@ -193,6 +193,7 @@ public sealed class TrayService : IDisposable
         var desktops = new Forms.ToolStripMenuItem("Virtual Desktops") { Image = MenuIcon(TrayMenuGlyph.Desktops) };
         _desktopOverlayToggleItem = CreateItem("Hide overlay", (_, _) => ToggleDesktopOverlay());
         desktops.DropDownItems.Add(_desktopOverlayToggleItem);
+        desktops.DropDownItems.Add(CreateItem("Desktop Memory...", (_, _) => OpenSettings(SettingsSection.DesktopMemory)));
         desktops.DropDownItems.Add(CreateItem("Preferences...", (_, _) => OpenSettings(SettingsSection.VirtualDesktops)));
 
         var settings = CreateItem("Settings...", (_, _) => OpenSettings(SettingsSection.General));

@@ -142,3 +142,7 @@ Settings include the pinned repository path, workspace root path, watch mode, wo
 ```text
 HKCU\Software\Microsoft\Windows\CurrentVersion\Run\BranchWatch
 ```
+
+## Desktop Memory (capture preview)
+
+Open Settings → Desktop Memory, select the active virtual desktop, and choose Capture layout. Review the monitor and window inventory before saving. One snapshot per desktop is stored locally; replacing or deleting a saved snapshot requires confirmation. Restore is not available yet. No screenshots or process command lines are collected. See [Desktop Memory capture](docs/desktop-memory-capture.md) for limits and privacy details.

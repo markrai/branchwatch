@@ -100,4 +100,19 @@ public sealed class VirtualDesktopRegistryReaderTests
 
         Assert.AreEqual("Desktop 1", name);
     }
+
+    [TestMethod]
+    public void SelectVerifiedCurrentDesktopId_RejectsFallbackAndConflictingHints()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        Guid[] ids = [first, second];
+        Assert.IsNull(VirtualDesktopRegistryReader.SelectVerifiedCurrentDesktopId(null, null, ids));
+        Assert.IsNull(VirtualDesktopRegistryReader.SelectVerifiedCurrentDesktopId(first, second, ids));
+        Assert.IsNull(VirtualDesktopRegistryReader.SelectVerifiedCurrentDesktopId(Guid.NewGuid(), null, ids));
+        Assert.AreEqual<Guid?>(first, VirtualDesktopRegistryReader.SelectVerifiedCurrentDesktopId(first, null, ids));
+        Assert.AreEqual<Guid?>(second, VirtualDesktopRegistryReader.SelectVerifiedCurrentDesktopId(null, second, ids));
+        Assert.AreEqual<Guid?>(first, VirtualDesktopRegistryReader.SelectVerifiedCurrentDesktopId(first, first, ids));
+    }
+
 }

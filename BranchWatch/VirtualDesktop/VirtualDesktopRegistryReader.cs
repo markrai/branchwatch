@@ -15,7 +15,11 @@ public static class VirtualDesktopRegistryReader
         return TryGetDisplayState()?.ActiveDesktop;
     }
 
-    public static VirtualDesktopDisplayState? TryGetDisplayState()
+    public static VirtualDesktopDisplayState? TryGetDisplayState() => ReadDisplayState(allowFallback: true);
+
+    internal static VirtualDesktopDisplayState? TryGetVerifiedDisplayState() => ReadDisplayState(allowFallback: false);
+
+    private static VirtualDesktopDisplayState? ReadDisplayState(bool allowFallback)
     {
         try
         {
@@ -33,7 +37,9 @@ public static class VirtualDesktopRegistryReader
 
             var primaryCurrent = ParseGuidValue(key.GetValue("CurrentVirtualDesktop"));
             var sessionCurrent = TryGetSessionCurrentDesktopId();
-            var currentId = SelectCurrentDesktopId(primaryCurrent, sessionCurrent, desktopIds);
+            var currentId = allowFallback
+                ? SelectCurrentDesktopId(primaryCurrent, sessionCurrent, desktopIds)
+                : SelectVerifiedCurrentDesktopId(primaryCurrent, sessionCurrent, desktopIds);
             if (currentId is null)
             {
                 return null;
@@ -99,6 +105,14 @@ public static class VirtualDesktopRegistryReader
         }
 
         return allDesktopIds.Count > 0 ? allDesktopIds[0] : null;
+    }
+
+    internal static Guid? SelectVerifiedCurrentDesktopId(Guid? primary, Guid? session, IReadOnlyList<Guid> ids)
+    {
+        var validPrimary = primary.HasValue && ids.Contains(primary.Value) ? primary : null;
+        var validSession = session.HasValue && ids.Contains(session.Value) ? session : null;
+        if (validPrimary.HasValue && validSession.HasValue && validPrimary != validSession) return null;
+        return validSession ?? validPrimary;
     }
 
     public static string ResolveDisplayName(int zeroBasedIndex, string? registryName)
