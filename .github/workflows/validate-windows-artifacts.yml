@@ -67,7 +67,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Popup syntax check failed.' }
 
       - name: Test browser reopening behavior
-        run: node --test tools/browser-companion-tests/restore.test.cjs
+        run: node --test tools/browser-companion-tests/restore.test.cjs tools/browser-companion-tests/capture.test.cjs
 
       - name: Test Firefox Companion diagnostic behavior
         run: node --test tools/browser-companion-tests/firefox.test.cjs tools/browser-companion-tests/firefox-challenge.test.cjs tools/browser-companion-tests/firefox-session-plan.test.cjs tools/browser-companion-tests/firefox-qualification.test.cjs
