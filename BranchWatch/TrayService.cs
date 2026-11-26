@@ -19,8 +19,9 @@ public sealed class TrayService : IDisposable
     private readonly Forms.NotifyIcon _notifyIcon;
     private readonly Icon _trayIcon;
     private readonly Forms.Form _dialogOwner;
-    private PersonalizeWindow? _personalizeWindow;
-    private StickyNotePreferencesWindow? _stickyNotePreferencesWindow;
+    private readonly List<Image> _menuImages = [];
+    private SettingsWindow? _settingsWindow;
+    private Forms.ToolStripMenuItem? _desktopOverlayToggleItem;
     private Forms.ToolStripMenuItem? _modeItem;
     private Forms.ToolStripMenuItem? _repositoryItem;
     private Forms.ToolStripMenuItem? _activeRepositoryItem;
@@ -32,7 +33,6 @@ public sealed class TrayService : IDisposable
     private Forms.ToolStripMenuItem? _overlayToggleItem;
     private Forms.ToolStripMenuItem? _pinnedRepoModeItem;
     private Forms.ToolStripMenuItem? _workspaceRepoModeItem;
-    private Forms.ToolStripMenuItem? _startupItem;
     private bool _disposed;
 
     public TrayService(
@@ -133,13 +133,17 @@ public sealed class TrayService : IDisposable
 
         _disposed = true;
         _stickyNotes.Error -= OnStickyNotesError;
-        _personalizeWindow?.Close();
-        _stickyNotePreferencesWindow?.Close();
+        _settingsWindow?.Close();
         _sessionController.StateChanged -= OnSessionStateChanged;
         _repositoryWatcher.StatusChanged -= OnRepositoryStatusChanged;
         _notifyIcon.Visible = false;
         _notifyIcon.ContextMenuStrip?.Dispose();
         _notifyIcon.Dispose();
+        foreach (var image in _menuImages)
+        {
+            image.Dispose();
+        }
+        _menuImages.Clear();
         _trayIcon.Dispose();
         _dialogOwner.Dispose();
     }
@@ -158,41 +162,47 @@ public sealed class TrayService : IDisposable
         _statusItem = CreateDisabledItem(string.Empty);
         _statusItem.Visible = false;
 
+        var title = CreateDisabledItem("BranchWatch");
+        title.Image = _trayIcon.ToBitmap();
+        _menuImages.Add(title.Image);
+        menu.Items.Add(title);
         menu.Items.Add(_modeItem);
-        menu.Items.Add(_repositoryItem);
         menu.Items.Add(_activeRepositoryItem);
         menu.Items.Add(_branchItem);
-        menu.Items.Add(_lastActivityItem);
         menu.Items.Add(_statusItem);
         menu.Items.Add(new Forms.ToolStripSeparator());
-        menu.Items.Add(CreateItem("Choose repository...", (_, _) => RunAfterContextMenuClosed(ChooseRepository)));
-        menu.Items.Add(CreateItem("Choose workspace...", (_, _) => RunAfterContextMenuClosed(ChooseWorkspace)));
-        _rescanWorkspaceItem = CreateItem("Rescan workspace", (_, _) => RescanWorkspace());
-        menu.Items.Add(_rescanWorkspaceItem);
-        menu.Items.Add(CreateItem("Personalize...", (_, _) => OpenPersonalize()));
-        menu.Items.Add(CreateItem("Virtual Desktops...", (_, _) => OpenVirtualDesktops()));
-        menu.Items.Add(BuildStickyNotesMenu());
 
-        _refreshItem = CreateItem("Refresh branch", (_, _) => RefreshBranch());
-        menu.Items.Add(_refreshItem);
-
+        var git = new Forms.ToolStripMenuItem("Git Watcher") { Image = MenuIcon(TrayMenuGlyph.Git) };
         _overlayToggleItem = CreateItem("Hide overlay", (_, _) => ToggleOverlay());
-        menu.Items.Add(_overlayToggleItem);
+        _refreshItem = CreateItem("Refresh branch", (_, _) => RefreshBranch());
+        _rescanWorkspaceItem = CreateItem("Rescan workspace", (_, _) => RescanWorkspace());
+        git.DropDownItems.AddRange([_overlayToggleItem, _refreshItem, _rescanWorkspaceItem,
+            new Forms.ToolStripSeparator(),
+            CreateItem("Choose repository...", (_, _) => RunAfterContextMenuClosed(ChooseRepository)),
+            CreateItem("Choose workspace...", (_, _) => RunAfterContextMenuClosed(ChooseWorkspace))]);
+        var mode = new Forms.ToolStripMenuItem("Watch mode");
+        _pinnedRepoModeItem = CreateItem("Pinned repository", (_, _) => SetPinnedRepoMode());
+        _workspaceRepoModeItem = CreateItem("Workspace", (_, _) => SetWorkspaceRepoMode());
+        mode.DropDownItems.AddRange([_pinnedRepoModeItem, _workspaceRepoModeItem]);
+        git.DropDownItems.Add(mode);
+        git.DropDownItems.Add(_repositoryItem);
+        git.DropDownItems.Add(_lastActivityItem);
+        git.DropDownItems.Add(new Forms.ToolStripSeparator());
+        git.DropDownItems.Add(CreateItem("Preferences...", (_, _) => OpenSettings(SettingsSection.GitWatcher)));
 
-        _pinnedRepoModeItem = CreateItem("Pinned Repo Mode", (_, _) => SetPinnedRepoMode());
-        _pinnedRepoModeItem.CheckOnClick = false;
-        menu.Items.Add(_pinnedRepoModeItem);
+        var desktops = new Forms.ToolStripMenuItem("Virtual Desktops") { Image = MenuIcon(TrayMenuGlyph.Desktops) };
+        _desktopOverlayToggleItem = CreateItem("Hide overlay", (_, _) => ToggleDesktopOverlay());
+        desktops.DropDownItems.Add(_desktopOverlayToggleItem);
+        desktops.DropDownItems.Add(CreateItem("Preferences...", (_, _) => OpenSettings(SettingsSection.VirtualDesktops)));
 
-        _workspaceRepoModeItem = CreateItem("Workspace Mode", (_, _) => SetWorkspaceRepoMode());
-        _workspaceRepoModeItem.CheckOnClick = false;
-        menu.Items.Add(_workspaceRepoModeItem);
-
-        _startupItem = CreateItem("Start with Windows", (_, _) => ToggleStartWithWindows());
-        _startupItem.CheckOnClick = false;
-        menu.Items.Add(_startupItem);
-
-        menu.Items.Add(new Forms.ToolStripSeparator());
-        menu.Items.Add(CreateItem("Exit", (_, _) => ExitApplication()));
+        var settings = CreateItem("Settings...", (_, _) => OpenSettings(SettingsSection.General));
+        settings.Image = MenuIcon(TrayMenuGlyph.Settings);
+        var about = CreateItem("About BranchWatch", (_, _) => OpenSettings(SettingsSection.About));
+        about.Image = MenuIcon(TrayMenuGlyph.About);
+        var exit = CreateItem("Exit", (_, _) => ExitApplication());
+        exit.Image = MenuIcon(TrayMenuGlyph.Exit);
+        menu.Items.AddRange([git, desktops, BuildStickyNotesMenu(), new Forms.ToolStripSeparator(),
+            settings, about, new Forms.ToolStripSeparator(), exit]);
 
         menu.Opening += (_, _) => RefreshContextMenu();
         RefreshContextMenu();
@@ -202,12 +212,12 @@ public sealed class TrayService : IDisposable
 
     private Forms.ToolStripMenuItem BuildStickyNotesMenu()
     {
-        var menu = new Forms.ToolStripMenuItem("Sticky notes");
+        var menu = new Forms.ToolStripMenuItem("Sticky Notes") { Image = MenuIcon(TrayMenuGlyph.Notes) };
         menu.DropDownItems.Add(CreateItem("New note", (_, _) => RunAfterContextMenuClosed(_stickyNotes.CreateNote)));
         var reopen = new Forms.ToolStripMenuItem("Open on this desktop");
         menu.DropDownItems.Add(reopen);
         menu.DropDownItems.Add(new Forms.ToolStripSeparator());
-        menu.DropDownItems.Add(CreateItem("Preferences...", (_, _) => RunAfterContextMenuClosed(OpenStickyNotePreferences)));
+        menu.DropDownItems.Add(CreateItem("Preferences...", (_, _) => OpenSettings(SettingsSection.StickyNotes)));
         menu.DropDownOpening += (_, _) =>
         {
             while (reopen.DropDownItems.Count > 0)
@@ -241,7 +251,7 @@ public sealed class TrayService : IDisposable
         if (_modeItem is null || _repositoryItem is null || _activeRepositoryItem is null
             || _branchItem is null || _lastActivityItem is null || _statusItem is null || _rescanWorkspaceItem is null
             || _refreshItem is null || _overlayToggleItem is null || _pinnedRepoModeItem is null
-            || _workspaceRepoModeItem is null || _startupItem is null)
+            || _workspaceRepoModeItem is null || _desktopOverlayToggleItem is null)
         {
             return;
         }
@@ -253,20 +263,25 @@ public sealed class TrayService : IDisposable
         _repositoryItem.Text = isWorkspaceRepoMode
             ? $"Workspace: {FormatRepositoryLabel(_settings.WorkspaceRootPath)}"
             : $"Pinned repo: {FormatRepositoryLabel(status.RepositoryRoot)}";
-        _activeRepositoryItem.Text = $"Active repo: {FormatRepositoryLabel(status.RepositoryRoot)}";
-        _activeRepositoryItem.Visible = isWorkspaceRepoMode;
-        _branchItem.Text = $"Branch: {status.BranchDisplay}";
+        _activeRepositoryItem.Text = $"Repository: {CompactRepositoryLabel(status.RepositoryRoot)}";
+        _activeRepositoryItem.ToolTipText = status.RepositoryRoot ?? "";
+        _activeRepositoryItem.Visible = true;
+        var branch = status.BranchDisplay;
+        _branchItem.Text = $"Branch: {(branch.Length > 45 ? branch[..42] + "..." : branch)}";
+        _branchItem.ToolTipText = branch;
         _lastActivityItem.Text = $"Last activity: {FormatWorkspaceActivityReason(_sessionController.LastWorkspaceActivityReason)}";
         _lastActivityItem.Visible = isWorkspaceRepoMode && _sessionController.LastWorkspaceActivityReason.HasValue;
 
         if (!string.IsNullOrWhiteSpace(status.ErrorMessage))
         {
-            _statusItem.Text = $"Status: {status.ErrorMessage}";
+            _statusItem.Text = $"Status: {CompactStatus(status.ErrorMessage)}";
+            _statusItem.ToolTipText = status.ErrorMessage;
             _statusItem.Visible = true;
         }
         else if (!string.IsNullOrWhiteSpace(_sessionController.WorkspaceStatusText))
         {
-            _statusItem.Text = $"Status: {_sessionController.WorkspaceStatusText}";
+            _statusItem.Text = $"Status: {CompactStatus(_sessionController.WorkspaceStatusText)}";
+            _statusItem.ToolTipText = _sessionController.WorkspaceStatusText;
             _statusItem.Visible = true;
         }
         else
@@ -279,7 +294,14 @@ public sealed class TrayService : IDisposable
         _overlayToggleItem.Text = _settings.OverlayVisible ? "Hide overlay" : "Show overlay";
         _pinnedRepoModeItem.Checked = _settings.WatchMode == RepositoryWatchMode.PinnedRepo;
         _workspaceRepoModeItem.Checked = isWorkspaceRepoMode;
-        _startupItem.Checked = _settings.StartWithWindows;
+        _desktopOverlayToggleItem.Text = _settings.VirtualDesktopOverlayVisible ? "Hide overlay" : "Show overlay";
+    }
+
+    private Image MenuIcon(TrayMenuGlyph glyph)
+    {
+        var image = TrayMenuIcons.Create(glyph);
+        _menuImages.Add(image);
+        return image;
     }
 
     private static Forms.ToolStripMenuItem CreateDisabledItem(string text)
@@ -354,46 +376,49 @@ public sealed class TrayService : IDisposable
         ApplyOverlayState();
     }
 
-    private void OpenPersonalize()
+    private void OpenSettings(SettingsSection section)
     {
-        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+        RunAfterContextMenuClosed(() =>
         {
-            if (_personalizeWindow is null)
+            if (_disposed)
             {
-                _personalizeWindow = new PersonalizeWindow(_settingsService, _settings, ApplyOverlayState);
-                _personalizeWindow.Closed += (_, _) => _personalizeWindow = null;
-                _personalizeWindow.Show();
+                return;
+            }
+
+            if (_settingsWindow is null)
+            {
+                _settingsWindow = new SettingsWindow(_settingsService, _settings, _stickyNotes,
+                    _virtualDesktopOverlayController, ApplyOverlayState, ChooseRepository, ChooseWorkspace,
+                    SetPinnedRepoMode, SetWorkspaceRepoMode, ToggleStartWithWindows);
+                _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+                _settingsWindow.Navigate(section);
+                _settingsWindow.Show();
             }
             else
             {
-                _personalizeWindow.Activate();
-                _personalizeWindow.Focus();
+                _settingsWindow.Navigate(section);
+                if (_settingsWindow.WindowState == WindowState.Minimized)
+                {
+                    _settingsWindow.WindowState = WindowState.Normal;
+                }
             }
+
+            _settingsWindow.Activate();
         });
     }
 
-    private void OpenStickyNotePreferences()
+    private void ToggleDesktopOverlay()
     {
-        if (_stickyNotePreferencesWindow is null)
+        try
         {
-            _stickyNotePreferencesWindow = new StickyNotePreferencesWindow(_settingsService, _settings, _stickyNotes);
-            _stickyNotePreferencesWindow.Closed += (_, _) => _stickyNotePreferencesWindow = null;
-            _stickyNotePreferencesWindow.Show();
+            _virtualDesktopOverlayController.ToggleVisibility();
+            RefreshContextMenu();
+            _settingsWindow?.RefreshExternalSettings();
         }
-        else
+        catch (Exception ex)
         {
-            if (_stickyNotePreferencesWindow.WindowState == WindowState.Minimized)
-            {
-                _stickyNotePreferencesWindow.WindowState = WindowState.Normal;
-            }
-
-            _stickyNotePreferencesWindow.Activate();
+            ShowError($"Unable to change desktop overlay visibility: {ex.Message}");
         }
-    }
-
-    private void OpenVirtualDesktops()
-    {
-        RunAfterContextMenuClosed(() => _virtualDesktopOverlayController.OpenConfigWindow());
     }
 
     private void RefreshBranch()
@@ -473,6 +498,7 @@ public sealed class TrayService : IDisposable
         }
 
         RefreshContextMenu();
+        _settingsWindow?.RefreshRepositoryState();
     }
 
     private void UpdateNotifyIcon(RepositoryStatus status)
@@ -482,6 +508,15 @@ public sealed class TrayService : IDisposable
             : $"BranchWatch - {status.BranchDisplay}";
 
         _notifyIcon.Text = text.Length <= 63 ? text : text[..60] + "...";
+    }
+
+    private static string CompactStatus(string value) => value.Length > 48 ? value[..45] + "..." : value;
+
+    private static string CompactRepositoryLabel(string? root)
+    {
+        if (string.IsNullOrWhiteSpace(root)) return "(none)";
+        var name = Path.GetFileName(Path.TrimEndingDirectorySeparator(root));
+        return string.IsNullOrWhiteSpace(name) ? root : name;
     }
 
     private static string FormatRepositoryLabel(string? repositoryRoot)

@@ -6,6 +6,10 @@
 
 BranchWatch is a lightweight Windows tray app that displays the active Git repo/branch in a persistent always-on-top overlay.
 
+## Settings
+
+Open `Settings...` from the tray for a single configuration window with General, Git Watcher, Virtual Desktops, Sticky Notes and About sections. Feature submenus provide quick actions and open the corresponding settings section. Virtual Desktops supports a default label color and individual desktop color overrides that follow desktop identity.
+
 ## Features
 
 - **Always-on-top Git overlay** — shows the active repository and branch at a glance.

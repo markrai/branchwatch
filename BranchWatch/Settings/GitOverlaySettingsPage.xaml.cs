@@ -5,14 +5,14 @@ using Forms = System.Windows.Forms;
 
 namespace BranchWatch;
 
-public partial class PersonalizeWindow : Window
+public partial class GitOverlaySettingsPage : System.Windows.Controls.UserControl
 {
     private readonly SettingsService _settingsService;
     private readonly AppSettings _settings;
     private readonly Action _onSettingsChanged;
     private bool _isLoading;
 
-    public PersonalizeWindow(SettingsService settingsService, AppSettings settings, Action onSettingsChanged)
+    public GitOverlaySettingsPage(SettingsService settingsService, AppSettings settings, Action onSettingsChanged)
     {
         _settingsService = settingsService;
         _settings = settings;
@@ -20,36 +20,12 @@ public partial class PersonalizeWindow : Window
         _isLoading = true;
 
         InitializeComponent();
-        ApplyScreenBounds();
-        Loaded += OnWindowLoaded;
         LoadFromSettings();
     }
 
-    private void ApplyScreenBounds()
+    internal void LoadFromSettings()
     {
-        var workArea = SystemParameters.WorkArea;
-        MaxHeight = workArea.Height * 0.9;
-        MaxWidth = Math.Min(420, workArea.Width * 0.95);
-        ContentScrollViewer.MaxHeight = MaxHeight - 16;
-    }
-
-    private void OnWindowLoaded(object sender, RoutedEventArgs e)
-    {
-        Loaded -= OnWindowLoaded;
-
-        var workArea = SystemParameters.WorkArea;
-        if (ActualHeight > MaxHeight)
-        {
-            SizeToContent = SizeToContent.Manual;
-            Height = MaxHeight;
-        }
-
-        Left = Math.Max(workArea.Left, Math.Min(Left, workArea.Right - Width));
-        Top = Math.Max(workArea.Top, Math.Min(Top, workArea.Bottom - ActualHeight));
-    }
-
-    private void LoadFromSettings()
-    {
+        _isLoading = true;
         switch (_settings.OverlayPositionPreset?.Trim().ToLowerInvariant())
         {
             case "top-left":
@@ -156,7 +132,7 @@ public partial class PersonalizeWindow : Window
             FullOpen = true
         };
 
-        if (dialog.ShowDialog(new WpfDialogOwner(this)) != Forms.DialogResult.OK)
+        if (dialog.ShowDialog(new WpfDialogOwner(Window.GetWindow(this)!)) != Forms.DialogResult.OK)
         {
             return;
         }
@@ -165,11 +141,6 @@ public partial class PersonalizeWindow : Window
             System.Windows.Media.Color.FromRgb(dialog.Color.R, dialog.Color.G, dialog.Color.B));
         UpdateFontColorPreview(OverlaySettings.ParseFontColor(_settings.OverlayFontColor));
         SaveAndApply();
-    }
-
-    private void OnCloseClick(object sender, RoutedEventArgs e)
-    {
-        Close();
     }
 
     private string GetSelectedPosition()

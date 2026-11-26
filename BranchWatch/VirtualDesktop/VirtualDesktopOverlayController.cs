@@ -8,7 +8,6 @@ public sealed class VirtualDesktopOverlayController : IDisposable
     private readonly AppSettings _settings;
     private readonly VirtualDesktopMonitor _monitor;
     private readonly VirtualDesktopOverlayWindow _overlayWindow;
-    private VirtualDesktopsWindow? _configWindow;
     private bool _disposed;
 
     public VirtualDesktopOverlayController(SettingsService settingsService, AppSettings settings)
@@ -28,22 +27,24 @@ public sealed class VirtualDesktopOverlayController : IDisposable
         _monitor.Start();
     }
 
-    public void OpenConfigWindow()
+    internal void RefreshSettings() => ApplyOverlayState();
+
+    internal bool ToggleVisibility()
     {
-        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+        var previous = _settings.VirtualDesktopOverlayVisible;
+        _settings.VirtualDesktopOverlayVisible = !previous;
+        try
         {
-            if (_configWindow is null)
-            {
-                _configWindow = new VirtualDesktopsWindow(_settingsService, _settings, ApplyOverlayState);
-                _configWindow.Closed += (_, _) => _configWindow = null;
-                _configWindow.Show();
-            }
-            else
-            {
-                _configWindow.Activate();
-                _configWindow.Focus();
-            }
-        });
+            _settingsService.Save(_settings);
+        }
+        catch
+        {
+            _settings.VirtualDesktopOverlayVisible = previous;
+            throw;
+        }
+
+        ApplyOverlayState();
+        return _settings.VirtualDesktopOverlayVisible;
     }
 
     public void Dispose()
@@ -55,7 +56,6 @@ public sealed class VirtualDesktopOverlayController : IDisposable
 
         _disposed = true;
         _monitor.StateChanged -= OnDisplayStateChanged;
-        _configWindow?.Close();
         _monitor.Dispose();
         _overlayWindow.Close();
     }
