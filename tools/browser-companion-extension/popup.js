@@ -48,10 +48,10 @@ captureButton.addEventListener("click", async () => {
             throw new Error("The browser window or its tabs changed. Retry.");
         if (!tabs.length || tabs.length > 100) throw new Error("Capture requires 1–100 eligible tabs.");
         const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, "0")).join("");
-        const reply = await chrome.runtime.sendNativeMessage("com.branchwatch.companion", {
-            version: 1, command: "capture", profileId: profile.profileId, nonce, ticket,
-            windowId: w.id, tabs, omitted: first.length - tabs.length
-        });
+        const request = { version: 1, command: "capture", profileId: profile.profileId, nonce, ticket,
+            windowId: w.id, tabs, omitted: first.length - tabs.length };
+        if (new TextEncoder().encode(JSON.stringify(request)).length > 200 * 1024) throw new Error("Tab list is too large to transfer safely.");
+        const reply = await chrome.runtime.sendNativeMessage("com.branchwatch.companion", request);
         if (reply?.version !== 1 || reply.nonce !== nonce || reply.profileId !== profile.profileId || reply.status !== "received")
             throw new Error("Capture rejected. Check the code, native host and selected window.");
         document.getElementById("ticket").value = "";

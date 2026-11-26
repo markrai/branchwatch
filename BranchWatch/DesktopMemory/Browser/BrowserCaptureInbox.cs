@@ -10,7 +10,7 @@ internal sealed class BrowserCaptureInbox
     private readonly object _gate = new();
     private BrowserCaptureTicket? _pending;
     private BrowserCaptureEnvelope? _received;
-    private Timer? _expiry;
+    private System.Threading.Timer? _expiry;
 
     internal BrowserCaptureTicket Arm(Guid desktopId, Guid windowId, string browser, BrowserNativeToken token)
     {
@@ -20,7 +20,7 @@ internal sealed class BrowserCaptureInbox
             var ticket = new BrowserCaptureTicket(Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant(),
                 desktopId, windowId, browser, token, Stopwatch.GetTimestamp());
             _pending = ticket;
-            _expiry = new Timer(_ => Cancel(ticket.Code), null, Lifetime, System.Threading.Timeout.InfiniteTimeSpan);
+            _expiry = new System.Threading.Timer(_ => Cancel(ticket.Code), null, Lifetime, System.Threading.Timeout.InfiniteTimeSpan);
             return ticket;
         }
     }

@@ -338,6 +338,8 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         CancelBrowserCapture();
         _browserTicket = BrowserCaptureInbox.Shared.Arm(draft.DesktopId, id, browser, token);
         BrowserTicketText.Text = _browserTicket.Code;
+        BrowserTicketText.Focus();
+        BrowserTicketText.SelectAll();
         ImportBrowserButton.IsEnabled = true;
         StatusText.Text = "Copy the code into the Companion popup in the selected browser window. It expires in two minutes.";
     }
@@ -358,7 +360,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         try
         {
             var inventory = await RunOnSta(() => new NativeExistingWindowRestoreEnvironment().Inspect());
-            if (_stopped || !IsVisible || _draft != draft || inventory.ActiveDesktopId != draft.DesktopId
+            if (_stopped || !IsVisible || !ReferenceEquals(_draft, draft) || inventory.ActiveDesktopId != draft.DesktopId
                 || VirtualDesktopRegistryReader.TryGetVerifiedDisplayState()?.ActiveDesktop.Id != draft.DesktopId) return;
             var matching = inventory.Windows.Where(w => w.Token is { } token
                 && new BrowserNativeToken(w.Window.Handle, token.ProcessId,
@@ -372,7 +374,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             var request = received.Request;
             var context = new BrowserWindowContext(received.Browser, request.ProfileId, request.Tabs);
             if (!Confirm($"Attach {context.Tabs.Count} HTTP(S) tabs to the selected browser window? {request.Omitted} tabs were omitted. URLs may contain private query parameters and will be stored locally only if you save the snapshot. Review the URLs before saving.", "Import browser tabs")) return;
-            if (_stopped || !IsVisible || _draft != draft || VirtualDesktopRegistryReader.TryGetVerifiedDisplayState()?.ActiveDesktop.Id != draft.DesktopId) return;
+            if (_stopped || !IsVisible || !ReferenceEquals(_draft, draft) || VirtualDesktopRegistryReader.TryGetVerifiedDisplayState()?.ActiveDesktop.Id != draft.DesktopId) return;
             _draft = draft with { Windows = draft.Windows.Select(w => w.Id == ticket.WindowId ? w with { BrowserContext = context } : w).ToArray() };
             StatusText.Text = "Browser tabs added to the unsaved capture. Review the URLs, then save or discard.";
         }
