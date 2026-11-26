@@ -76,8 +76,8 @@ Self-tests cover statistics, CPU normalization, comparison deltas, JSON round tr
 | M.2 | Lazy settings pages and snapshot loading | Merged; Windows CI passed; physical measurements pending |
 | M.3 | Demand-driven timers and background activity | Merged; Windows CI passed; physical measurements pending |
 | M.4 | Filesystem watcher consolidation and reuse | Merged; Windows CI passed; physical measurements pending |
-| M.5 | Sticky-note rendering and shared resources | Implemented; Windows CI and physical measurements pending |
-| M.6 | Controlled runtime/GC experiments only if evidence warrants | Planned |
+| M.5 | Sticky-note rendering and shared resources | Merged; Windows CI passed; physical measurements pending |
+| M.6 | Controlled runtime/GC experiments only if evidence warrants | Comparison tooling implemented; Windows CI and physical measurements pending |
 | M.7 | Final repeat profiling and functional regression qualification | Planned |
 
 Start with private-byte and resource-count improvements in equivalent workloads; set numerical targets only after actual controlled baseline data. Retain the R.8 maintainability and physical qualification boundaries. No runtime flags, application behavior, storage format or dependencies change in M.0.
@@ -133,3 +133,72 @@ Alarm pulses share a lazily initialized frozen animation definition but retain i
 Three new STA tests cover frozen palette sharing across dispatchers, scrollbar style sharing and isolation, and independent alarm clocks/effect release. Existing scrollbar template, note appearance, editing, alarm and native affinity tests remain in the suite. M.4 merged with passing CI; M.5 CI and physical profiling remain pending.
 
 Compare equivalent notes-10 and notes-closed workloads against the prior phase, including color changes, transparency transitions, collapse/expand, multiple simultaneous alarms, dismissal and virtual desktop switching. The bounded caches retain a small number of reusable resources after their first use; savings should be most apparent with multiple notes or repeated passive-window creation rather than an untouched tray-only session. No measured byte savings claimed. M.6 is evidence-driven runtime analysis; do not change GC or runtime settings without comparable measurements.
+
+## M.6: runtime and GC evidence
+
+BranchWatch targets .NET 10 with WPF and Windows Forms. The project declares no explicit GC mode, heap cap, latency policy or memory-conservation setting. Windows release validation publishes self-contained single-file x64 and arm64 executables. Workstation GC is the documented runtime default; the effective configuration can be overridden at launch, so source inspection alone is not proof of the actual running mode. No application code, runtime defaults or publish options are changed in this phase.
+
+### Measure before tuning
+
+Use the M.0 process sampler first, without instrumentation, on the merged M.5 release. Collect at least three independent process launches for every scenario. Then, in separate matched diagnostic runs, use Microsoft's optional dotnet-counters tool to inspect System.Runtime metrics. Install it explicitly only on a development machine if not already installed.
+
+```powershell
+dotnet tool install --global dotnet-counters
+$bw = Get-Process -Name BranchWatch -ErrorAction Stop
+if (@($bw).Count -ne 1) { throw 'Select exactly one BranchWatch instance.' }
+dotnet-counters collect --process-id $bw.Id --refresh-interval 2 --format json --output runtime-idle.json --counters System.Runtime
+```
+
+Run for a fixed observation window, for example 60 seconds after warm-up, then stop collection with Ctrl+C. Choose a distinct output filename for each run. Record the diagnostic tool version, executable SHA-256, architecture, scenario, elapsed collection time and runtime experiment variant locally. Do not compare instrumented process-counter runs against uninstrumented ones. No heap dump or content-bearing diagnostic trace is needed for this initial assessment.
+
+Inspect these .NET 9+ runtime measurements (counter presentation may differ by tool version):
+
+| Metric | Interpretation |
+| --- | --- |
+| dotnet.gc.last_collection.memory.committed_size | GC committed virtual memory at the most recent collection, including capacity for future allocations. |
+| dotnet.gc.last_collection.heap.size | Heap size by generation, including fragmentation. Sum generation values from the same observation, not across time. |
+| dotnet.gc.last_collection.heap.fragmentation.size | Fragmentation by generation at the latest collection. |
+| dotnet.gc.heap.total_allocated | Cumulative allocation counter; inspect rate or change, not total retained memory. |
+| dotnet.gc.collections | Collection activity by generation. |
+| dotnet.gc.pause.time | Accumulated GC pause time; compare changes over equal intervals. |
+| dotnet.jit.compiled_methods, dotnet.assembly.count | Indicators of runtime loading/JIT activity, not native byte attribution. |
+
+Latest-collection metrics can remain unchanged during idle periods. Do not force collection just to get a fresher metric. If GC committed memory is small relative to process private bytes, investigate native memory (WPF surfaces, native modules, stacks and allocators) instead; the difference is not an exact measurement of native live allocations. Use Windows VMMap or equivalent tooling only in separate diagnostic runs.
+
+References: [GC runtime configuration](https://learn.microsoft.com/en-us/dotnet/core/runtime-config/garbage-collector), [runtime metrics](https://learn.microsoft.com/en-us/dotnet/core/diagnostics/built-in-metrics-runtime), [dotnet-counters](https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-counters).
+
+### Optional controlled experiment
+
+Only if managed committed memory or fragmentation is material, compare default conservation level 0 against level 5 with the same self-contained executable. Use PowerShell 7.4+; exit BranchWatch normally via its tray before each launch, and confirm no remaining instance. Use disposable test data where needed and do not change machine-wide or user-wide environment variables. Review existing DOTNET/COMPlus runtime overrides locally and hold them constant (including any conflicting GC conservation override). Do not run both launches simultaneously.
+
+```powershell
+$exe = 'C:\path\to\BranchWatch.exe'
+Start-Process -FilePath $exe -Environment @{ DOTNET_GCConserveMemory = '0' }
+```
+
+For the candidate, after normal exit, use:
+
+```powershell
+Start-Process -FilePath $exe -Environment @{ DOTNET_GCConserveMemory = '5' }
+```
+
+This startup-only child environment setting does not alter published configuration. The candidate may increase GC frequency or pauses. Alternate baseline and candidate runs, repeat the same warm-up and interactions, and use identical scenario/workload labels but distinct files (e.g. gc0-idle-1.json and gc5-idle-1.json). Keep release packaging and every other runtime setting unchanged. If existing overrides make the effective settings uncertain, invalidate the experiment rather than guessing.
+
+### Compare independent runs
+
+From PowerShell 7, use the new CompareRuns action with at least three profiles per group:
+
+```powershell
+$root = Join-Path $env:LOCALAPPDATA 'BranchWatch/memory-profiles'
+$baseline = @(1..3 | ForEach-Object { Join-Path $root "gc0-idle-$_.json" })
+$candidate = @(1..3 | ForEach-Object { Join-Path $root "gc5-idle-$_.json" })
+& ./scripts/memory-profile.ps1 -Action CompareRuns -BaselinePaths $baseline -CandidatePaths $candidate -RequireSameExecutable
+```
+
+The comparison validates matching sampling conditions, distinct process launches and one executable hash per group. With RequireSameExecutable it requires the same binary across both groups. Without that switch it supports M.7 comparisons between two release builds. It reports medians of per-run medians (whole-run CPU utilization for CPU), minima, maxima, deltas and whether observed run ranges overlap. Range separation is descriptive, not a statistical significance test; repeat if results are noisy. The caller must still verify runtime settings, machine and workload equivalence; the executable hash cannot establish environment overrides or companion DLL identity for non-single-file builds.
+
+### Decision gate
+
+Retain defaults unless private-byte reductions are meaningful, repeatable beyond baseline run variation and observed in relevant workloads. A lower working set alone is insufficient. Require equivalent CPU, UI responsiveness, alarm delivery, native desktop affinity, watcher behavior, and browser/restore qualification. Inspect collection pauses in separately instrumented runs. Reject a candidate if it introduces meaningful regressions or the evidence is ambiguous. Do not add periodic GC.Collect, working-set trimming, hard heap limits, server GC, aggressive latency policies, trimming/AOT or rendering-mode overrides as speculative changes. Any justified production runtime change requires a separate review and PR.
+
+The existing CI memory-profile self-test now also covers multi-run statistics, overlapping ranges, duplicate launches, insufficient runs, mixed hashes and identical-binary enforcement. M.5 merged with passing Windows CI; M.6 Windows CI and physical data remain pending. No runtime tuning adopted without evidence. M.7 will compare M.0-era and final release binaries and exercise the functional qualification matrix.
