@@ -10,7 +10,6 @@ using WpfContextMenu = System.Windows.Controls.ContextMenu;
 using WpfMenuItem = System.Windows.Controls.MenuItem;
 using WpfSeparator = System.Windows.Controls.Separator;
 using WpfMessageBox = System.Windows.MessageBox;
-using WpfColorConverter = System.Windows.Media.ColorConverter;
 
 namespace BranchWatch;
 
@@ -40,6 +39,7 @@ public partial class StickyNoteWindow : Window
         _editTimer = new DispatcherTimer(DispatcherPriority.Input, Dispatcher) { Interval = StickyNoteTemporaryEditing.Duration };
         _editTimer.Tick += (_, _) => ExpireTemporaryEditing();
         InitializeComponent();
+        StickyNoteRenderingResources.ApplyScrollBarStyle(Editor);
         _alarmPulse = new StickyNoteAlarmPulse(AlarmOutline);
         _passiveBody = new StickyNotePassiveBodyLifecycle(note,
             () => new StickyNotePassiveBody(this, BodyHost, controller, note),
@@ -355,9 +355,8 @@ public partial class StickyNoteWindow : Window
     private void ApplyColor()
     {
         var palette = StickyNoteAppearance.ResolveColor(_note.Color);
-        NoteSurface.Background = BrushFor(palette.Body);
-        HeaderSurface.Background = BrushFor(palette.Header);
-        ShrinkGrip.Background = BrushFor(palette.Body);
+        HeaderSurface.Background = StickyNoteRenderingResources.BrushFor(palette.Header);
+        ShrinkGrip.Background = StickyNoteRenderingResources.BrushFor(palette.Body);
         UpdateInputPresentation();
         RefreshAlarmPresentation();
     }
@@ -474,8 +473,8 @@ public partial class StickyNoteWindow : Window
     {
         var passive = IsBodyClickThrough && WantsClickThrough;
         var palette = StickyNoteAppearance.ResolveColor(_note.Color);
-        NoteSurface.Background = passive ? System.Windows.Media.Brushes.Transparent : BrushFor(palette.Body);
-        NoteSurface.BorderBrush = passive ? System.Windows.Media.Brushes.Transparent : BrushFor("#33000000");
+        NoteSurface.Background = passive ? System.Windows.Media.Brushes.Transparent : StickyNoteRenderingResources.BrushFor(palette.Body);
+        NoteSurface.BorderBrush = passive ? System.Windows.Media.Brushes.Transparent : StickyNoteRenderingResources.BrushFor("#33000000");
         Editor.Opacity = passive ? 0 : 1;
         Editor.IsHitTestVisible = !passive;
         Editor.IsReadOnly = WantsClickThrough;
@@ -512,9 +511,6 @@ public partial class StickyNoteWindow : Window
         if (_interaction.IsClosing || _changingCollapse) return;
         _passiveBody.Align(CanPresentPassiveBody, IsBodyLayoutReady);
     }
-
-    private static SolidColorBrush BrushFor(string value) =>
-        new((System.Windows.Media.Color)WpfColorConverter.ConvertFromString(value)!);
 
     private void ShrinkDragStarted(object sender, DragStartedEventArgs e)
     {
@@ -624,8 +620,9 @@ public partial class StickyNoteWindow : Window
         AlarmDot.Visibility = _note.AlarmDueUtc.HasValue ? Visibility.Visible : Visibility.Collapsed;
         var label = ringing ? "Alarm due · click header to dismiss"
             : _note.AlarmDueUtc is { } due ? $"Alarm set · {StickyNoteAlarmTime.FormatLocal(due)}" : "Set alarm";
-        AlarmButton.ToolTip = label;
-        System.Windows.Automation.AutomationProperties.SetName(AlarmButton, label);
+        if (!Equals(AlarmButton.ToolTip, label)) AlarmButton.ToolTip = label;
+        if (System.Windows.Automation.AutomationProperties.GetName(AlarmButton) != label)
+            System.Windows.Automation.AutomationProperties.SetName(AlarmButton, label);
         var passive = IsBodyClickThrough && WantsClickThrough;
         AlarmOverlay.VerticalAlignment = passive ? VerticalAlignment.Top : VerticalAlignment.Stretch;
         AlarmOverlay.Height = passive ? HeaderRow.Height.Value : double.NaN;
