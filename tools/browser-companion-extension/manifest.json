@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "BranchWatch Companion",
-  "version": "0.1.0",
-  "description": "Check the local BranchWatch connection. No tabs or browsing history access.",
+  "version": "0.2.0",
+  "description": "Explicit local capture of browser tabs for BranchWatch Desktop Memory.",
   "permissions": [
     "nativeMessaging",
     "storage"
@@ -13,5 +13,8 @@
   },
   "action": {
     "default_popup": "popup.html"
-  }
+  },
+  "optional_permissions": [
+    "tabs"
+  ]
 }

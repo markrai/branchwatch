@@ -35,6 +35,9 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private CancellationTokenSource? _restoreCancellation;
     private Guid? _resultDesktop;
     private PlanWindowChoice[] _planChoices = [];
+    private Dictionary<Guid, BrowserNativeToken> _browserTokens = new();
+    private BrowserCaptureTicket? _browserTicket;
+    private sealed record BrowserCaptureDraft(DesktopSnapshot Snapshot, Dictionary<Guid, BrowserNativeToken> Tokens);
 
     internal DesktopMemorySettingsPage(DesktopMemoryStore store)
     {
@@ -42,7 +45,11 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         InitializeComponent();
         IsVisibleChanged += (_, _) =>
         {
-            if (!IsVisible) _restoreCancellation?.Cancel();
+            if (!IsVisible)
+            {
+                _restoreCancellation?.Cancel();
+                CancelBrowserCapture();
+            }
         };
         Reload();
         RefreshDesktops();
@@ -51,6 +58,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     internal void Stop()
     {
         _stopped = true;
+        CancelBrowserCapture();
         _restoreCancellation?.Cancel();
     }
 
@@ -98,6 +106,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private void OnDesktopSelected(object sender, SelectionChangedEventArgs e)
     {
         if (_updating) return;
+        CancelBrowserCapture();
         ClearResults();
         ClearPreview();
         Render();
@@ -117,6 +126,8 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         if (_busy || !_storageAvailable || SelectedId is not { } id || id != _active) return;
         if (_draft is not null && !Confirm("Discard the unsaved capture and take a new one?", "Capture layout")) return;
         ClearPreview();
+        CancelBrowserCapture();
+        _browserTokens.Clear();
         _draft = null;
         _busy = true;
         StatusText.Text = "Inspecting application windows and monitors...";
@@ -125,10 +136,11 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         {
             var result = await CaptureOnSta(id);
             if (_stopped) return;
-            _draft = result;
+            _draft = result.Snapshot;
+            _browserTokens = result.Tokens;
             InventoryExpander.IsExpanded = true;
             SnapshotCard.BringIntoView();
-            StatusText.Text = result.Windows.Count == 0 ? "No eligible windows captured. Nothing was saved."
+            StatusText.Text = result.Snapshot.Windows.Count == 0 ? "No eligible windows captured. Nothing was saved."
                 : "Review the capture below, then save it when ready.";
         }
         catch (Exception ex)
@@ -142,17 +154,54 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         }
     }
 
-    private static Task<DesktopSnapshot> CaptureOnSta(Guid id)
+    private static Task<BrowserCaptureDraft> CaptureOnSta(Guid id)
     {
-        var completion = new TaskCompletionSource<DesktopSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completion = new TaskCompletionSource<BrowserCaptureDraft>(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
         {
-            try { completion.SetResult(DesktopSnapshotCapture.Capture(id)); }
+            try { completion.SetResult(CaptureWithBrowserTokens(id)); }
             catch (Exception ex) { completion.SetException(ex); }
         }) { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         return completion.Task;
+    }
+
+    private static BrowserCaptureDraft CaptureWithBrowserTokens(Guid desktop)
+    {
+        var report = DesktopMemoryProbe.Capture(includeIdentities: true, strictDesktop: true);
+        var snapshot = DesktopSnapshotCapture.FromReport(desktop, report);
+        var tokens = new Dictionary<Guid, BrowserNativeToken>();
+        if (!snapshot.Windows.Any(w => BrowserTabCapture.BrowserFor(w.ExecutablePath, w.ClassName) is not null))
+            return new(snapshot, tokens);
+        try
+        {
+            var live = new NativeExistingWindowRestoreEnvironment().Inspect();
+            if (live.ActiveDesktopId != desktop) return new(snapshot, tokens);
+            foreach (var window in snapshot.Windows.Where(w => !w.Minimized && !w.Maximized
+                && BrowserTabCapture.BrowserFor(w.ExecutablePath, w.ClassName) is not null))
+            {
+                var original = report.Windows.SingleOrDefault(w => w.EnumerationIndex == window.EnumerationIndex);
+                if (original is null) continue;
+                var matches = live.Windows.Where(w => w.Window.Handle == original.Handle
+                    && w.Window.ProcessId == original.ProcessId && w.Window.ScreenBounds == window.ScreenBounds
+                    && w.Window.Membership.DesktopId == desktop && w.Window.Membership.IsCurrent == true
+                    && w.Window.Classification == "candidate" && w.Window.CloakFlags == 0
+                    && !w.Window.Owned && !w.Window.ToolWindow && !w.Window.Minimized && !w.Window.Maximized
+                    && w.Window.Membership.DesktopHResult >= 0 && w.Window.Membership.CurrentHResult >= 0
+                    && string.Equals(w.Window.ExecutablePath, window.ExecutablePath, StringComparison.OrdinalIgnoreCase)
+                    && w.Window.ClassName == window.ClassName && w.Window.Title == window.Title && w.Token is not null).ToArray();
+                if (matches.Length == 1 && matches[0].Token is { } token)
+                    tokens.Add(window.Id, new(original.Handle, token.ProcessId,
+                        token.CreatedFileTime.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            }
+        }
+        catch (Exception ex)
+        {
+            tokens.Clear();
+            System.Diagnostics.Trace.TraceInformation("Browser capture identities unavailable: {0}", ex.GetType().Name);
+        }
+        return new(snapshot, tokens);
     }
 
     private void OnSave(object sender, RoutedEventArgs e)
@@ -163,7 +212,9 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         if (existing is not null && !Confirm("Replace this desktop's saved snapshot with the new capture?", "Replace snapshot")) return;
         try
         {
+            CancelBrowserCapture();
             _store.Save(draft, existing?.CapturedUtc);
+            _browserTokens.Clear();
             ClearPreview();
             _draft = null;
             Reload();
@@ -175,6 +226,8 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
 
     private void OnDiscard(object sender, RoutedEventArgs e)
     {
+        CancelBrowserCapture();
+        _browserTokens.Clear();
         _draft = null;
         StatusText.Text = "Unsaved capture discarded.";
         Render();
@@ -223,6 +276,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         if (snapshot is null)
         {
             RenderFolderEditor(null);
+            RenderBrowserEditor(null, null);
             MonitorRows.ItemsSource = null;
             WindowRows.ItemsSource = null;
             return;
@@ -233,6 +287,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         SnapshotSummary.Text = $"{snapshot.CapturedUtc.ToLocalTime():g} · {snapshot.Monitors.Count} monitors · {snapshot.Windows.Count} windows";
         WarningsText.Text = string.Join(Environment.NewLine, snapshot.Warnings);
         RenderFolderEditor(draft);
+        RenderBrowserEditor(snapshot, draft);
         MonitorRows.ItemsSource = snapshot.Monitors.Select((m, i) => new DetailRow(
             $"Monitor {i + 1}{(m.Primary ? " · Primary" : "")}",
             $"{m.Bounds.Width} × {m.Bounds.Height} px · Rotation {m.RotationDegrees?.ToString() ?? "unknown"}° · Scale {m.ScalePercent?.ToString() ?? "unknown"}% · {m.SourceName}")).ToArray();
@@ -240,6 +295,105 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             w.Title ?? w.ProcessName ?? "Unknown application",
             $"{w.ProcessName ?? "Unknown process"} · {w.MonitorSource} · {(w.Minimized ? "Minimized" : w.Maximized ? "Maximized" : "Normal")} · {w.NormalPlacementBounds.Width} × {w.NormalPlacementBounds.Height}" + (w.FolderContext is { } context ? $"{Environment.NewLine}Folder: {context.Folder}" : ""))).ToArray();
         DrawLayout(snapshot);
+    }
+
+    private void CancelBrowserCapture()
+    {
+        BrowserCaptureInbox.Shared.Cancel(_browserTicket?.Code);
+        _browserTicket = null;
+        if (BrowserTicketText is not null) BrowserTicketText.Text = "";
+        if (ImportBrowserButton is not null) ImportBrowserButton.IsEnabled = false;
+    }
+
+    private void RenderBrowserEditor(DesktopSnapshot? snapshot, DesktopSnapshot? draft)
+    {
+        if (_browserTicket is { } ticket && (draft?.DesktopId != ticket.DesktopId || _active != ticket.DesktopId))
+            CancelBrowserCapture();
+        var previous = BrowserWindowPicker.SelectedValue;
+        var choices = draft?.Windows.Where(w => _browserTokens.ContainsKey(w.Id))
+            .Select(w => new FolderWindowChoice(w.Id, w.Title ?? w.ProcessName ?? "Browser")).ToArray() ?? [];
+        BrowserWindowPicker.ItemsSource = choices;
+        BrowserWindowPicker.SelectedValue = previous is Guid id && choices.Any(c => c.Id == id) ? id : choices.FirstOrDefault()?.Id;
+        BrowserWindowPicker.IsEnabled = !_busy && draft is not null;
+        ArmBrowserButton.IsEnabled = !_busy && draft is not null && draft.DesktopId == _active && choices.Length > 0;
+        ImportBrowserButton.IsEnabled = !_busy && _browserTicket is not null;
+        ClearBrowserButton.IsEnabled = !_busy && draft is not null && choices.Length > 0;
+        BrowserRows.ItemsSource = snapshot?.Windows.Where(w => w.BrowserContext is not null).Select(w =>
+        {
+            var context = w.BrowserContext!;
+            return new DetailRow(w.Title ?? w.ProcessName ?? "Browser",
+                $"{context.Tabs.Count} saved tabs · {context.Browser}" + Environment.NewLine
+                + string.Join(Environment.NewLine, context.Tabs.Select(t => t.Url)));
+        }).ToArray();
+        BrowserEditor.Visibility = choices.Length > 0 || snapshot?.Windows.Any(w => w.BrowserContext is not null) == true
+            ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnArmBrowser(object sender, RoutedEventArgs e)
+    {
+        if (_busy || _draft is not { } draft || draft.DesktopId != SelectedId || draft.DesktopId != _active
+            || BrowserWindowPicker.SelectedValue is not Guid id || !_browserTokens.TryGetValue(id, out var token)) return;
+        var window = draft.Windows.Single(w => w.Id == id);
+        if (BrowserTabCapture.BrowserFor(window.ExecutablePath, window.ClassName) is not { } browser) return;
+        CancelBrowserCapture();
+        _browserTicket = BrowserCaptureInbox.Shared.Arm(draft.DesktopId, id, browser, token);
+        BrowserTicketText.Text = _browserTicket.Code;
+        ImportBrowserButton.IsEnabled = true;
+        StatusText.Text = "Copy the code into the Companion popup in the selected browser window. It expires in two minutes.";
+    }
+
+    private async void OnImportBrowser(object sender, RoutedEventArgs e)
+    {
+        if (_busy || _browserTicket is not { } ticket || _draft is not { } draft || draft.DesktopId != SelectedId
+            || draft.DesktopId != _active || ticket.DesktopId != draft.DesktopId) return;
+        var received = BrowserCaptureInbox.Shared.Take(ticket.Code);
+        if (received is null)
+        {
+            StatusText.Text = "No valid tabs received. Check the popup or start a new capture if the code expired.";
+            return;
+        }
+        CancelBrowserCapture();
+        _busy = true;
+        Render();
+        try
+        {
+            var inventory = await RunOnSta(() => new NativeExistingWindowRestoreEnvironment().Inspect());
+            if (_stopped || !IsVisible || _draft != draft || inventory.ActiveDesktopId != draft.DesktopId
+                || VirtualDesktopRegistryReader.TryGetVerifiedDisplayState()?.ActiveDesktop.Id != draft.DesktopId) return;
+            var matching = inventory.Windows.Where(w => w.Token is { } token
+                && new BrowserNativeToken(w.Window.Handle, token.ProcessId,
+                    token.CreatedFileTime.ToString(System.Globalization.CultureInfo.InvariantCulture)) == ticket.Token
+                && w.Window.Membership.DesktopId == draft.DesktopId && w.Window.Membership.IsCurrent == true
+                && w.Window.Membership.DesktopHResult >= 0 && w.Window.Membership.CurrentHResult >= 0
+                && w.Window.Classification == "candidate" && w.Window.CloakFlags == 0
+                && !w.Window.Owned && !w.Window.ToolWindow && !w.Window.Minimized && !w.Window.Maximized
+                && BrowserTabCapture.BrowserFor(w.Window.ExecutablePath, w.Window.ClassName) == ticket.Browser).ToArray();
+            if (matching.Length != 1) throw new InvalidOperationException("Browser window could not be reverified.");
+            var request = received.Request;
+            var context = new BrowserWindowContext(received.Browser, request.ProfileId, request.Tabs);
+            if (!Confirm($"Attach {context.Tabs.Count} HTTP(S) tabs to the selected browser window? {request.Omitted} tabs were omitted. URLs may contain private query parameters and will be stored locally only if you save the snapshot. Review the URLs before saving.", "Import browser tabs")) return;
+            if (_stopped || !IsVisible || _draft != draft || VirtualDesktopRegistryReader.TryGetVerifiedDisplayState()?.ActiveDesktop.Id != draft.DesktopId) return;
+            _draft = draft with { Windows = draft.Windows.Select(w => w.Id == ticket.WindowId ? w with { BrowserContext = context } : w).ToArray() };
+            StatusText.Text = "Browser tabs added to the unsaved capture. Review the URLs, then save or discard.";
+        }
+        catch (Exception ex)
+        {
+            if (!_stopped) StatusText.Text = $"Browser capture failed: {ex.GetType().Name}.";
+        }
+        finally
+        {
+            _busy = false;
+            if (!_stopped) RefreshDesktops();
+        }
+    }
+
+    private void OnClearBrowser(object sender, RoutedEventArgs e)
+    {
+        if (_busy || _draft is not { } draft || draft.DesktopId != SelectedId
+            || BrowserWindowPicker.SelectedValue is not Guid id) return;
+        CancelBrowserCapture();
+        _draft = draft with { Windows = draft.Windows.Select(w => w.Id == id ? w with { BrowserContext = null } : w).ToArray() };
+        Render();
     }
 
     private void RenderFolderEditor(DesktopSnapshot? draft)

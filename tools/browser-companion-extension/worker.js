@@ -30,7 +30,8 @@ async function checkConnection() {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL("popup.html")
-        || message?.command !== "checkConnection") return false;
-    checkConnection().then(sendResponse, () => sendResponse({ status: "unavailable" }));
+        || !["checkConnection", "getProfileId"].includes(message?.command)) return false;
+    const work = message.command === "checkConnection" ? checkConnection() : getProfileId().then(profileId => ({ profileId }));
+    work.then(sendResponse, () => sendResponse({ status: "unavailable" }));
     return true;
 });

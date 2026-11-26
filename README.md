@@ -158,3 +158,5 @@ For transparent sticky notes, click the plain header to enter temporary opaque e
 Browser session restoration is in development. The [Phase 8A correlation probe](docs/desktop-memory-browser-qualification.md) is a separate developer diagnostic for Chrome and Edge; it does not collect URLs or modify snapshots.
 
 The [BranchWatch Companion development extension](docs/desktop-memory-browser-companion.md) adds a local Chrome/Edge connection check. Tab capture is not enabled yet.
+
+See [experimental browser tab capture](docs/desktop-memory-browser-capture.md) for the explicit per-window Companion capture workflow. Automatic browser inventory and tab restoration are not yet enabled.

@@ -4,6 +4,10 @@
 
 ### Added
 
+- Experimental Chrome/Edge per-window tab capture with explicit one-time code, optional browser permission, native identity checks and local snapshot review. Automatic capture and tab restoration remain disabled.
+
+### Added
+
 - Sticky note headers toggle temporary opaque editing for five seconds. Clicking the editor keeps editing active until an outside click, deactivation, or another header click. Saved transparency is unchanged.
 
 ### Added
