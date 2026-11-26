@@ -490,7 +490,8 @@ public partial class StickyNoteWindow : Window
     internal void RefreshPassiveBody()
     {
         if (!_passiveBody.IsEnabled || _interaction.IsClosing) return;
-        var current = _controller.IsNoteOnCurrentDesktop(this);
+        var current = (_interaction.IsTemporaryEditing || CanPresentPassiveBody)
+            && _controller.IsNoteOnCurrentDesktop(this);
         if (_interaction.IsTemporaryEditing && !current && StopTemporaryEditing())
         {
             NoteSurface.Opacity = StickyNoteTransparency.OpacityForLevel(EffectiveTransparencyLevel);
