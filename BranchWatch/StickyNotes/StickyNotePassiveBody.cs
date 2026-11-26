@@ -8,7 +8,7 @@ using WpfPoint = System.Windows.Point;
 
 namespace BranchWatch;
 
-internal sealed class StickyNotePassiveBody
+internal sealed class StickyNotePassiveBody : IStickyNotePassiveBody
 {
     private const int GwlExStyle = -20;
     private const uint GwOwner = 4;
@@ -19,6 +19,9 @@ internal sealed class StickyNotePassiveBody
     private const uint SwpNoZOrder = 0x4;
 
     private readonly StickyNoteWindow _owner;
+    private readonly FrameworkElement _host;
+    private readonly StickyNotesController _controller;
+    private bool _closed;
     private readonly Window _window;
     private readonly WpfBorder _surface;
     private readonly WpfTextBox _text;
@@ -29,9 +32,11 @@ internal sealed class StickyNotePassiveBody
     private string? _color;
     private int _level;
 
-    internal StickyNotePassiveBody(StickyNoteWindow owner, StickyNote note)
+    internal StickyNotePassiveBody(StickyNoteWindow owner, FrameworkElement host, StickyNotesController controller, StickyNote note)
     {
         _owner = owner;
+        _host = host;
+        _controller = controller;
         _text = new WpfTextBox
         {
             Margin = new Thickness(7, 4, 7, 7),
@@ -77,16 +82,24 @@ internal sealed class StickyNotePassiveBody
             Height = 1,
             Content = _root
         };
+        _window.Closed += (_, _) =>
+        {
+            _closed = true;
+            _handle = IntPtr.Zero;
+            _bounds = null;
+            _alarmPulse.Update(false, "");
+        };
         UpdateContent(note);
     }
 
-    internal bool IsVisible => _window.IsVisible;
+    public bool IsVisible => !_closed && _window.IsVisible;
     internal IntPtr Handle => _handle;
     internal bool HasNativeOwner => _handle != IntPtr.Zero && GetWindow(_handle, GwOwner) == _owner.Handle;
-    internal string? LastError { get; private set; }
+    public string? LastError { get; private set; }
 
-    internal void UpdateContent(StickyNote note)
+    public void UpdateContent(StickyNote note)
     {
+        if (_closed) return;
         if (_text.Text != note.Text)
         {
             _text.Text = note.Text;
@@ -106,16 +119,17 @@ internal sealed class StickyNotePassiveBody
         _alarmPulse.Update(note.IsAlarmRinging, StickyNoteAppearance.ResolveColor(note.Color).Alarm);
     }
 
-    internal bool TryShow(FrameworkElement host, StickyNotesController controller)
+    public bool TryShow()
     {
+        if (_closed) return Fail("The passive window is closed.");
         LastError = null;
-        var origin = host.TranslatePoint(new WpfPoint(0, 0), _owner);
+        var origin = _host.TranslatePoint(new WpfPoint(0, 0), _owner);
         _window.Left = _owner.Left + origin.X;
         _window.Top = _owner.Top + origin.Y;
-        _window.Width = host.ActualWidth;
-        _window.Height = host.ActualHeight;
+        _window.Width = _host.ActualWidth;
+        _window.Height = _host.ActualHeight;
 
-        if (!controller.IsNoteOnCurrentDesktop(_owner))
+        if (!_controller.IsNoteOnCurrentDesktop(_owner))
         {
             return Fail("The note is no longer on the current desktop.");
         }
@@ -139,12 +153,9 @@ internal sealed class StickyNotePassiveBody
             return false;
         }
 
-        if (!controller.IsPassiveBodyOnOwnerDesktop(this, _owner, out var desktopError))
-        {
-            return Fail(desktopError);
-        }
+        if (!VerifyAffinity()) return false;
 
-        if (!TryAlign(host))
+        if (!TryAlign())
         {
             return false;
         }
@@ -185,15 +196,21 @@ internal sealed class StickyNotePassiveBody
         return false;
     }
 
-    internal bool TryAlign(FrameworkElement host)
+    public bool VerifyAffinity()
     {
-        if (_handle == IntPtr.Zero || host.ActualWidth <= 0 || host.ActualHeight <= 0)
+        if (_closed) return Fail("The passive window is closed.");
+        return _controller.IsPassiveBodyOnOwnerDesktop(this, _owner, out var reason) || Fail(reason);
+    }
+
+    public bool TryAlign()
+    {
+        if (_closed || _handle == IntPtr.Zero || _host.ActualWidth <= 0 || _host.ActualHeight <= 0)
         {
             return Fail("The note body has no usable window bounds.");
         }
 
-        var topLeft = host.PointToScreen(new WpfPoint(0, 0));
-        var bottomRight = host.PointToScreen(new WpfPoint(host.ActualWidth, host.ActualHeight));
+        var topLeft = _host.PointToScreen(new WpfPoint(0, 0));
+        var bottomRight = _host.PointToScreen(new WpfPoint(_host.ActualWidth, _host.ActualHeight));
         var x = (int)Math.Round(topLeft.X);
         var y = (int)Math.Round(topLeft.Y);
         var width = Math.Max(1, (int)Math.Round(bottomRight.X) - x);
@@ -204,6 +221,7 @@ internal sealed class StickyNotePassiveBody
             return true;
         }
 
+        if (!VerifyAffinity()) return false;
         if (!SetWindowPos(_handle, IntPtr.Zero, x, y, width, height, SwpNoActivate | SwpNoZOrder))
         {
             return Fail($"SetWindowPos failed (Win32 {Marshal.GetLastPInvokeError()}).");
@@ -213,8 +231,9 @@ internal sealed class StickyNotePassiveBody
         return true;
     }
 
-    internal void Close()
+    public void Dispose()
     {
+        if (_closed) return;
         _alarmPulse.Update(false, "");
         _window.Close();
     }
