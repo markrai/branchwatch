@@ -4,22 +4,30 @@ namespace BranchWatch;
 
 internal static class Program
 {
-    private static async Task<int> Main(string[] args)
+    [STAThread]
+    private static int Main(string[] args)
     {
         try
         {
             if (!AllowedOrigin(args)) return 2;
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(8));
-            var request = BrowserCompanionProtocol.ParseHello(await BrowserCompanionProtocol.ReadAsync(
-                Console.OpenStandardInput(), deadline.Token));
+            var bytes = BrowserCompanionProtocol.ReadAsync(Console.OpenStandardInput(), deadline.Token, BrowserTabCapture.MaxFrame).GetAwaiter().GetResult();
+            using var doc = JsonDocument.Parse(bytes);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty("command", out var command)
+                && command.GetString() == "capture")
+            {
+                Capture(args, BrowserTabCapture.ParseRequest(bytes), deadline.Token);
+                return 0;
+            }
+            var request = BrowserCompanionProtocol.ParseHello(bytes);
             CompanionReply reply;
-            try { reply = await BrowserCompanionProtocol.ConnectAsync(BrowserCompanionProtocol.PipeName, request, deadline.Token); }
+            try { reply = BrowserCompanionProtocol.ConnectAsync(BrowserCompanionProtocol.PipeName, request, deadline.Token).GetAwaiter().GetResult(); }
             catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or OperationCanceledException
                 or JsonException or InvalidOperationException or FormatException)
             {
                 reply = new(1, "unavailable", request.ProfileId, request.Nonce);
             }
-            await BrowserCompanionProtocol.WriteAsync(Console.OpenStandardOutput(), BrowserCompanionProtocol.Encode(reply), deadline.Token);
+            BrowserCompanionProtocol.WriteAsync(Console.OpenStandardOutput(), BrowserCompanionProtocol.Encode(reply), deadline.Token).GetAwaiter().GetResult();
             return 0;
         }
         catch (Exception ex)
@@ -27,6 +35,35 @@ internal static class Program
             Console.Error.WriteLine($"Browser companion host failed: {ex.GetType().Name}");
             return 1;
         }
+    }
+
+    private static void Capture(string[] args, BrowserCaptureRequest request, CancellationToken cancellation)
+    {
+        var status = "rejected";
+        if (BrowserProbeProtocol.TryParent(args, out var parent))
+        {
+            var observation = NativeObservation.Inspect(new(request.WindowId, request.Nonce, default), parent);
+            if (observation.Status == "observed-not-authorized" && observation.Browser is { } browser
+                && observation.Handle is { } handle && observation.ProcessId is { } pid
+                && observation.ProcessCreation is { } creation && observation.Membership?.DesktopId is { } desktop)
+            {
+                var envelope = new BrowserCaptureEnvelope(request, browser, new(handle, pid, creation), desktop);
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+                timeout.CancelAfter(BrowserCompanionProtocol.Timeout);
+                using var pipe = new System.IO.Pipes.NamedPipeClientStream(".", BrowserCompanionProtocol.PipeName,
+                    System.IO.Pipes.PipeDirection.InOut, System.IO.Pipes.PipeOptions.Asynchronous | System.IO.Pipes.PipeOptions.CurrentUserOnly,
+                    System.Security.Principal.TokenImpersonationLevel.Anonymous);
+                pipe.ConnectAsync(timeout.Token).GetAwaiter().GetResult();
+                BrowserCompanionProtocol.WriteAsync(pipe, BrowserCompanionProtocol.Encode(envelope), timeout.Token,
+                    BrowserTabCapture.MaxFrame).GetAwaiter().GetResult();
+                var bytes = BrowserCompanionProtocol.ReadAsync(pipe, timeout.Token).GetAwaiter().GetResult();
+                var reply = JsonSerializer.Deserialize<CompanionReply>(bytes, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                if (reply is { Version: 1, Status: "received" } && reply.ProfileId == request.ProfileId && reply.Nonce == request.Nonce)
+                    status = "received";
+            }
+        }
+        BrowserCompanionProtocol.WriteAsync(Console.OpenStandardOutput(),
+            BrowserCompanionProtocol.Encode(new CompanionReply(1, status, request.ProfileId, request.Nonce)), cancellation).GetAwaiter().GetResult();
     }
 
     private static bool AllowedOrigin(string[] args)

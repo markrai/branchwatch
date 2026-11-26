@@ -30,14 +30,25 @@ internal sealed class BrowserCompanionServer(string pipeName) : IDisposable
                 deadline.CancelAfter(BrowserCompanionProtocol.Timeout);
                 try
                 {
-                    var request = BrowserCompanionProtocol.ParseHello(
-                        await BrowserCompanionProtocol.ReadAsync(pipe, deadline.Token).ConfigureAwait(false));
-                    var response = new CompanionReply(1, "connected", request.ProfileId, request.Nonce);
+                    var bytes = await BrowserCompanionProtocol.ReadAsync(pipe, deadline.Token, BrowserTabCapture.MaxFrame).ConfigureAwait(false);
+                    using var doc = System.Text.Json.JsonDocument.Parse(bytes);
+                    CompanionReply response;
+                    if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object && doc.RootElement.TryGetProperty("request", out _))
+                    {
+                        var envelope = BrowserTabCapture.ParseEnvelope(bytes);
+                        var accepted = BrowserCaptureInbox.Shared.TryReceive(envelope);
+                        response = new(1, accepted ? "received" : "rejected", envelope.Request.ProfileId, envelope.Request.Nonce);
+                    }
+                    else
+                    {
+                        var request = BrowserCompanionProtocol.ParseHello(bytes);
+                        response = new(1, "connected", request.ProfileId, request.Nonce);
+                    }
                     await BrowserCompanionProtocol.WriteAsync(pipe, BrowserCompanionProtocol.Encode(response), deadline.Token)
                         .ConfigureAwait(false);
                 }
                 catch (Exception ex) when (ex is IOException or InvalidDataException or System.Text.Json.JsonException
-                    or InvalidOperationException or FormatException or OperationCanceledException)
+                    or InvalidOperationException or FormatException or OverflowException or OperationCanceledException)
                 {
                     Trace.TraceInformation("Browser companion request ended: {0}", ex.GetType().Name);
                 }

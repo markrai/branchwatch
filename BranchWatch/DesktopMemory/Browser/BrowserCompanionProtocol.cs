@@ -68,20 +68,20 @@ internal static class BrowserCompanionProtocol
 
     internal static byte[] Encode<T>(T message) => JsonSerializer.SerializeToUtf8Bytes(message, Options);
 
-    internal static async Task<byte[]> ReadAsync(Stream stream, CancellationToken cancellation)
+    internal static async Task<byte[]> ReadAsync(Stream stream, CancellationToken cancellation, int maximum = MaximumBytes)
     {
         var header = new byte[4];
         await stream.ReadExactlyAsync(header, cancellation).ConfigureAwait(false);
         var length = BinaryPrimitives.ReadUInt32LittleEndian(header);
-        if (length == 0 || length > MaximumBytes) throw new InvalidDataException("Invalid message length.");
+        if (length == 0 || length > maximum) throw new InvalidDataException("Invalid message length.");
         var bytes = new byte[(int)length];
         await stream.ReadExactlyAsync(bytes, cancellation).ConfigureAwait(false);
         return bytes;
     }
 
-    internal static async Task WriteAsync(Stream stream, byte[] bytes, CancellationToken cancellation)
+    internal static async Task WriteAsync(Stream stream, byte[] bytes, CancellationToken cancellation, int maximum = MaximumBytes)
     {
-        if (bytes.Length == 0 || bytes.Length > MaximumBytes) throw new InvalidDataException("Invalid message length.");
+        if (bytes.Length == 0 || bytes.Length > maximum) throw new InvalidDataException("Invalid message length.");
         var header = new byte[4];
         BinaryPrimitives.WriteUInt32LittleEndian(header, (uint)bytes.Length);
         await stream.WriteAsync(header, cancellation).ConfigureAwait(false);
