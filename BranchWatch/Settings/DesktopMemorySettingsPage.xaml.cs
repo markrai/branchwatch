@@ -35,7 +35,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private Guid? _previewDesktop;
     private DateTimeOffset? _previewCapture;
     private DesktopPlacementPlan? _reviewedPlan;
-    private CancellationTokenSource? _restoreCancellation;
+    private DesktopRestoreSession? _restoreSession;
     private Guid? _resultDesktop;
     private PlanWindowChoice[] _planChoices = [];
     private BrowserCaptureTicket? _browserTicket;
@@ -63,7 +63,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         {
             if (!IsVisible)
             {
-                _restoreCancellation?.Cancel();
+                _restoreSession?.Cancel();
                 CancelBrowserCapture();
                 CancelBrowserRestore();
             }
@@ -78,7 +78,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         CancelBrowserRestore();
         CancelBrowserCapture();
         _captureDraft.Clear();
-        _restoreCancellation?.Cancel();
+        _restoreSession?.Cancel();
     }
 
     internal void RefreshDesktops()
@@ -150,6 +150,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private void OnDesktopSelected(object sender, SelectionChangedEventArgs e)
     {
         if (_updating) return;
+        _restoreSession?.Cancel();
         CancelBrowserCapture();
         CancelBrowserRestore();
         ClearResults();
@@ -720,14 +721,14 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
 
     private void OnCancelRestore(object sender, RoutedEventArgs e)
     {
-        _restoreCancellation?.Cancel();
+        _restoreSession?.Cancel();
         CancelRestoreButton.IsEnabled = false;
         RestoreSummary.Text = "Cancelling remaining operations...";
     }
 
     private async void OnRestore(object sender, RoutedEventArgs e)
     {
-        if (_busy || !_storageAvailable || _reviewedPlan is not { } reviewed || SelectedSaved is not { } saved
+        if (_stopped || _busy || !_storageAvailable || _reviewedPlan is not { } reviewed || SelectedSaved is not { } saved
             || SelectedId != _active || saved.DesktopId != reviewed.DesktopId || saved.CapturedUtc != reviewed.SnapshotCapturedUtc)
             return;
         var policy = FallbackPicker.SelectedIndex == 1 ? UnmatchedMonitorPolicy.Primary : UnmatchedMonitorPolicy.Skip;
@@ -738,34 +739,27 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         _resultDesktop = saved.DesktopId;
         RestoreResultsCard.Visibility = Visibility.Visible;
         RestoreSummary.Text = "Checking running windows...";
-        var cancellation = new CancellationTokenSource();
-        _restoreCancellation = cancellation;
+        var session = DesktopRestoreSession.CreateNative(new(saved, reviewed, policy, selected, launchMissing), _store);
+        _restoreSession = session;
         CancelRestoreButton.Visibility = Visibility.Visible;
         CancelRestoreButton.IsEnabled = true;
         _busy = true;
         Render();
         RestoreResultsCard.BringIntoView();
-        var environment = new NativeExistingWindowRestoreEnvironment();
-        var service = new ExistingWindowRestoreService(environment);
-        var launches = new MissingApplicationLaunchService(environment, new NativeMissingApplicationLaunchEnvironment());
         try
         {
-            VerifySavedSnapshot(saved);
-            var approved = await DesktopMemorySta.Run(() => RestoreSelection.Apply(service.Prepare(saved, reviewed, policy, cancellation.Token), selected));
+            var preparation = await DesktopMemorySta.Run(session.Prepare);
             if (_stopped) return;
-            cancellation.Token.ThrowIfCancellationRequested();
-            MissingApplicationLaunchPreparation? launchPlan = launchMissing
-                ? await DesktopMemorySta.Run(() => launches.Prepare(approved, cancellation.Token)) : null;
-            if (_stopped) return;
-            cancellation.Token.ThrowIfCancellationRequested();
+            session.ThrowIfCancelled();
+            var approved = preparation.Existing;
+            var launchPlan = preparation.Launches;
             var byId = launchPlan?.Items.ToDictionary(i => i.RestoreItem.WindowId);
             RestoreRows.ItemsSource = approved.Items.Select(i =>
                 byId is not null && byId.TryGetValue(i.WindowId, out var launch)
                     ? new DetailRow(i.Label, $"{launch.Status} · {launch.ExecutablePath} · {launch.Detail}")
                     : new DetailRow(i.Label, $"{i.Status} · {i.Detail}")).ToArray();
-            var ready = approved.Items.Where(i => i.Status == ExistingRestoreStatus.Ready).ToArray();
-            var launchReady = launchPlan?.Items.Where(i => i.Status == ExistingRestoreStatus.LaunchReady).ToArray()
-                ?? Array.Empty<MissingApplicationLaunchItem>();
+            var ready = preparation.Ready;
+            var launchReady = preparation.LaunchReady;
             var unselected = approved.Items.Count(i => i.Status == ExistingRestoreStatus.UserSkipped);
             RestoreSummary.Text = $"{ready.Length} matched · {launchReady.Length} eligible launches · {unselected} not selected · {approved.Items.Count - ready.Length - launchReady.Length - unselected} other incomplete";
             if (ready.Length == 0 && launchReady.Length == 0) return;
@@ -781,39 +775,27 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             }
 
             if (_stopped) return;
-            cancellation.Token.ThrowIfCancellationRequested();
-            VerifySavedSnapshot(saved);
+            session.ThrowIfCancelled();
             RestoreSummary.Text = "Restoring selected windows...";
-            var pendingLaunches = launchPlan?.Items.Select(i => i.RestoreItem.WindowId).ToHashSet() ?? [];
-            var progressRows = new Dictionary<Guid, ExistingRestoreOutcome>();
             RestoreProgress.Maximum = Math.Max(1, approved.Items.Count);
             RestoreProgress.Value = 0;
             RestoreProgress.Visibility = Visibility.Visible;
             RestoreRows.ItemsSource = approved.Items.Select(i => new DetailRow(i.Label, "Pending...")).ToArray();
-            var acceptingProgress = true;
-            void Report(ExistingRestoreOutcome outcome)
+            void Report(ExistingRestoreOutcome _)
             {
                 Dispatcher.BeginInvoke(new Action(() =>
                 {
-                    if (_stopped || !acceptingProgress || _restoreCancellation != cancellation) return;
-                    progressRows[outcome.WindowId] = outcome;
+                    if (_stopped || _restoreSession != session || !session.IsExecuting) return;
+                    var progressRows = session.ProgressSnapshot();
                     RestoreProgress.Value = progressRows.Count;
-                    RestoreSummary.Text = cancellation.IsCancellationRequested ? "Cancelling remaining operations..."
+                    RestoreSummary.Text = session.IsCancellationRequested ? "Cancelling remaining operations..."
                         : $"Processed {progressRows.Count} of {approved.Items.Count} windows";
                     RestoreRows.ItemsSource = approved.Items.Select(i => progressRows.TryGetValue(i.WindowId, out var completed)
                         ? new DetailRow(i.Label, $"{completed.Status} · {completed.Detail}")
                         : new DetailRow(i.Label, "Pending...")).ToArray();
                 }));
             }
-            var results = await DesktopMemorySta.Run(() =>
-            {
-                var existingResults = service.Execute(approved, cancellation.Token, outcome =>
-                {
-                    if (!pendingLaunches.Contains(outcome.WindowId)) Report(outcome);
-                });
-                return launchPlan is null ? existingResults : launches.Execute(launchPlan, existingResults, cancellation.Token, Report);
-            });
-            acceptingProgress = false;
+            var results = await DesktopMemorySta.Run(() => session.ExecuteApproved(preparation, Report));
             if (!_stopped) RestoreProgress.Value = results.Count;
             if (_stopped) return;
             RestoreRows.ItemsSource = results.Select(i => new DetailRow(i.Label, $"{i.Status} · {i.Detail}")).ToArray();
@@ -823,9 +805,11 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
                 + $"{results.Count(i => i.Status == ExistingRestoreStatus.UserSkipped)} not selected · "
                 + $"{results.Count(i => i.Status is not (ExistingRestoreStatus.Restored or ExistingRestoreStatus.AlreadyPlaced or ExistingRestoreStatus.LaunchedAndRestored or ExistingRestoreStatus.UserSkipped))} other incomplete";
         }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        catch (OperationCanceledException) when (session.IsCancellationRequested)
         {
-            if (!_stopped) RestoreSummary.Text = "Cancelled before execution. No placement or launch requests issued.";
+            if (!_stopped) RestoreSummary.Text = session.ExecutionStarted
+                ? "Restore cancelled. Some placement or launch requests may already have been issued."
+                : "Cancelled before execution. No placement or launch requests issued.";
         }
         catch (Exception ex)
         {
@@ -833,8 +817,8 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         }
         finally
         {
-            _restoreCancellation = null;
-            cancellation.Dispose();
+            _restoreSession = null;
+            session.Dispose();
             _busy = false;
             if (!_stopped)
             {
@@ -843,15 +827,6 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             }
         }
     }
-
-    private void VerifySavedSnapshot(DesktopSnapshot saved)
-    {
-        var current = _store.Load().SingleOrDefault(s => s.DesktopId == saved.DesktopId);
-        if (current is null || System.Text.Json.JsonSerializer.Serialize(current) != System.Text.Json.JsonSerializer.Serialize(saved))
-            throw new InvalidOperationException("The saved snapshot changed. Refresh before restoring.");
-    }
-
-
 
     private void DrawLayout(DesktopSnapshot snapshot) =>
         DrawLayout(MonitorCanvas, snapshot.Monitors, snapshot.Windows.Where(w => !w.Minimized)
