@@ -105,59 +105,50 @@ public sealed class TrayMenuTests
     [TestMethod]
     public void Menu_CommandsAndDynamicNoteRowsRetainTheirIdentity()
     {
-        Exception? failure = null;
-        var thread = new Thread(() =>
+        StaTest.Run(() =>
         {
-            try
-            {
-                var settings = new AppSettings();
-                var status = RepositoryStatus.Empty with { RepositoryRoot = @"C:\Projects\A&B", BranchDisplay = "feature/R&D" };
-                var commands = new List<TrayCommand>();
-                var opened = new List<Guid>();
-                var first = new TrayNoteChoice(Guid.NewGuid(), "A&B");
-                var second = new TrayNoteChoice(Guid.NewGuid(), "Second");
-                TrayNoteChoice[] notes = [first];
-                using var icon = (Icon)SystemIcons.Application.Clone();
-                using var menu = new TrayMenu(icon, () => TrayMenuState.From(settings, status, null, null),
-                    () => notes, commands.Add, opened.Add);
-                var top = menu.Menu.Items.OfType<Forms.ToolStripMenuItem>().ToArray();
-                CollectionAssert.AreEqual(new[] { "BranchWatch", "Mode: Pinned Repo Mode", "Repository: A&&B",
-                    "Branch: feature/R&&D", "", "Git Watcher", "Virtual Desktops", "Sticky Notes",
-                    "Settings...", "About BranchWatch", "Exit" }, top.Select(i => i.Text).ToArray());
-                var git = top.Single(i => i.Text == "Git Watcher");
-                ((Forms.ToolStripMenuItem)git.DropDownItems[0]).PerformClick();
-                ((Forms.ToolStripMenuItem)git.DropDownItems[1]).PerformClick();
-                var desktops = top.Single(i => i.Text == "Virtual Desktops");
-                ((Forms.ToolStripMenuItem)desktops.DropDownItems[1]).PerformClick();
-                top.Single(i => i.Text == "Settings...").PerformClick();
-                var sticky = top.Single(i => i.Text == "Sticky Notes");
-                ((Forms.ToolStripMenuItem)sticky.DropDownItems[0]).PerformClick();
-                CollectionAssert.AreEqual(new[] { TrayCommand.ToggleOverlay, TrayCommand.RefreshBranch,
-                    TrayCommand.MemorySettings, TrayCommand.GeneralSettings, TrayCommand.NewNote }, commands.ToArray());
-                var reopen = (Forms.ToolStripMenuItem)sticky.DropDownItems[1];
-                menu.RefreshNotes();
-                var old = (Forms.ToolStripMenuItem)reopen.DropDownItems[0];
-                Assert.AreEqual("A&&B", old.Text);
-                old.PerformClick();
-                notes = [second];
-                menu.RefreshNotes();
-                Assert.HasCount(1, reopen.DropDownItems);
-                Assert.IsTrue(old.IsDisposed);
-                ((Forms.ToolStripMenuItem)reopen.DropDownItems[0]).PerformClick();
-                CollectionAssert.AreEqual(new[] { first.Id, second.Id }, opened.ToArray());
-                notes = [];
-                menu.RefreshNotes();
-                Assert.IsEmpty(reopen.DropDownItems);
-                Assert.IsFalse(reopen.Enabled);
-                menu.Dispose();
-                menu.RefreshNotes();
-                menu.Apply(TrayMenuState.From(settings, status, null, null));
-            }
-            catch (Exception ex) { failure = ex; }
+            var settings = new AppSettings();
+            var status = RepositoryStatus.Empty with { RepositoryRoot = @"C:\Projects\A&B", BranchDisplay = "feature/R&D" };
+            var commands = new List<TrayCommand>();
+            var opened = new List<Guid>();
+            var first = new TrayNoteChoice(Guid.NewGuid(), "A&B");
+            var second = new TrayNoteChoice(Guid.NewGuid(), "Second");
+            TrayNoteChoice[] notes = [first];
+            using var icon = (Icon)SystemIcons.Application.Clone();
+            using var menu = new TrayMenu(icon, () => TrayMenuState.From(settings, status, null, null),
+                () => notes, commands.Add, opened.Add);
+            var top = menu.Menu.Items.OfType<Forms.ToolStripMenuItem>().ToArray();
+            CollectionAssert.AreEqual(new[] { "BranchWatch", "Mode: Pinned Repo Mode", "Repository: A&&B",
+                "Branch: feature/R&&D", "", "Git Watcher", "Virtual Desktops", "Sticky Notes",
+                "Settings...", "About BranchWatch", "Exit" }, top.Select(i => i.Text).ToArray());
+            var git = top.Single(i => i.Text == "Git Watcher");
+            ((Forms.ToolStripMenuItem)git.DropDownItems[0]).PerformClick();
+            ((Forms.ToolStripMenuItem)git.DropDownItems[1]).PerformClick();
+            var desktops = top.Single(i => i.Text == "Virtual Desktops");
+            ((Forms.ToolStripMenuItem)desktops.DropDownItems[1]).PerformClick();
+            top.Single(i => i.Text == "Settings...").PerformClick();
+            var sticky = top.Single(i => i.Text == "Sticky Notes");
+            ((Forms.ToolStripMenuItem)sticky.DropDownItems[0]).PerformClick();
+            CollectionAssert.AreEqual(new[] { TrayCommand.ToggleOverlay, TrayCommand.RefreshBranch,
+                TrayCommand.MemorySettings, TrayCommand.GeneralSettings, TrayCommand.NewNote }, commands.ToArray());
+            var reopen = (Forms.ToolStripMenuItem)sticky.DropDownItems[1];
+            menu.RefreshNotes();
+            var old = (Forms.ToolStripMenuItem)reopen.DropDownItems[0];
+            Assert.AreEqual("A&&B", old.Text);
+            old.PerformClick();
+            notes = [second];
+            menu.RefreshNotes();
+            Assert.HasCount(1, reopen.DropDownItems);
+            Assert.IsTrue(old.IsDisposed);
+            ((Forms.ToolStripMenuItem)reopen.DropDownItems[0]).PerformClick();
+            CollectionAssert.AreEqual(new[] { first.Id, second.Id }, opened.ToArray());
+            notes = [];
+            menu.RefreshNotes();
+            Assert.IsEmpty(reopen.DropDownItems);
+            Assert.IsFalse(reopen.Enabled);
+            menu.Dispose();
+            menu.RefreshNotes();
+            menu.Apply(TrayMenuState.From(settings, status, null, null));
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
-        if (failure is not null) throw failure;
     }
 }
