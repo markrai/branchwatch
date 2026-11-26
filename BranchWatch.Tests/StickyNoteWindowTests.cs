@@ -156,6 +156,72 @@ public sealed class StickyNoteWindowTests
         }
     }
 
+    [TestMethod]
+    public void TemporaryEditing_RestoresSavedOpacityAndNeverChangesSavedTransparency()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                using var monitor = new VirtualDesktopMonitor();
+                using var controller = new StickyNotesController(monitor,
+                    Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "notes.json"));
+                var note = new StickyNote { DesktopId = Guid.NewGuid(), TransparencyLevel = 8 };
+                var window = new StickyNoteWindow(note, controller);
+                try
+                {
+                    window.ToggleTemporaryEditing();
+                    Assert.AreEqual(1.0, window.NoteSurface.Opacity);
+                    Assert.IsFalse(window.Editor.IsReadOnly);
+                    Assert.IsTrue(window.Editor.Focusable);
+                    Assert.AreEqual(8, note.TransparencyLevel);
+                    window.ExpireTemporaryEditing();
+                    Assert.AreEqual(0.55, window.NoteSurface.Opacity, 0.0001);
+                    Assert.IsTrue(window.Editor.IsReadOnly);
+
+                    window.ToggleTemporaryEditing();
+                    window.HoldTemporaryEditing();
+                    window.Editor.Text = "Edited temporarily";
+                    window.ExpireTemporaryEditing();
+                    Assert.AreEqual(1.0, window.NoteSurface.Opacity);
+                    Assert.IsFalse(window.Editor.IsReadOnly);
+                    window.ToggleTemporaryEditing();
+                    Assert.AreEqual(0.55, window.NoteSurface.Opacity, 0.0001);
+                    Assert.AreEqual("Edited temporarily", note.Text);
+                    Assert.AreEqual(8, note.TransparencyLevel);
+
+                    window.ToggleTemporaryEditing();
+                    window.HoldTemporaryEditing();
+                    window.EndTemporaryEditing();
+                    Assert.IsTrue(window.Editor.IsReadOnly);
+                    Assert.AreEqual(0.55, window.NoteSurface.Opacity, 0.0001);
+
+                    window.ToggleTemporaryEditing();
+                    window.SetCollapsed(true);
+                    window.SetCollapsed(false);
+                    Assert.AreEqual(0.55, window.NoteSurface.Opacity, 0.0001);
+                    window.ToggleTemporaryEditing();
+                    window.ApplyTransparency(4);
+                    Assert.AreEqual(4, note.TransparencyLevel);
+                    Assert.IsTrue(window.Editor.IsReadOnly);
+                    Assert.AreEqual(StickyNoteTransparency.OpacityForLevel(4), window.NoteSurface.Opacity);
+                    window.ApplyTransparency(1);
+                    window.ToggleTemporaryEditing();
+                    window.ExpireTemporaryEditing();
+                    Assert.IsFalse(window.Editor.IsReadOnly);
+                    Assert.AreEqual(1.0, window.NoteSurface.Opacity);
+                }
+                finally { window.Close(); }
+            }
+            catch (Exception ex) { failure = ex; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if (failure is not null) throw failure;
+    }
+
     private static void AssertSurfaceAlignment(StickyNoteWindow window)
     {
         foreach (var width in new[] { 220.0, 300.0, 460.0 })

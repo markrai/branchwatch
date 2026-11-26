@@ -4,6 +4,10 @@
 
 ### Added
 
+- Sticky note headers toggle temporary opaque editing for five seconds. Clicking the editor keeps editing active until an outside click, deactivation, or another header click. Saved transparency is unchanged.
+
+### Added
+
 - Desktop Memory review workflow with explicit per-window selection, safe defaults, selected-placement diagrams and incremental restore results.
 
 ### Added

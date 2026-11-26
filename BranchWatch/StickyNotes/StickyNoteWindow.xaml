@@ -50,7 +50,7 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
             <Border x:Name="HeaderSurface" Grid.Row="0" Background="#F6DE87"
-                    MouseLeftButtonDown="HeaderMouseDown">
+                    MouseLeftButtonDown="HeaderMouseDown" ToolTip="Click to temporarily edit; drag to move">
                 <Grid x:Name="Header" Margin="4,4,4,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
