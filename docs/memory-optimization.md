@@ -72,8 +72,8 @@ Self-tests cover statistics, CPU normalization, comparison deltas, JSON round tr
 | Phase | Scope | Status |
 | --- | --- | --- |
 | M.0 | Repeatable profiling, baseline and comparison | Merged; Windows CI passed; interactive baseline pending |
-| M.1 | Lazy overlay window creation and resource release | Implemented; Windows CI and physical measurements pending |
-| M.2 | Lazy settings pages and snapshot loading | Planned |
+| M.1 | Lazy overlay window creation and resource release | Merged; Windows CI passed; physical measurements pending |
+| M.2 | Lazy settings pages and snapshot loading | Implemented; Windows CI and physical measurements pending |
 | M.3 | Demand-driven timers and background activity | Planned |
 | M.4 | Filesystem watcher consolidation and reuse | Planned |
 | M.5 | Sticky-note rendering and shared resources | Planned |
@@ -91,3 +91,13 @@ Desktop monitoring remains active at the same cadence for sticky notes and setti
 Five Windows STA regressions cover disabled allocation, reuse and recreation from fresh state, external close, failed initial render and virtual desktop timer cleanup. Windows CI must pass. Native window placement, focus, desktop switches and physical resource measurements remain unqualified.
 
 Measure tray-only (both overlays disabled), overlays-on, and repeated hide/show with matching process age and workload against M.0. For repeated transitions, compare equivalent steady states, including after returning to disabled. A lower private-byte median or stable handle/GDI/USER counts across repeated cycles is more meaningful than a transient working-set drop. If neither overlay is disabled, substantial savings from this slice should not be expected. No measured MiB savings claimed before collecting comparable profiles. M.2 targets lazy settings page construction.
+
+## M.2: lazy settings pages
+
+The SettingsWindow shell retains the existing navigation, General and About content. The Git appearance, Virtual Desktop appearance, Desktop Memory and Sticky Notes controls are constructed only when their respective sections are first visited. Their existing ContentControl hosts own the instances, avoiding duplicate page references. Desktop Memory snapshot loading, browser authorization session creation, and initial desktop discovery are consequently deferred until that section is opened. External settings refreshes and monitor notifications do not instantiate an unvisited page.
+
+Visited pages remain attached until the window closes, preserving sticky-note appearance drafts and unsaved Desktop Memory captures across navigation. Existing visibility-based cancellation and confirmation guards are unchanged. Closing Settings unsubscribes the desktop monitor, stops an instantiated memory page before removing its content, clears all four hosts and desktop color rows, and prevents subsequent navigation or refresh from recreating content. An in-flight async operation can retain its page until completion; the existing stopped/cancellation guards still apply. No forced GC or heap trimming, storage schema, version, permissions, polling, or visual changes.
+
+Two additional Windows STA tests cover unvisited-page allocation, current settings on first visit, external refresh, page reuse, and shutdown detachment with stopped Desktop Memory refresh. Existing navigation and draft preservation tests remain in place. M.1 merged with passing Windows CI; M.2 CI and physical profiling are pending.
+
+Compare equivalent General-only, individual section, all-sections-visited and settings-closed workloads with M.0/M.1 using the profiling harness. M.2 principally reduces the incremental cost of opening Settings without visiting every section; it is not expected to significantly reduce fresh tray-only memory. A first visit may take longer because construction is deferred. No numeric savings claimed before matched measurements. M.3 will address timers and background activity.
