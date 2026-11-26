@@ -58,7 +58,8 @@ internal static class ExistingWindowRestoreMatcher
             if (match.Token is null || window.Classification != "candidate" || window.Owned || window.ToolWindow
                 || window.CloakFlags != 0 || window.Membership.DesktopId != snapshot.DesktopId
                 || window.Membership.IsCurrent != true || window.Membership.DesktopHResult < 0
-                || window.Membership.CurrentHResult < 0 || window.ScreenBounds is null)
+                || window.Membership.CurrentHResult < 0 || window.ScreenBounds is not { } liveBounds
+                || !DesktopSnapshotCapture.Valid(liveBounds))
             {
                 items.Add(Item(ExistingRestoreStatus.UnverifiedWindow, "Running window identity, desktop membership or eligibility could not be verified."));
                 continue;

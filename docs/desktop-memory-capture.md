@@ -16,6 +16,6 @@ Captured coordinates distinguish screen bounds, DWM visible bounds and raw WINDO
 - Capture again, discard, then confirm the old saved snapshot is unchanged. Capture again and explicitly replace. Restart BranchWatch and inspect both snapshots.
 - Select a nonactive desktop and confirm capture is disabled. Switch to that desktop and retry. Check minimized, maximized and spanning windows.
 - Corrupt a test copy of the snapshot file and verify the page reports the error without overwriting it. Back up real data before testing.
-- Complete the Phase 0 hardware qualification before trusting placement coordinates. Restore remains intentionally unavailable.
+- Complete the Phase 0 hardware qualification before trusting placement coordinates. See the [existing-window restoration qualification](desktop-memory-restore.md) before using restoration.
 
 Phase 2 adds [monitor matching and a placement preview](desktop-memory-placement.md), without moving windows.

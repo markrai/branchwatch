@@ -30,6 +30,10 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     {
         _store = store;
         InitializeComponent();
+        IsVisibleChanged += (_, _) =>
+        {
+            if (!IsVisible) _restoreCancellation?.Cancel();
+        };
         Reload();
         RefreshDesktops();
     }
@@ -341,12 +345,14 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         CancelRestoreButton.IsEnabled = true;
         _busy = true;
         Render();
+        RestoreResultsCard.BringIntoView();
         var service = new ExistingWindowRestoreService(new NativeExistingWindowRestoreEnvironment());
         try
         {
             VerifySavedSnapshot(saved);
             var approved = await RunOnSta(() => service.Prepare(saved, reviewed, policy, cancellation.Token));
-            if (_stopped || cancellation.IsCancellationRequested) return;
+            if (_stopped) return;
+            cancellation.Token.ThrowIfCancellationRequested();
             RestoreRows.ItemsSource = approved.Items.Select(i => new DetailRow(i.Label, $"{i.Status} · {i.Detail}")).ToArray();
             var ready = approved.Items.Where(i => i.Status == ExistingRestoreStatus.Ready).ToArray();
             RestoreSummary.Text = $"{ready.Length} matched · {approved.Items.Count - ready.Length} not eligible";
@@ -359,7 +365,8 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
                 return;
             }
 
-            if (_stopped || cancellation.IsCancellationRequested) return;
+            if (_stopped) return;
+            cancellation.Token.ThrowIfCancellationRequested();
             VerifySavedSnapshot(saved);
             RestoreSummary.Text = "Restoring matched windows...";
             var results = await RunOnSta(() => service.Execute(approved, cancellation.Token));
@@ -371,7 +378,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
-            if (!_stopped) RestoreSummary.Text = "Cancelled.";
+            if (!_stopped) RestoreSummary.Text = "Cancelled before execution. No placement requests issued.";
         }
         catch (Exception ex)
         {

@@ -67,7 +67,9 @@ internal sealed class NativeExistingWindowRestoreEnvironment : IExistingWindowRe
             using var desktopReader = new ProbeDesktopReader();
             if (!StillEligible(desktopId, token, key, desktopReader))
                 return Outcome(ExistingRestoreStatus.Changed, "Window identity, normal state or desktop membership changed before placement.");
-            if (GetWindowRect(token.Handle, out var existing) && existing.ToModel() == bounds)
+            if (!GetWindowRect(token.Handle, out var existing) || !DesktopSnapshotCapture.Valid(existing.ToModel()))
+                return Outcome(ExistingRestoreStatus.Failed, "Current window bounds could not be verified.");
+            if (existing.ToModel() == bounds)
                 return Outcome(ExistingRestoreStatus.AlreadyPlaced, "Window is already at the requested bounds.");
 
             cancellation.ThrowIfCancellationRequested();
