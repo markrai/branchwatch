@@ -80,6 +80,8 @@ public sealed class StickyNoteRenderingResourcesTests
             Assert.IsNull(first.Effect);
             one.Update(true, yellow);
             two.Update(true, yellow);
+            Assert.IsTrue(first.HasAnimatedProperties);
+            Assert.IsTrue(second.HasAnimatedProperties);
             Assert.AreSame(first.BorderBrush, second.BorderBrush);
             Assert.AreNotSame(first.Effect, second.Effect);
             var effect = first.Effect;
@@ -93,10 +95,10 @@ public sealed class StickyNoteRenderingResourcesTests
             Assert.AreEqual(Visibility.Collapsed, first.Visibility);
             Assert.IsNull(first.Effect);
             Assert.IsNull(first.BorderBrush);
-            Assert.IsFalse(DependencyPropertyHelper.GetValueSource(first, UIElement.OpacityProperty).IsAnimated);
+            Assert.IsFalse(first.HasAnimatedProperties);
             Assert.AreEqual(Visibility.Visible, second.Visibility);
             Assert.IsNotNull(second.Effect);
-            Assert.IsTrue(DependencyPropertyHelper.GetValueSource(second, UIElement.OpacityProperty).IsAnimated);
+            Assert.IsTrue(second.HasAnimatedProperties);
 
             one.Update(true, blue);
             Assert.IsNotNull(first.Effect);
