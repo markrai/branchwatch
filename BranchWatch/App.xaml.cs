@@ -77,7 +77,7 @@ public partial class App : System.Windows.Application
         base.OnSessionEnding(e);
         if (!e.Cancel)
         {
-            _stickyNotes?.Dispose();
+            _stickyNotes?.FlushPendingChanges();
         }
     }
 

@@ -46,7 +46,7 @@ public sealed class BrowserTabReviewTests
         var saved = review.Apply(draft).Windows.Single().BrowserContext!;
         CollectionAssert.AreEqual(new[] { Tabs[2], Tabs[3] }, saved.Tabs.ToArray());
         Assert.IsFalse(saved.Tabs.Any(t => t.Active));
-        Assert.AreEqual(4, draft.Windows.Single().BrowserContext!.Tabs.Count);
+        Assert.HasCount(4, draft.Windows.Single().BrowserContext!.Tabs);
         Assert.AreEqual(Profile, saved.ProfileId);
     }
 
@@ -109,7 +109,7 @@ public sealed class BrowserTabReviewTests
             var saved = store.Load().Single();
             CollectionAssert.AreEqual(new[] { Tabs[0], Tabs[2], Tabs[3] }, saved.Windows[0].BrowserContext!.Tabs.ToArray());
             Assert.AreEqual(OtherProfile, saved.Windows[1].BrowserContext!.ProfileId);
-            Assert.AreEqual(0, saved.Windows[1].BrowserContext!.Tabs.Count);
+            Assert.IsEmpty(saved.Windows[1].BrowserContext!.Tabs);
         }
         finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
     }

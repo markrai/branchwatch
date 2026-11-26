@@ -8,7 +8,7 @@ public sealed class StickyNotesController : IDisposable
     private readonly VirtualDesktopMonitor _monitor;
     private readonly StickyNoteStore _store;
     private readonly AppSettings _settings;
-    private readonly NativeDesktopManager _native = new();
+    private readonly IStickyNoteDesktopManager _native;
     private readonly DispatcherTimer _timer;
     private readonly Dictionary<Guid, StickyNoteWindow> _windows = [];
     private List<StickyNote> _notes = [];
@@ -19,11 +19,13 @@ public sealed class StickyNotesController : IDisposable
     private Guid? _restoreDesktop;
     private int _restoreAttempts;
 
-    internal StickyNotesController(VirtualDesktopMonitor monitor, string path, AppSettings? settings = null)
+    internal StickyNotesController(VirtualDesktopMonitor monitor, string path, AppSettings? settings = null,
+        IStickyNoteDesktopManager? native = null)
     {
         _monitor = monitor;
         _store = new StickyNoteStore(path);
         _settings = settings ?? new AppSettings();
+        _native = native ?? new NativeDesktopManager();
         _timer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += OnTimerTick;
     }
@@ -88,6 +90,7 @@ public sealed class StickyNotesController : IDisposable
 
     internal void Start()
     {
+        if (_disposed || _available) return;
         try
         {
             _notes = _store.Load();
@@ -165,6 +168,7 @@ public sealed class StickyNotesController : IDisposable
 
     internal bool MoveNote(StickyNote note, Guid desktopId, bool requireCurrent = false)
     {
+        if (!IsAvailable) return false;
         if (!_windows.TryGetValue(note.Id, out var window)
             || !Desktops.Any(desktop => desktop.Id == desktopId))
         {
@@ -196,6 +200,7 @@ public sealed class StickyNotesController : IDisposable
 
     internal void DeleteNote(StickyNote note)
     {
+        if (!IsAvailable) return;
         if (_windows.Remove(note.Id, out var window))
         {
             window.Close();
@@ -311,6 +316,7 @@ public sealed class StickyNotesController : IDisposable
 
     private void OnDesktopChanged(object? sender, VirtualDesktopDisplayState state)
     {
+        if (!IsAvailable) return;
         SynchronizeAssignments();
         ScheduleRestore(state.ActiveDesktop.Id);
         foreach (var window in _windows.Values)
@@ -348,6 +354,7 @@ public sealed class StickyNotesController : IDisposable
 
     private void OnTimerTick(object? sender, EventArgs e)
     {
+        if (!IsAvailable) return;
         AdvanceAlarms(DateTimeOffset.UtcNow);
         SynchronizeAssignments();
         RestorePending();
@@ -390,6 +397,24 @@ public sealed class StickyNotesController : IDisposable
         }
     }
 
+    internal bool FlushPendingChanges()
+    {
+        if (!IsAvailable) return false;
+        CapturePendingChanges();
+        return Save();
+    }
+
+    private void CapturePendingChanges()
+    {
+        SynchronizeAssignments();
+        AdvanceAlarms(DateTimeOffset.UtcNow);
+        foreach (var window in _windows.Values.ToArray())
+        {
+            window.FinishRename(commit: true, focusHeader: false);
+            window.CaptureBounds();
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed)
@@ -401,20 +426,20 @@ public sealed class StickyNotesController : IDisposable
         _monitor.StateChanged -= OnDesktopChanged;
         _timer.Stop();
         _timer.Tick -= OnTimerTick;
-        SynchronizeAssignments();
-        var windows = _windows.Values.ToArray();
-        foreach (var window in windows)
+        try
         {
-            window.CaptureBounds();
+            CapturePendingChanges();
+            var windows = _windows.Values.ToArray();
+            _windows.Clear();
+            foreach (var window in windows)
+            {
+                window.Close();
+            }
         }
-
-        Save();
-        _windows.Clear();
-        foreach (var window in windows)
+        finally
         {
-            window.Close();
+            try { Save(); }
+            finally { _native.Dispose(); }
         }
-
-        _native.Dispose();
     }
 }

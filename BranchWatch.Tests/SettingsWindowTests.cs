@@ -42,7 +42,7 @@ public sealed class SettingsWindowTests
                     Assert.AreEqual(Visibility.Collapsed, memory.BrowserEditor.Visibility);
                     Assert.AreEqual(Visibility.Collapsed, memory.BrowserReviewSummary.Visibility);
                     Assert.AreEqual(Visibility.Collapsed, memory.BrowserRestoreControls.Visibility);
-                    Assert.AreEqual(false, memory.LaunchMissingCheck.IsChecked);
+                    Assert.IsFalse(memory.LaunchMissingCheck.IsChecked == true);
                     window.Navigate(SettingsSection.StickyNotes);
                     var page = (StickyNoteSettingsPage)window.NotesHost.Content;
                     page.TransparencySlider.Value = 8;

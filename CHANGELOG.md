@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Commit pending sticky-note titles and capture final state before shutdown persistence while preserving open-note restoration. Session-ending notifications flush pending changes without disposing the controller before shutdown is confirmed.
+
 ### Added
 
 - Per-sticky-note one-shot alarms with a calendar, digital 12-hour AM/PM selector, persistent due and acknowledgement state, and a slow color-matched outline pulse. Click the note header to dismiss; the clock button can reschedule or remove an alarm.
