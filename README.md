@@ -156,3 +156,5 @@ Desktop Memory's [hardware qualification guide](docs/desktop-memory-hardware.md)
 For transparent sticky notes, click the plain header to enter temporary opaque editing for five seconds. Click the text area during that time to keep editing until you click outside the note or click its header again. Dragging the header still moves the note. The saved transparency is unchanged.
 
 Browser session restoration is in development. The [Phase 8A correlation probe](docs/desktop-memory-browser-qualification.md) is a separate developer diagnostic for Chrome and Edge; it does not collect URLs or modify snapshots.
+
+The [BranchWatch Companion development extension](docs/desktop-memory-browser-companion.md) adds a local Chrome/Edge connection check. Tab capture is not enabled yet.
