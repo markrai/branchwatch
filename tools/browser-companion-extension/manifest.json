@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "BranchWatch Companion",
-  "version": "0.3.0",
-  "description": "Explicit local capture and reopening of browser tabs for BranchWatch Desktop Memory.",
+  "version": "0.4.0",
+  "description": "Explicit local capture and duplicate-aware reopening of browser tabs for BranchWatch Desktop Memory.",
   "permissions": [
     "nativeMessaging",
     "storage"

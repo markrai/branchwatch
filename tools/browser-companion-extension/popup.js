@@ -69,6 +69,9 @@ const restoreOutput = document.getElementById("restoreStatus");
 function restoreMessage(result) {
     switch (result?.status) {
         case "opened": return "Opened " + result.count + " tabs in a new browser window. Native placement is not verified.";
+        case "already-present": return "All " + result.count + " saved tabs already match this window, including order, pinned and active state. Nothing opened.";
+        case "overlap": return "Saved URLs already occur in " + result.windows + " window(s) in this profile. No new window opened. Inspect existing tabs; their desktop membership is not verified.";
+        case "inventory-unverified": return "Could not verify a stable profile inventory. No new window opened. Inspect existing tabs and check the BranchWatch request status.";
         case "partial": return "A window may have been created, but tab verification or configuration failed. Inspect it before retrying.";
         case "uncertain": case "in-progress": return "Result uncertain or still in progress. Inspect the browser before retrying.";
         case "busy": return "Another restore is running.";
@@ -100,7 +103,7 @@ restoreButton.addEventListener("click", async () => {
             || reply.profileId !== profile.profileId || reply.nonce !== nonce || !validRestoreTabs(reply.tabs))
             throw new Error("Restore approval rejected or window changed.");
         document.getElementById("restoreTicket").value = "";
-        restoreOutput.textContent = "Approved. Opening a new browser window...";
+        restoreOutput.textContent = "Approved. Checking existing browser sessions...";
         const result = await chrome.runtime.sendMessage({ command: "reopenApproved", reply, nonce, sourceWindowId: source.id });
         restoreOutput.textContent = restoreMessage(result);
     } catch {
