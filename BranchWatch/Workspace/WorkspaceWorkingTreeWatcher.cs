@@ -65,6 +65,7 @@ internal sealed class WorkspaceWorkingTreeWatcher : IDisposable
 
     private FileSystemWatcher? TryCreateWatcher(string repositoryRoot)
     {
+        FileSystemWatcher? watcher = null;
         try
         {
             if (!Directory.Exists(repositoryRoot))
@@ -72,7 +73,7 @@ internal sealed class WorkspaceWorkingTreeWatcher : IDisposable
                 return null;
             }
 
-            var watcher = new FileSystemWatcher(repositoryRoot)
+            watcher = new FileSystemWatcher(repositoryRoot)
             {
                 NotifyFilter = NotifyFilters.FileName
                     | NotifyFilters.DirectoryName
@@ -80,8 +81,7 @@ internal sealed class WorkspaceWorkingTreeWatcher : IDisposable
                     | NotifyFilters.Size
                     | NotifyFilters.CreationTime,
                 IncludeSubdirectories = true,
-                InternalBufferSize = 64 * 1024,
-                EnableRaisingEvents = true
+                InternalBufferSize = 64 * 1024
             };
 
             watcher.Changed += OnWatchedPathChanged;
@@ -89,10 +89,12 @@ internal sealed class WorkspaceWorkingTreeWatcher : IDisposable
             watcher.Deleted += OnWatchedPathChanged;
             watcher.Renamed += OnWatchedPathRenamed;
             watcher.Error += OnWatcherError;
+            watcher.EnableRaisingEvents = true;
             return watcher;
         }
         catch
         {
+            watcher?.Dispose();
             return null;
         }
     }
