@@ -4,6 +4,10 @@
 
 ### Added
 
+- Desktop Memory placement preview with physical monitor matching, proportional adaptation, spanning-window checks and explicit missing-monitor fallback. No windows are moved or launched yet.
+
+### Added
+
 - Desktop Memory manual capture, local snapshot storage and inspection for the active virtual desktop. Restoration is not enabled yet.
 
 ### Added
