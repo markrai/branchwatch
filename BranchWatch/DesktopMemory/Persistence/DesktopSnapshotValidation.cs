@@ -30,7 +30,8 @@ internal static class DesktopSnapshotValidation
                 || !DesktopSnapshotCapture.Valid(window.ScreenBounds) || !DesktopSnapshotCapture.Valid(window.NormalPlacementBounds)
                 || string.IsNullOrWhiteSpace(window.MonitorSource) || !sources.Contains(window.MonitorSource)
                 || window.IntersectingMonitors is null || window.IntersectingMonitors.Any(m => !sources.Contains(m))
-                || window.EnumerationIndex < 0)
+                || window.EnumerationIndex < 0
+                || (window.FolderContext is not null && !ApplicationRestoreAdapters.IsValidContext(window, window.FolderContext)))
                 throw new InvalidDataException("Invalid snapshot window.");
         }
 

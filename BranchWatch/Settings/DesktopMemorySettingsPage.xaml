@@ -60,12 +60,22 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+                <StackPanel x:Name="FolderEditor" Visibility="Collapsed" Margin="0,14,0,0">
+                    <TextBlock Text="Application folders" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                    <TextBlock Text="Optional: associate a local folder with a captured Explorer, Cursor, VS Code or Windows Terminal window. This is your chosen reopen location, not an inferred running process command line." Foreground="#617083" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                    <ComboBox x:Name="FolderWindowPicker" DisplayMemberPath="Label" SelectedValuePath="Id" MinHeight="32" SelectionChanged="OnFolderWindowSelected" AutomationProperties.Name="Window to configure"/>
+                    <TextBlock x:Name="FolderContextText" Foreground="#617083" TextWrapping="Wrap" Margin="0,6,0,6"/>
+                    <WrapPanel>
+                        <Button x:Name="ChooseFolderButton" Content="Choose folder..." Click="OnChooseFolder" Margin="0,0,8,6"/>
+                        <Button x:Name="ClearFolderButton" Content="Clear folder" Click="OnClearFolder" Margin="0,0,0,6"/>
+                    </WrapPanel>
+                </StackPanel>
                 <TextBlock x:Name="WarningsText" Foreground="#8C5918" TextWrapping="Wrap" Margin="0,12,0,0"/>
                 <WrapPanel Margin="0,16,0,0">
                     <Button x:Name="SaveButton" Content="Save snapshot" Style="{DynamicResource PrimaryButton}" Click="OnSave" Margin="0,0,8,6"/>
                     <Button x:Name="DiscardButton" Content="Discard capture" Click="OnDiscard" Margin="0,0,8,6"/>
                 </WrapPanel>
-                <TextBlock Text="Restore matching normal windows. Optionally launch eligible missing applications without arguments." Foreground="#617083" Margin="0,8,0,0"/>
+                <TextBlock Text="Restore matching normal windows. Optional folder adapters can reopen a chosen project or directory." Foreground="#617083" Margin="0,8,0,0"/>
             </StackPanel>
         </Border>
         <Border x:Name="PlanCard" Visibility="Collapsed" Style="{DynamicResource SettingsCard}">
@@ -112,7 +122,7 @@
                 </ItemsControl>
                 <TextBlock x:Name="PlanWarnings" Foreground="#8C5918" TextWrapping="Wrap" Margin="0,12,0,0"/>
                 <CheckBox x:Name="LaunchMissingCheck" Content="Launch eligible missing applications" Margin="0,14,0,0"
-                          ToolTip="Launch a single missing normal window per absent executable. No arguments or application state are restored."/>
+                          ToolTip="Launch an eligible missing window, optionally with a saved folder. Brokered folder openings are not automatically positioned."/>
                 <TextBlock Text="Off by default. Applications may open their own startup windows or activate themselves." Foreground="#617083" TextWrapping="Wrap" Margin="0,4,0,0"/>
                 <WrapPanel Margin="0,14,0,0">
                     <Button x:Name="RestoreButton" Content="Restore desktop..." Style="{DynamicResource PrimaryButton}" Click="OnRestore" Margin="0,0,8,6"/>

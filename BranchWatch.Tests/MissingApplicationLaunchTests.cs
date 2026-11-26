@@ -170,6 +170,62 @@ public sealed class MissingApplicationLaunchTests
         Assert.AreEqual(0, env.LaunchCount);
     }
 
+
+    [TestMethod]
+    public void AdapterLaunch_UsesApprovedFolderSpecAndDirectProcessCorrelation()
+    {
+        var saved = Saved("Project A", @"C:\Apps\Code.exe") with
+        {
+            ClassName = "Chrome_WidgetWin_1",
+            FolderContext = new ApplicationFolderContext(ApplicationFolderKind.VisualStudioCode, @"C:\Projects\Project A")
+        };
+        var env = new FakeEnvironment(Inventory());
+        var service = new MissingApplicationLaunchService(env, env);
+        var plan = service.Prepare(Prepare(env, saved), default);
+        Assert.AreEqual(ExistingRestoreStatus.LaunchReady, plan.Items.Single().Status);
+        env.AfterLaunch = () => env.Current = Inventory(Live(saved, 10, ProcessIdentity.ProcessId, ProcessIdentity.CreatedFileTime));
+        var result = service.Execute(plan, MissingResults(plan), default);
+        Assert.AreEqual(ExistingRestoreStatus.LaunchedAndRestored, result.Single().Status);
+        CollectionAssert.AreEqual(new[] { "--new-window", @"C:\Projects\Project A" }, env.LastSpec!.Arguments.ToArray());
+        Assert.HasCount(1, env.Applied);
+    }
+
+    [TestMethod]
+    public void AdapterLaunch_BrokeredFolderRequestNeverClaimsPlacementAndStopsFurtherLaunches()
+    {
+        var saved = Saved("Folder", @"C:\Windows\explorer.exe") with
+        {
+            ClassName = "CabinetWClass",
+            FolderContext = new ApplicationFolderContext(ApplicationFolderKind.Explorer, @"C:\Projects\One")
+        };
+        var later = Saved("Other", @"C:\Apps\Other.exe", 1);
+        var env = new FakeEnvironment(Inventory());
+        var service = new MissingApplicationLaunchService(env, env);
+        var plan = service.Prepare(Prepare(env, saved, later), default);
+        var result = service.Execute(plan, MissingResults(plan), default);
+        Assert.AreEqual(ExistingRestoreStatus.LaunchUnverified, result[0].Status);
+        Assert.AreEqual(ExistingRestoreStatus.NotAttempted, result[1].Status);
+        Assert.AreEqual(1, env.OpenCount);
+        Assert.AreEqual(0, env.LaunchCount);
+        Assert.HasCount(0, env.Applied);
+    }
+
+    [TestMethod]
+    public void AdapterLaunch_BlockedFolderNeverFallsBackToGenericLaunch()
+    {
+        var saved = Saved("Project A", @"C:\Apps\Code.exe") with
+        {
+            ClassName = "Chrome_WidgetWin_1",
+            FolderContext = new ApplicationFolderContext(ApplicationFolderKind.VisualStudioCode, @"C:\Projects\Missing")
+        };
+        var env = new FakeEnvironment(Inventory()) { BlockReason = "Saved folder unavailable." };
+        var service = new MissingApplicationLaunchService(env, env);
+        var plan = service.Prepare(Prepare(env, saved), default);
+        var result = service.Execute(plan, MissingResults(plan), default);
+        Assert.AreEqual(ExistingRestoreStatus.LaunchBlocked, result.Single().Status);
+        Assert.AreEqual(0, env.LaunchCount);
+    }
+
     private static SnapshotWindow Saved(string title, string path = @"C:\Apps\Editor.exe", int index = 0) =>
         new(Guid.NewGuid(), "Editor", path, title, "EditorWindow", Bounds, null, Bounds,
             false, false, 1, 0, "main", 96, index, ["main"]);
@@ -201,10 +257,24 @@ public sealed class MissingApplicationLaunchTests
         internal ExistingRestoreInventory Current { get; set; } = inventory;
         internal List<ExistingRestoreItem> Applied { get; } = [];
         internal int LaunchCount { get; private set; }
+        internal int OpenCount { get; private set; }
+        internal ApplicationLaunchSpec? LastSpec { get; private set; }
         internal string? BlockReason { get; set; }
         internal Action? AfterLaunch { get; set; }
         public ExistingRestoreInventory Inspect() => Current;
         public string? CheckLaunchBlock(string path) => BlockReason;
+        public string? CheckLaunchBlock(ApplicationLaunchSpec spec) => BlockReason;
+        public LaunchedProcessIdentity Launch(ApplicationLaunchSpec spec, Guid desktopId, CurrentDisplayTopology topology, CancellationToken cancellation)
+        {
+            LastSpec = spec;
+            return Launch(spec.ExecutablePath, desktopId, topology, cancellation);
+        }
+        public void OpenFolder(ApplicationLaunchSpec spec, Guid desktopId, CurrentDisplayTopology topology, CancellationToken cancellation)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            LastSpec = spec;
+            OpenCount++;
+        }
 
         public LaunchedProcessIdentity Launch(string path, Guid desktopId, CurrentDisplayTopology topology, CancellationToken cancellation)
         {

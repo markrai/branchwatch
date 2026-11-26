@@ -18,6 +18,8 @@ internal sealed class MissingApplicationLaunchService(IExistingWindowRestoreEnvi
         {
             cancellation.ThrowIfCancellationRequested();
             var path = item.Key?.ExecutablePath;
+            var saved = existing.Snapshot.Windows.Single(w => w.Id == item.WindowId);
+            var spec = path is null ? null : ApplicationRestoreAdapters.Build(saved);
             string? reason;
             if (path is null) reason = "No saved executable identity.";
             else if (existing.Snapshot.Windows.Count(w => Paths.Equals(w.ExecutablePath, path)) != 1)
@@ -26,10 +28,12 @@ internal sealed class MissingApplicationLaunchService(IExistingWindowRestoreEnvi
                 reason = "Running window inventory changed. Refresh the restore preview.";
             else if (HasApplicationWindow(inventory, path))
                 reason = "An application window with this executable is already present, including on another desktop.";
-            else reason = launcher.CheckLaunchBlock(path);
+            else reason = launcher.CheckLaunchBlock(spec!);
 
             items.Add(new(item, path, reason is null ? ExistingRestoreStatus.LaunchReady : ExistingRestoreStatus.LaunchBlocked,
-                reason ?? "Launch executable without arguments; reposition only a uniquely correlated exact window."));
+                reason ?? (spec!.OpenOnly ? "Request folder opening only; no automatic placement for a brokered application." : spec.Context is null
+                    ? "Launch executable without arguments; reposition only a uniquely correlated exact window."
+                    : "Open the selected project folder; reposition only a uniquely correlated exact window.")) { Spec = spec });
         }
         return new(existing, items);
     }
@@ -72,7 +76,8 @@ internal sealed class MissingApplicationLaunchService(IExistingWindowRestoreEnvi
                         "Application or matching window appeared after approval. No launch requested.");
                     continue;
                 }
-                if (launcher.CheckLaunchBlock(path) is { } reason)
+                var spec = candidate.Spec ?? new ApplicationLaunchSpec(path, null, [], false);
+                if (launcher.CheckLaunchBlock(spec) is { } reason)
                 {
                     results[item.WindowId] = Outcome(ExistingRestoreStatus.LaunchBlocked, reason);
                     continue;
@@ -80,7 +85,15 @@ internal sealed class MissingApplicationLaunchService(IExistingWindowRestoreEnvi
 
                 cancellation.ThrowIfCancellationRequested();
                 attempted = true;
-                var process = launcher.Launch(path, existing.Snapshot.DesktopId, existing.Plan.Current, cancellation);
+                if (spec.OpenOnly)
+                {
+                    launcher.OpenFolder(spec, existing.Snapshot.DesktopId, existing.Plan.Current, cancellation);
+                    results[item.WindowId] = Outcome(ExistingRestoreStatus.LaunchUnverified,
+                        "Folder opening requested. Brokered window identity and placement are not verified; no automatic move was attempted.");
+                    stopped = true;
+                    continue;
+                }
+                var process = launcher.Launch(spec, existing.Snapshot.DesktopId, existing.Plan.Current, cancellation);
                 var priorHandles = before.Windows.Select(w => w.Window.Handle).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 RestoreWindowToken? observed = null;
                 ExistingRestoreItem? correlated = null;

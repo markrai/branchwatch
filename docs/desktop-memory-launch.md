@@ -12,7 +12,7 @@ Generic launch is deliberately limited:
 - Poll at most 40 times, with a 250 ms wait between observations. Inventory time adds to the nominal ten-second window. Cancellation stops future requests but does not kill a process or undo an issued placement.
 - A start without a verified window is reported as LaunchUnverified and remaining launches stop. A successful launch alone is not a successful restore. Application-driven foreground activation is possible. No application is killed, no unrelated window is deliberately moved, and no snapshot is rewritten.
 
-Generic launching does not restore projects, browser tabs, document contents, terminal working directories or arbitrary application state. Apps whose default window title differs from the saved title may start but remain unpositioned. Phase 5 will add application-specific adapters.
+Generic launching does not restore projects, browser tabs, document contents, terminal working directories or arbitrary application state. Apps whose default window title differs from the saved title may start but remain unpositioned. Phase 5 adds [application folder adapters](desktop-memory-adapters.md).
 
 ## Manual qualification
 

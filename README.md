@@ -146,3 +146,5 @@ HKCU\Software\Microsoft\Windows\CurrentVersion\Run\BranchWatch
 ## Desktop Memory (capture preview)
 
 Open Settings → Desktop Memory, select the active virtual desktop, and choose Capture layout. Review the monitor and window inventory before saving. One snapshot per desktop is stored locally; replacing or deleting a saved snapshot requires confirmation. Preview restoration and restore uniquely matched, already-running normal windows on the active saved desktop. Optionally launch eligible absent applications without arguments. See [generic application launching](docs/desktop-memory-launch.md). See [existing-window restoration](docs/desktop-memory-restore.md). No screenshots or process command lines are collected. See [Desktop Memory capture](docs/desktop-memory-capture.md) for limits and privacy details.
+
+Desktop Memory optionally accepts [application folder assignments](docs/desktop-memory-adapters.md) for Cursor, VS Code, Explorer and Windows Terminal when reviewing a new capture. Brokered folder openings are not counted as restored windows.
