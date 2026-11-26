@@ -17,6 +17,12 @@
                 <TextBlock x:Name="StatusText" Foreground="#617083" TextWrapping="Wrap" Margin="0,6,0,0" AutomationProperties.LiveSetting="Polite"/>
             </StackPanel>
         </Border>
+        <Border x:Name="EmptyCard" Style="{DynamicResource SettingsCard}">
+            <StackPanel>
+                <TextBlock Text="No saved snapshot" Style="{DynamicResource CardTitle}"/>
+                <TextBlock Text="Capture your current layout to see a preview here. Nothing is saved until you confirm." Foreground="#617083" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
         <Border x:Name="SnapshotCard" Style="{DynamicResource SettingsCard}">
             <StackPanel>
                 <TextBlock x:Name="SnapshotHeading" Style="{DynamicResource CardTitle}"/>
@@ -26,6 +32,7 @@
                         <Canvas x:Name="MonitorCanvas" Width="420" Height="210" ClipToBounds="True" Background="Transparent"/>
                     </Viewbox>
                 </Border>
+                <TextBlock Text="Schematic preview · numbers correspond to the monitor list" Foreground="#617083" FontSize="11" Margin="0,0,0,12"/>
                 <TextBlock Text="Monitors" FontWeight="SemiBold" Margin="0,0,0,8"/>
                 <ItemsControl x:Name="MonitorRows">
                     <ItemsControl.ItemTemplate>

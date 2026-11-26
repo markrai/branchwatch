@@ -1,7 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Shapes;
 using WpfCanvas = System.Windows.Controls.Canvas;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
 using WpfRectangle = System.Windows.Shapes.Rectangle;
@@ -179,9 +178,10 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             : "Switch to the selected desktop before taking a capture.";
         DeleteButton.IsEnabled = !_busy && _storageAvailable && SelectedSaved is not null;
         SaveButton.Visibility = DiscardButton.Visibility = draft is null ? Visibility.Collapsed : Visibility.Visible;
-        SaveButton.IsEnabled = !_busy && _storageAvailable && draft?.Windows.Count > 0;
+        SaveButton.IsEnabled = !_busy && _storageAvailable && draft is { Windows.Count: > 0 };
         DiscardButton.IsEnabled = !_busy;
         SnapshotCard.Visibility = snapshot is null ? Visibility.Collapsed : Visibility.Visible;
+        EmptyCard.Visibility = snapshot is null ? Visibility.Visible : Visibility.Collapsed;
         MonitorCanvas.Children.Clear();
         if (snapshot is null)
         {

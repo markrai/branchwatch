@@ -1,5 +1,3 @@
-using System.IO;
-
 namespace BranchWatch;
 
 internal static class DesktopSnapshotCapture
@@ -15,7 +13,7 @@ internal static class DesktopSnapshotCapture
             || report.DesktopsAfter?.ActiveDesktopHint != desktopId)
             throw new InvalidOperationException("Capture requires the selected desktop to be active and a stable per-monitor DPI display configuration.");
 
-        var desktop = report.DesktopsAfter.Desktops.SingleOrDefault(d => d.Id == desktopId)
+        var desktop = report.DesktopsAfter!.Desktops.SingleOrDefault(d => d.Id == desktopId)
             ?? throw new InvalidOperationException("The selected desktop no longer exists.");
         var monitors = report.MonitorsBefore.Select(m => new SnapshotMonitor(m.SourceName, m.Bounds, m.WorkArea,
             m.Primary, m.RotationDegrees, m.ModeWidth, m.ModeHeight, m.RefreshHz, m.ScalePercent, m.Devices.ToArray())).ToArray();
@@ -44,7 +42,7 @@ internal static class DesktopSnapshotCapture
 
             var intersecting = monitors.Where(m => Intersects(bounds, m.Bounds)).Select(m => m.SourceName).ToArray();
             windows.Add(new SnapshotWindow(Guid.NewGuid(), window.ProcessName, window.ExecutablePath, window.Title,
-                window.ClassName, bounds, window.VisibleFrameBounds, normal, window.Minimized, window.Maximized,
+                window.ClassName, bounds, window.VisibleFrameBounds is { } frame && Valid(frame) ? frame : null, normal, window.Minimized, window.Maximized,
                 show, window.PlacementFlags, source, window.WindowDpi, window.EnumerationIndex, intersecting));
         }
 
