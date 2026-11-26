@@ -28,6 +28,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private bool _busy;
     private bool _stopped;
     private bool _storageAvailable;
+    private DesktopSnapshotStorageState? _storageState;
     private CurrentDisplayTopology? _previewTopology;
     private Guid? _previewDesktop;
     private DateTimeOffset? _previewCapture;
@@ -111,13 +112,38 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         {
             _saved = _store.Load();
             _storageAvailable = true;
+            try { _storageState = _store.GetStorageState(); }
+            catch (Exception) { _storageState = null; }
         }
         catch (Exception ex)
         {
             _saved = [];
             _storageAvailable = false;
+            _storageState = null;
             StatusText.Text = $"Snapshot storage could not be read. No changes will be made. {ex.Message}";
         }
+    }
+
+    private void OnProtectSnapshots(object sender, RoutedEventArgs e)
+    {
+        if (_busy || !_storageAvailable || _draft is not null || _storageState != DesktopSnapshotStorageState.Legacy) return;
+        if (!Confirm("Protect existing snapshots and their recovery backup using your Windows account? Older BranchWatch versions cannot read the protected format. Keep your Windows account recovery credentials available.", "Protect snapshots")) return;
+        CancelBrowserCapture();
+        CancelBrowserRestore();
+        ClearPreview();
+        try
+        {
+            _store.ProtectLegacyFiles();
+            Reload();
+            if (_storageAvailable && _storageState == DesktopSnapshotStorageState.Protected)
+                StatusText.Text = "Snapshots and recovery backup are protected for your Windows user.";
+        }
+        catch (Exception ex)
+        {
+            Reload();
+            StatusText.Text = $"Snapshot protection incomplete: {ex.GetType().Name}. Refresh and retry after resolving the storage issue.";
+        }
+        RefreshDesktops();
     }
 
     private void OnDesktopSelected(object sender, SelectionChangedEventArgs e)
@@ -241,7 +267,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             ClearPreview();
             _draft = null;
             Reload();
-            if (_storageAvailable) StatusText.Text = "Snapshot saved locally.";
+            if (_storageAvailable) StatusText.Text = "Snapshot saved with Windows user protection.";
         }
         catch (Exception ex) { StatusText.Text = $"Snapshot was not saved: {ex.Message}"; }
         RefreshDesktops();
@@ -283,6 +309,15 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         var draft = _draft?.DesktopId == SelectedId ? _draft : null;
         var snapshot = draft ?? SelectedSaved;
         DesktopPicker.IsEnabled = !_busy;
+        SnapshotProtectionText.Text = _storageState switch
+        {
+            DesktopSnapshotStorageState.Empty => "New snapshots will be protected for your Windows user.",
+            DesktopSnapshotStorageState.Protected => "Saved snapshot files are protected for your Windows user.",
+            DesktopSnapshotStorageState.Legacy => "Legacy plaintext snapshot or backup detected. Protect existing files now, or migrate on the next save or delete.",
+            _ => "Snapshot protection status unavailable. Check storage before making changes."
+        };
+        ProtectSnapshotsButton.Visibility = _storageState == DesktopSnapshotStorageState.Legacy ? Visibility.Visible : Visibility.Collapsed;
+        ProtectSnapshotsButton.IsEnabled = !_busy && _storageAvailable && _draft is null;
         CaptureButton.IsEnabled = !_busy && _storageAvailable && SelectedId.HasValue && SelectedId == _active;
         CaptureHint.Text = _active is null ? "Windows could not verify the active desktop. Capture is unavailable."
             : SelectedId == _active ? "Arrange your applications before taking a capture."
