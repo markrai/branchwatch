@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Reject inconsistent browser capture inventories and recheck restored tab identity, URL and privacy state before reporting success. Prevent updates to observed pre-existing tab identities and concurrent capture/restore popup actions.
+
 ### Added
 
 - Firefox correlation qualification transcripts, unique diagnostic labels and independent before/after probe evidence verification. No live Firefox operations are enabled.

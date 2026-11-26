@@ -11,7 +11,8 @@ const tabs = [
     { url: "https://example.com/a", pinned: false, active: true },
     { url: "https://example.com/b", pinned: false, active: false }
 ];
-function fixture({ focused = true, permission = true, moved = false, mismatch = false, failure = false, inventory, secondInventory, inventoryFailure = false, sourceChanged = false } = {}) {
+function fixture({ focused = true, permission = true, moved = false, mismatch = false, failure = false, inventory, secondInventory, inventoryFailure = false, sourceChanged = false, reusedWindow = false, reusedTab = false,
+    changedBeforeUpdate = false, changedAfterUpdate = false, privateAfterUpdate = false, pendingAfterUpdate = false } = {}) {
     const calls = [];
     let live = [];
     const source = { id: 1, focused, incognito: false, type: "normal", state: "normal" };
@@ -29,19 +30,23 @@ function fixture({ focused = true, permission = true, moved = false, mismatch = 
                 calls.push(["create", options]);
                 if (failure) throw new Error("uncertain creation");
                 live = options.url.map((url, index) => ({
-                    id: index + 20, windowId: 2, incognito: false, index, url: mismatch && index === 0 ? "https://example.org/" : url, pinned: false, active: index === 0
+                    id: reusedTab && index === 0 ? 10 : index + 20, windowId: 2, incognito: false, index, url: mismatch && index === 0 ? "https://example.org/" : url, pinned: false, active: index === 0
                 }));
-                return { id: 2, incognito: false };
+                return { id: reusedWindow ? 1 : 2, incognito: false };
             }
         },
         permissions: { contains: async () => permission },
         tabs: {
             query: async ({ windowId }) => live.filter(t => t.windowId === windowId).map(t => ({ ...t })),
-            get: async id => ({ ...live.find(t => t.id === id), ...(moved ? { windowId: 3 } : {}) }),
+            get: async id => ({ ...live.find(t => t.id === id), ...(moved ? { windowId: 3 } : {}),
+                ...(changedBeforeUpdate ? { url: "https://example.org/" } : {}) }),
             update: async (id, properties) => {
                 calls.push(["update", id, properties]);
                 if (properties.active) live.forEach(t => t.active = t.id === id);
                 Object.assign(live.find(t => t.id === id), properties);
+                if (properties.active && changedAfterUpdate) live[0].url = "https://example.org/";
+                if (properties.active && privateAfterUpdate) live[0].incognito = true;
+                if (properties.active && pendingAfterUpdate) live[0].pendingUrl = "https://example.org/";
             }
         }
     } };
@@ -166,4 +171,23 @@ test("canonical URL equality detects normalized host and default port", async ()
     const { api, calls } = fixture({ inventory: [existingWindow(1, live)] });
     assert.equal((await reopenSavedTabs(api, 1, tabs)).status, "already-present");
     assert.equal(calls.length, 0);
+});
+
+test("rejects reused pre-existing browser identities and changed URL before mutating a tab", async () => {
+    for (const options of [{ reusedWindow: true }, { reusedTab: true }, { changedBeforeUpdate: true }]) {
+        const { api, calls } = fixture(options);
+        assert.equal((await reopenSavedTabs(api, 1, tabs)).status, "partial");
+        assert.equal(calls.length, 1);
+    }
+});
+test("final observation must still match URL, pending navigation and privacy state", async () => {
+    for (const options of [{ changedAfterUpdate: true }, { privateAfterUpdate: true }, { pendingAfterUpdate: true }]) {
+        const { api, calls } = fixture(options);
+        assert.equal((await reopenSavedTabs(api, 1, tabs)).status, "partial");
+        assert.equal(calls.filter(c => c[0] === "create").length, 1);
+    }
+});
+test("rejects raw control characters that browsers might normalize", () => {
+    for (const code of [0, 1, 31, 127, 159])
+        assert.equal(validRestoreTabs([{ ...tabs[0], url: "https://example.com/" + String.fromCharCode(code) }]), false);
 });

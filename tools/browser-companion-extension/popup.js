@@ -19,20 +19,33 @@ button.addEventListener("click", async () => {
 const captureButton = document.getElementById("capture");
 const captureOutput = document.getElementById("captureStatus");
 function eligibleWindow(w) {
-    return w.incognito === false && w.type === "normal" && w.state === "normal" && w.focused && Number.isSafeInteger(w.id);
+    return w.incognito === false && w.type === "normal" && w.state === "normal" && w.focused && Number.isSafeInteger(w.id) && w.id >= 0;
 }
 function tabsFor(tabs, windowId) {
-    return tabs.filter(t => t.windowId === windowId && t.incognito === false).sort((a,b) => a.index - b.index);
+    if (!Array.isArray(tabs) || tabs.length < 1 || tabs.length > 4096 || tabs.some(t => !t))
+        throw new Error("Browser tab inventory unavailable.");
+    const ordered = [...tabs].sort((a,b) => a.index - b.index);
+    const ids = new Set();
+    for (const [index, tab] of ordered.entries()) {
+        if (tab.windowId !== windowId || tab.incognito !== false || tab.index !== index
+            || !Number.isSafeInteger(tab.id) || tab.id < 0 || ids.has(tab.id)
+            || typeof tab.pinned !== "boolean" || typeof tab.active !== "boolean"
+            || typeof tab.url !== "string" || !tab.url)
+            throw new Error("Browser tab inventory is incomplete or inconsistent.");
+        ids.add(tab.id);
+    }
+    if (ordered.filter(t => t.active).length !== 1) throw new Error("Browser active tab is unverified.");
+    return ordered;
 }
 function serializableTabs(tabs) {
-    return tabs.filter(t => !t.pendingUrl && typeof t.url === "string" && t.url.length <= 2048 && !/\s/.test(t.url)
-        && (() => { try { const u = new URL(t.url); return ["http:", "https:"].includes(u.protocol) && !u.username && !u.password; } catch { return false; } })())
-        .map(t => ({ url: t.url, pinned: t.pinned === true, active: t.active === true }));
+    return tabs.filter(t => !t.pendingUrl && validBrowserUrl(t.url))
+        .map(t => ({ url: t.url, pinned: t.pinned, active: t.active }));
 }
 captureButton.addEventListener("click", async () => {
     const ticket = document.getElementById("ticket").value.trim();
     if (!/^[0-9a-f]{32}$/.test(ticket)) { captureOutput.textContent = "Enter the capture code from BranchWatch."; return; }
     captureButton.disabled = true;
+    restoreButton.disabled = true;
     captureOutput.textContent = "Collecting tabs...";
     try {
         if (!await chrome.permissions.request({ permissions: ["tabs"] })) throw new Error("Tab permission was not granted.");
@@ -60,6 +73,7 @@ captureButton.addEventListener("click", async () => {
         captureOutput.textContent = String(error.message ?? error);
     } finally {
         captureButton.disabled = false;
+        restoreButton.disabled = false;
     }
 });
 
