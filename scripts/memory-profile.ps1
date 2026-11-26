@@ -221,7 +221,7 @@ if (-not $IsWindows) { throw 'Sampling BranchWatch requires PowerShell 7 on Wind
 if ([string]::IsNullOrWhiteSpace($Scenario) -or [string]::IsNullOrWhiteSpace($Workload)) {
     throw 'Specify -Scenario and -Workload (non-sensitive workload identifier).'
 }
-$processes = if ($ProcessId -gt 0) { @(Get-Process -Id $ProcessId) } else { @(Get-Process -Name BranchWatch) }
+$processes = @(if ($ProcessId -gt 0) { Get-Process -Id $ProcessId } else { Get-Process -Name BranchWatch })
 try {
     if ($processes.Count -ne 1 -or $processes[0].ProcessName -ine 'BranchWatch') {
         throw 'Select exactly one running BranchWatch process using -ProcessId.'
