@@ -82,5 +82,47 @@
     "name": "WPF UI and existing features",
     "check": "stable",
     "required": "Check keyboard navigation, narrow Settings, mixed scaling, selection controls, cancellation/close, progress, Git watcher, desktop overlay and sticky notes."
+  },
+  {
+    "id": "chrome-companion",
+    "name": "Chrome profile capture and reopening",
+    "check": "stable",
+    "required": "Complete Chrome native parent correlation and Companion capture/reopen guides with two identical-position windows, two profiles, two desktops, mixed DPI, duplicate URLs, pinned/active metadata, wrong code/profile/window/desktop, selection, expiry and replay. Verify no unrelated window or tab changes and record actual browser version and evidence paths."
+  },
+  {
+    "id": "edge-companion",
+    "name": "Edge profile capture and reopening",
+    "check": "stable",
+    "required": "Repeat the Chromium correlation and Companion capture/reopen checks in Edge, including different profiles, desktops, identical bounds, permission denial, host mismatch, stale code, tab review and protected persistence."
+  },
+  {
+    "id": "browser-reconciliation",
+    "name": "Browser duplicate and uncertain outcomes",
+    "check": "stable",
+    "required": "In Chrome and Edge exercise native browser session restore, exact match, partial overlap, another desktop, pending/redirected URL, changed inventory and changed source focus. Confirm no duplicate creation on overlap or unverified inventory and no existing-tab modifications or blind retries. Document partial or uncertain outcomes."
+  },
+  {
+    "id": "protected-migration",
+    "name": "Protected snapshot migration and recovery",
+    "check": "stable",
+    "required": "In a disposable Windows account only, test legacy primary and backup, read-only load, explicit migration, mixed legacy/protected pair retry, save/delete, same-user restart, and manual recovery from protected backup. Verify schema 2 envelopes contain no readable snapshot fields and preserve expected generations. Never use irreplaceable data."
+  },
+  {
+    "id": "protected-account-isolation",
+    "name": "Protected snapshot account isolation",
+    "check": "stable",
+    "required": "Using only disposable Windows accounts, copy a synthetic protected primary/backup to the second account's test data folder. Verify read, migration and overwrite fail and copied hashes remain unchanged. Return to the original account, verify same-user read and before/after probes. Do not transfer DPAPI keys or use real snapshots."
+  },
+  {
+    "id": "firefox-disabled",
+    "name": "Firefox diagnostic-only boundary",
+    "check": "stable",
+    "required": "With Firefox Companion 0.2.1, verify hello and diagnostic challenge remain diagnostic-only, Firefox URL capture/restore actions cannot be armed, and no new tab permissions or snapshot changes occur. Record qualification results separately using the Firefox physical guide; this case is not authorization for live Firefox."
+  },
+  {
+    "id": "companion-lifecycle",
+    "name": "Companion installation and upgrade lifecycle",
+    "check": "stable",
+    "required": "Use disposable profiles. Check current extension/host setup, restart, unregister/re-register, missing host, invalid extension ID, denied optional tabs permission, and no unrelated registry changes. Verify updated Companion 0.4.1 is loaded in each Chrome/Edge test profile. Inspect logs for absence of raw URL payloads."
   }
 ]

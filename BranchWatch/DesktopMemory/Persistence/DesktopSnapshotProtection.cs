@@ -31,7 +31,9 @@ internal sealed class DesktopSnapshotProtection(IDesktopSnapshotProtector protec
 
     internal DecodedDesktopSnapshotFile Decode(byte[] bytes)
     {
-        using var doc = JsonDocument.Parse(bytes);
+        ReadOnlyMemory<byte> json = bytes;
+        if (bytes.AsSpan().StartsWith(new byte[] { 0xEF, 0xBB, 0xBF })) json = json[3..];
+        using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         if (root.ValueKind != JsonValueKind.Object) throw new InvalidDataException("Invalid desktop snapshot file.");
         var names = root.EnumerateObject().Select(p => p.Name).ToArray();
@@ -41,7 +43,7 @@ internal sealed class DesktopSnapshotProtection(IDesktopSnapshotProtector protec
         if (schema == LegacyVersion)
         {
             RequireFields(names, ["SchemaVersion", "Snapshots"]);
-            return new(ParseInner(bytes), false);
+            return new(ParseInner(json.Span), false);
         }
         if (schema != ProtectedVersion) throw new InvalidDataException("Unsupported desktop snapshot format.");
         RequireFields(names, ["SchemaVersion", "Protection", "Payload"]);
@@ -72,7 +74,7 @@ internal sealed class DesktopSnapshotProtection(IDesktopSnapshotProtector protec
         finally { CryptographicOperations.ZeroMemory(plaintext); }
     }
 
-    private static IReadOnlyList<DesktopSnapshot> ParseInner(byte[] data)
+    private static IReadOnlyList<DesktopSnapshot> ParseInner(ReadOnlySpan<byte> data)
     {
         var file = JsonSerializer.Deserialize<DesktopSnapshotFile>(data)
             ?? throw new InvalidDataException("Empty desktop snapshot file.");

@@ -27,3 +27,5 @@ Companion 0.4.1 includes these changes. Reload it in all profiles used for testi
 ## Validation plan
 
 Run the full Windows CI and the existing Chromium and Firefox physical matrices. Include changed navigation during reopening, a reused or ambiguous native identity, denied permission, two overlapping popup operations, expired approvals, wrong profile and backup privacy checks. Use disposable data and record actual observations. Never infer a physical pass from CI. Phase 8H.1 is a source-level hardening slice; final qualification remains open.
+
+Phase 8H.3 consolidates the outstanding physical and recovery checks into the [release qualification procedure](desktop-memory-release-qualification.md). No passing physical run is recorded by CI, and no unsupported feature is enabled.
