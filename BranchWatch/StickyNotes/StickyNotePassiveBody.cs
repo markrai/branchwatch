@@ -43,7 +43,7 @@ internal sealed class StickyNotePassiveBody : IStickyNotePassiveBody
             Padding = new Thickness(8, 7, 8, 7),
             Background = System.Windows.Media.Brushes.Transparent,
             BorderThickness = new Thickness(0),
-            Foreground = BrushFor("#29251F"),
+            Foreground = StickyNoteRenderingResources.BrushFor("#29251F"),
             FontFamily = new System.Windows.Media.FontFamily("Segoe UI"),
             FontSize = 16,
             TextWrapping = TextWrapping.Wrap,
@@ -53,10 +53,7 @@ internal sealed class StickyNotePassiveBody : IStickyNotePassiveBody
             VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled
         };
-        _text.Resources = new ResourceDictionary
-        {
-            Source = new Uri("pack://application:,,,/BranchWatch;component/StickyNotes/StickyNoteScrollBar.xaml")
-        };
+        StickyNoteRenderingResources.ApplyScrollBarStyle(_text);
         _surface = new WpfBorder { Child = _text };
         _root = new System.Windows.Controls.Grid { ClipToBounds = true };
         _root.Children.Add(_surface);
@@ -108,7 +105,7 @@ internal sealed class StickyNotePassiveBody : IStickyNotePassiveBody
         if (_color != note.Color)
         {
             _color = note.Color;
-            _surface.Background = BrushFor(StickyNoteAppearance.ResolveColor(note.Color).Body);
+            _surface.Background = StickyNoteRenderingResources.BrushFor(StickyNoteAppearance.ResolveColor(note.Color).Body);
         }
 
         if (_level != note.TransparencyLevel)
@@ -237,9 +234,6 @@ internal sealed class StickyNotePassiveBody : IStickyNotePassiveBody
         _alarmPulse.Update(false, "");
         _window.Close();
     }
-
-    private static SolidColorBrush BrushFor(string value) =>
-        new((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(value)!);
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetWindow(IntPtr handle, uint command);
