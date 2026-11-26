@@ -97,32 +97,21 @@ public sealed class StickyNoteLifecycleTests
 
     private static void WithController(Action<StickyNotesController, StickyNoteStore, TestDesktopManager> action)
     {
-        var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
-        Exception? failure = null;
-        var thread = new Thread(() =>
+        StaTest.WithTemporaryDirectory(directory =>
         {
-            try
-            {
-                var desktop = new TestDesktopManager();
-                var path = Path.Combine(directory, "notes.json");
-                var store = new StickyNoteStore(path);
-                store.Save([
-                    new StickyNote { DesktopId = desktop.Id, CustomTitle = "Original", Text = "Original body",
-                        TransparencyLevel = 1, AlarmDueUtc = DateTimeOffset.UtcNow.AddDays(1) },
-                    new StickyNote { DesktopId = desktop.Id, IsOpen = false, Text = "Closed note" }
-                ]);
-                using var monitor = new VirtualDesktopMonitor();
-                using var controller = new StickyNotesController(monitor, path, native: desktop);
-                controller.Start();
-                action(controller, store, desktop);
-            }
-            catch (Exception ex) { failure = ex; }
+            var desktop = new TestDesktopManager();
+            var path = Path.Combine(directory, "notes.json");
+            var store = new StickyNoteStore(path);
+            store.Save([
+                new StickyNote { DesktopId = desktop.Id, CustomTitle = "Original", Text = "Original body",
+                    TransparencyLevel = 1, AlarmDueUtc = DateTimeOffset.UtcNow.AddDays(1) },
+                new StickyNote { DesktopId = desktop.Id, IsOpen = false, Text = "Closed note" }
+            ]);
+            using var monitor = new VirtualDesktopMonitor();
+            using var controller = new StickyNotesController(monitor, path, native: desktop);
+            controller.Start();
+            action(controller, store, desktop);
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
-        try { if (failure is not null) throw failure; }
-        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
     }
 
     private sealed class TestDesktopManager : IStickyNoteDesktopManager
