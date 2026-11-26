@@ -21,7 +21,7 @@ internal sealed record ProbeDesktopMembership(Guid? DesktopId, int DesktopHResul
 internal sealed record ProbeWindow(
     string Handle, uint ProcessId, string? ProcessName, string? ExecutablePath, string? Title,
     string? ClassName, bool Visible, bool Owned, bool ToolWindow, bool AppWindow,
-    bool Minimized, bool Maximized, uint? CloakFlags, int CloakHResult,
+    bool Minimized, bool Maximized, uint? CloakFlags, int CloakHResult, int? StyleError,
     ProbeRect? ScreenBounds, int? BoundsError, ProbeRect? VisibleFrameBounds, int FrameHResult,
     ProbeRect? NormalPlacementBounds, int? PlacementError, uint? ShowCommand, uint? PlacementFlags,
     string? MonitorSource, uint? WindowDpi, ProbeDesktopMembership Membership, string Classification,
@@ -38,11 +38,12 @@ internal sealed record DesktopMemoryProbeReport(
 internal static class ProbePolicy
 {
     internal static string Classify(bool visible, bool owned, bool toolWindow, bool appWindow,
-        bool shell, bool ownApplication, ProbeDesktopMembership membership, uint? cloakFlags)
+        bool shell, bool ownApplication, ProbeDesktopMembership membership, uint? cloakFlags, int? styleError = null)
     {
         if (ownApplication) return "branchwatch";
         if (shell) return "shell";
         if (!visible) return "hidden";
+        if (styleError.HasValue) return "style-unverified";
         if ((owned || toolWindow) && !appWindow) return "auxiliary";
         if (membership.DesktopId is not { } id || id == Guid.Empty || membership.DesktopHResult < 0
             || membership.CurrentHResult < 0 || membership.IsCurrent is null)
@@ -60,8 +61,8 @@ internal static class ProbePolicy
         var a = first.OrderBy(m => m.SourceName, StringComparer.OrdinalIgnoreCase).ToArray();
         var b = second.OrderBy(m => m.SourceName, StringComparer.OrdinalIgnoreCase).ToArray();
         return a.Zip(b).All(pair =>
-            pair.First with { Devices = Array.Empty<ProbeDisplayDevice>() }
-                == pair.Second with { Devices = Array.Empty<ProbeDisplayDevice>() }
+            (pair.First with { Devices = Array.Empty<ProbeDisplayDevice>() })
+                == (pair.Second with { Devices = Array.Empty<ProbeDisplayDevice>() })
             && pair.First.Devices.OrderBy(d => d.InterfacePath, StringComparer.OrdinalIgnoreCase)
                 .SequenceEqual(pair.Second.Devices.OrderBy(d => d.InterfacePath, StringComparer.OrdinalIgnoreCase)));
     }

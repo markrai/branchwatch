@@ -72,15 +72,15 @@ internal static class ProbeNative
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool EnumDisplayMonitors(IntPtr dc, IntPtr clip, MonitorCallback callback, IntPtr data);
 
-    [DllImport("user32.dll", EntryPoint = "GetMonitorInfoW", SetLastError = true)]
+    [DllImport("user32.dll", EntryPoint = "GetMonitorInfoW", ExactSpelling = true, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
 
-    [DllImport("user32.dll", EntryPoint = "EnumDisplayDevicesW", CharSet = CharSet.Unicode)]
+    [DllImport("user32.dll", EntryPoint = "EnumDisplayDevicesW", ExactSpelling = true, CharSet = CharSet.Unicode)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool EnumDisplayDevices(string device, uint index, ref DisplayDevice info, uint flags);
 
-    [DllImport("user32.dll", EntryPoint = "EnumDisplaySettingsExW", CharSet = CharSet.Unicode)]
+    [DllImport("user32.dll", EntryPoint = "EnumDisplaySettingsExW", ExactSpelling = true, CharSet = CharSet.Unicode)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool EnumDisplaySettingsEx(string device, int mode, ref DisplayMode info, uint flags);
 
@@ -112,16 +112,16 @@ internal static class ProbeNative
     [DllImport("user32.dll")]
     internal static extern IntPtr GetWindow(IntPtr window, uint command);
 
-    [DllImport("user32.dll", EntryPoint = "GetWindowLongW", SetLastError = true)]
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW", ExactSpelling = true, SetLastError = true)]
     internal static extern int GetWindowLong(IntPtr window, int index);
 
     [DllImport("user32.dll")]
     internal static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
 
-    [DllImport("user32.dll", EntryPoint = "GetClassNameW", CharSet = CharSet.Unicode)]
+    [DllImport("user32.dll", EntryPoint = "GetClassNameW", ExactSpelling = true, CharSet = CharSet.Unicode)]
     internal static extern int GetClassName(IntPtr window, StringBuilder name, int capacity);
 
-    [DllImport("user32.dll", EntryPoint = "GetWindowTextW", CharSet = CharSet.Unicode)]
+    [DllImport("user32.dll", EntryPoint = "GetWindowTextW", ExactSpelling = true, CharSet = CharSet.Unicode)]
     internal static extern int GetWindowText(IntPtr window, StringBuilder title, int capacity);
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -147,7 +147,7 @@ internal static class ProbeNative
     [DllImport("kernel32.dll", SetLastError = true)]
     internal static extern IntPtr OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inherit, uint process);
 
-    [DllImport("kernel32.dll", EntryPoint = "QueryFullProcessImageNameW", CharSet = CharSet.Unicode, SetLastError = true)]
+    [DllImport("kernel32.dll", EntryPoint = "QueryFullProcessImageNameW", ExactSpelling = true, CharSet = CharSet.Unicode, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool QueryFullProcessImageName(IntPtr process, uint flags, StringBuilder name, ref uint size);
 

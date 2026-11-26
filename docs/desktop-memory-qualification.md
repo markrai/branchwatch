@@ -14,7 +14,7 @@ $p.ExitCode
 explorer "$env:APPDATA\BranchWatch\desktop-memory"
 ```
 
-Exit 0 means a report was written, 1 means capture/write failed, and 2 means invalid arguments. Every successful run creates a unique desktop-memory-probe-*.json file. A successful exit is not a hardware qualification pass.
+Exit 0 means a report was written, 1 means capture/write failed, and 2 means invalid arguments. A failed capture attempts to write a separate .error.json file containing the exception type and HRESULT only; storage failures may prevent even that diagnostic. Every successful run creates a unique desktop-memory-probe-*.json file. A successful exit is not a hardware qualification pass.
 
 By default, window titles, executable paths and desktop names are omitted. To include them locally for distinguishing similar windows, pass '--desktop-memory-probe','--include-identities' to Start-Process. Reports still contain process names, monitor interface paths, desktop GUIDs, window class names, geometry and transient identifiers. Treat all reports as private, inspect and redact before sharing, and never commit them. The ignore rules are a secondary safeguard, not encryption.
 
@@ -31,7 +31,7 @@ Repeat after rearranging monitors, changing one display's orientation or scaling
 - ScreenBounds are GetWindowRect results under a requested per-monitor-v2 DPI context; VisibleFrameBounds are DWM extended frame bounds. NormalPlacementBounds are raw WINDOWPLACEMENT coordinates, which may be workspace-relative. Do not directly pass them to a screen-coordinate positioning API.
 - MonitorSource is the nearest monitor reported by Windows (for minimized windows, Windows uses the pre-minimize rectangle); it does not describe every monitor intersected by a spanning window. WindowDpi is the window's reported DPI and not necessarily the physical monitor's effective DPI.
 - Windows contains visible top-level HWNDs, including shell-cloaked windows when Windows exposes them. EnumerationIndex is the observed enumeration order, not a promise of restorable z-order. Candidate is a preliminary diagnostic category, not an authorization to move or launch a window. Hidden windows and some app-hosted or pinned windows may not be identifiable.
-- DesktopHResult and CurrentHResult preserve raw COM outcomes; CloakHResult, FrameHResult, BoundsError and PlacementError preserve other native outcomes. Negative HRESULT means failure. A missing or contradictory desktop identity is not a reason to guess.
+- DesktopHResult and CurrentHResult preserve raw COM outcomes; CloakHResult, FrameHResult, BoundsError, PlacementError and StyleError preserve other native outcomes. Negative HRESULT means failure. A missing or contradictory desktop identity is not a reason to guess.
 - TopologyStable and DesktopHintStable compare the start and end observations. They cannot detect a transient switch away and back. Keep displays and desktops stationary during a run.
 
 ## Qualification gate

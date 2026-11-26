@@ -21,6 +21,7 @@ internal static class DesktopMemoryProbeCommand
         }
 
         string? temporary = null;
+        string? failurePath = null;
         try
         {
             var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -28,6 +29,7 @@ internal static class DesktopMemoryProbeCommand
             Directory.CreateDirectory(directory);
             var file = Path.Combine(directory, $"desktop-memory-probe-{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.json");
             temporary = file + ".tmp";
+            failurePath = file + ".error.json";
             var report = DesktopMemoryProbe.Capture(includeIdentities);
             using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
@@ -41,8 +43,21 @@ internal static class DesktopMemoryProbeCommand
         catch (Exception ex)
         {
             exitCode = 1;
-            System.Windows.MessageBox.Show($"Desktop Memory qualification failed: {ex.Message}",
-                "BranchWatch", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            Console.Error.WriteLine($"Desktop Memory qualification failed (HRESULT 0x{ex.HResult:X8}).");
+            if (failurePath is not null)
+            {
+                try
+                {
+                    File.WriteAllText(failurePath, JsonSerializer.Serialize(new
+                    {
+                        FailedUtc = DateTimeOffset.UtcNow,
+                        ExceptionType = ex.GetType().FullName,
+                        ex.HResult
+                    }));
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
         }
         finally
         {

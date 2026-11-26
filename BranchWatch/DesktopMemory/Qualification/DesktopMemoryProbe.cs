@@ -23,12 +23,15 @@ internal static class DesktopMemoryProbe
             var windows = ReadWindows(includeIdentities, monitors, warnings);
             var afterMonitors = ReadMonitors(includeIdentities, warnings);
             var after = ReadDesktops(includeIdentities);
-            var stableTopology = monitors.Count > 0 && ProbePolicy.SameTopology(monitors, afterMonitors);
+            var stableTopology = monitors.Count > 0 && ProbePolicy.SameTopology(monitors, afterMonitors)
+                && !warnings.Any(w => w.StartsWith("GetMonitorInfo failed", StringComparison.Ordinal));
             var stableDesktop = before is not null && after is not null
                 && before.ActiveDesktopHint == after.ActiveDesktopHint
                 && before.Desktops.SequenceEqual(after.Desktops);
             if (!stableTopology) warnings.Add("Monitor topology was unavailable or changed during capture.");
             if (!stableDesktop) warnings.Add("Desktop registry hints were unavailable or changed during capture.");
+            if (windows.Any(w => w.Classification == "style-unverified"))
+                warnings.Add("One or more windows have unreadable extended styles.");
             if (windows.Any(w => w.Classification == "desktop-unverified"))
                 warnings.Add("One or more candidate windows have unverified desktop membership; inspect native HRESULTs.");
             if (monitors.Any(m => m.Devices.Count(d => (d.Flags & 1) != 0 && !string.IsNullOrWhiteSpace(d.InterfacePath)) != 1))
@@ -123,6 +126,8 @@ internal static class DesktopMemoryProbe
             var own = pid == (uint)Environment.ProcessId || string.Equals(identity.Name, "BranchWatch", StringComparison.OrdinalIgnoreCase);
             var isShell = window == shell || className is "Shell_TrayWnd" or "Shell_SecondaryTrayWnd" or "Progman" or "WorkerW";
             var style = GetWindowLong(window, -20);
+            var styleLastError = Marshal.GetLastPInvokeError();
+            int? styleError = style == 0 && styleLastError != 0 ? styleLastError : null;
             var owned = GetWindow(window, 4) != IntPtr.Zero;
             var tool = (style & 0x80) != 0;
             var app = (style & 0x40000) != 0;
@@ -147,7 +152,7 @@ internal static class DesktopMemoryProbe
             }
 
             uint? cloakFlags = cloakResult >= 0 ? cloak : null;
-            var classification = ProbePolicy.Classify(visible, owned, tool, app, isShell, own, membership, cloakFlags);
+            var classification = ProbePolicy.Classify(visible, owned, tool, app, isShell, own, membership, cloakFlags, styleError);
             if (GetWindowThreadProcessId(window, out var currentPid) == 0 || currentPid != pid)
             {
                 warnings.Add("A window changed identity during enumeration.");
@@ -156,7 +161,7 @@ internal static class DesktopMemoryProbe
 
             result.Add(new ProbeWindow($"0x{window.ToInt64():X}", pid, identity.Name,
                 includeIdentities && !own && !isShell ? identity.Path : null, title, className,
-                visible, owned, tool, app, IsIconic(window), IsZoomed(window), cloakFlags, cloakResult,
+                visible, owned, tool, app, IsIconic(window), IsZoomed(window), cloakFlags, cloakResult, styleError,
                 boundsOk ? bounds.ToModel() : null, boundsError,
                 frameResult >= 0 ? frame.ToModel() : null, frameResult,
                 placementOk ? placement.NormalPosition.ToModel() : null, placementError,

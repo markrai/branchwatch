@@ -19,6 +19,7 @@ public sealed class DesktopMemoryProbeTests
         Assert.AreEqual("shell", ProbePolicy.Classify(true, false, false, false, true, false, Membership(), 0));
         Assert.AreEqual("desktop-unverified", ProbePolicy.Classify(true, false, false, false, false, false,
             new ProbeDesktopMembership(null, unchecked((int)0x80004005), null, -1), 0));
+        Assert.AreEqual("style-unverified", ProbePolicy.Classify(true, false, false, false, false, false, Membership(), 0, 5));
         Assert.AreEqual("cloak-unverified", ProbePolicy.Classify(true, false, false, false, false, false, Membership(), null));
         Assert.AreEqual("application-or-inherited-cloak", ProbePolicy.Classify(true, false, false, false, false, false, Membership(), 4));
     }
