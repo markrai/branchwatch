@@ -354,11 +354,16 @@ public sealed class StickyNoteWindowTests
             try
             {
                 Assert.AreEqual(future.LocalDateTime.Date, dialog.AlarmCalendar.SelectedDate);
-                Assert.HasCount(24, dialog.HourPicker.Items);
+                Assert.HasCount(12, dialog.HourPicker.Items);
+                Assert.HasCount(2, dialog.PeriodPicker.Items);
                 Assert.HasCount(60, dialog.MinutePicker.Items);
-                Assert.AreEqual(future.LocalDateTime.Hour, dialog.HourPicker.SelectedIndex);
+                Assert.AreEqual((future.LocalDateTime.Hour + 11) % 12, dialog.HourPicker.SelectedIndex);
+                Assert.AreEqual(future.LocalDateTime.Hour >= 12 ? "PM" : "AM", dialog.PeriodPicker.SelectedItem);
                 Assert.AreEqual(future.LocalDateTime.Minute, dialog.MinutePicker.SelectedIndex);
-                Assert.AreEqual("00", dialog.HourPicker.Items[0]);
+                Assert.AreEqual("01", dialog.HourPicker.Items[0]);
+                Assert.AreEqual("12", dialog.HourPicker.Items[11]);
+                Assert.AreEqual("AM", dialog.PeriodPicker.Items[0]);
+                Assert.AreEqual("PM", dialog.PeriodPicker.Items[1]);
                 Assert.AreEqual("59", dialog.MinutePicker.Items[59]);
                 Assert.AreEqual(Visibility.Visible, dialog.RemoveButton.Visibility);
             }

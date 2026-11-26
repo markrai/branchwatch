@@ -17,9 +17,12 @@ public partial class StickyNoteAlarmDialog : Window
         AlarmCalendar.DisplayDateStart = now.Date;
         AlarmCalendar.DisplayDate = initial.Date;
         AlarmCalendar.SelectedDate = initial.Date;
-        HourPicker.ItemsSource = Enumerable.Range(0, 24).Select(i => i.ToString("00", CultureInfo.InvariantCulture)).ToArray();
+        HourPicker.ItemsSource = Enumerable.Range(1, 12).Select(i => i.ToString("00", CultureInfo.InvariantCulture)).ToArray();
         MinutePicker.ItemsSource = Enumerable.Range(0, 60).Select(i => i.ToString("00", CultureInfo.InvariantCulture)).ToArray();
-        HourPicker.SelectedIndex = initial.Hour;
+        PeriodPicker.ItemsSource = new[] { "AM", "PM" };
+        var clock = StickyNoteAlarmTime.ToTwelveHour(initial.Hour);
+        HourPicker.SelectedIndex = clock.Hour - 1;
+        PeriodPicker.SelectedIndex = clock.IsPm ? 1 : 0;
         MinutePicker.SelectedIndex = initial.Minute;
         RemoveButton.Visibility = existing.HasValue ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -31,8 +34,8 @@ public partial class StickyNoteAlarmDialog : Window
             ValidationText.Text = "Choose a date.";
             return;
         }
-        if (!StickyNoteAlarmTime.TryResolve(date, HourPicker.SelectedIndex, MinutePicker.SelectedIndex,
-            TimeZoneInfo.Local, DateTimeOffset.UtcNow, out var due, out var error))
+        if (!StickyNoteAlarmTime.TryResolveTwelveHour(date, HourPicker.SelectedIndex + 1, MinutePicker.SelectedIndex,
+            PeriodPicker.SelectedItem as string, TimeZoneInfo.Local, DateTimeOffset.UtcNow, out var due, out var error))
         {
             ValidationText.Text = error;
             return;

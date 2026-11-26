@@ -711,7 +711,7 @@ public partial class StickyNoteWindow : Window
         var ringing = _note.IsAlarmRinging;
         AlarmDot.Visibility = _note.AlarmDueUtc.HasValue ? Visibility.Visible : Visibility.Collapsed;
         var label = ringing ? "Alarm due · click header to dismiss"
-            : _note.AlarmDueUtc is { } due ? $"Alarm set · {due.ToLocalTime():g}" : "Set alarm";
+            : _note.AlarmDueUtc is { } due ? $"Alarm set · {StickyNoteAlarmTime.FormatLocal(due)}" : "Set alarm";
         AlarmButton.ToolTip = label;
         System.Windows.Automation.AutomationProperties.SetName(AlarmButton, label);
         var passive = IsBodyClickThrough && WantsClickThrough;

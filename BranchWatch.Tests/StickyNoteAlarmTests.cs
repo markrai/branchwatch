@@ -90,6 +90,27 @@ public sealed class StickyNoteAlarmTests
     }
 
     [TestMethod]
+    public void TwelveHour_ConvertsAllHoursAndPreservesNoonAndMidnight()
+    {
+        var date = new DateTime(2026, 11, 27);
+        for (var hour = 0; hour < 24; hour++)
+        {
+            var (display, isPm) = StickyNoteAlarmTime.ToTwelveHour(hour);
+            Assert.IsTrue(display is >= 1 and <= 12);
+            Assert.IsTrue(StickyNoteAlarmTime.TryResolveTwelveHour(date, display, 30, isPm ? "PM" : "AM",
+                TimeZoneInfo.Utc, Now, out var due, out _));
+            Assert.AreEqual(new DateTimeOffset(date.AddHours(hour).AddMinutes(30), TimeSpan.Zero), due);
+        }
+
+        Assert.AreEqual((12, false), StickyNoteAlarmTime.ToTwelveHour(0));
+        Assert.AreEqual((12, true), StickyNoteAlarmTime.ToTwelveHour(12));
+        Assert.IsFalse(StickyNoteAlarmTime.TryResolveTwelveHour(date, 0, 0, "AM", TimeZoneInfo.Utc, Now, out _, out _));
+        Assert.IsFalse(StickyNoteAlarmTime.TryResolveTwelveHour(date, 13, 0, "PM", TimeZoneInfo.Utc, Now, out _, out _));
+        Assert.IsFalse(StickyNoteAlarmTime.TryResolveTwelveHour(date, 12, 0, null, TimeZoneInfo.Utc, Now, out _, out _));
+        Assert.IsFalse(StickyNoteAlarmTime.TryResolveTwelveHour(date, 12, 0, "invalid", TimeZoneInfo.Utc, Now, out _, out _));
+    }
+
+    [TestMethod]
     public void LocalTime_RejectsNonexistentAndAmbiguousDaylightSavingTimes()
     {
         var zone = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
