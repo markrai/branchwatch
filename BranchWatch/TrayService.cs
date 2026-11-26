@@ -21,6 +21,7 @@ public sealed class TrayService : IDisposable
     private readonly Forms.Form _dialogOwner;
     private readonly TrayMenu _menu;
     private readonly SettingsWindowHost _settingsHost;
+    private readonly UiRefreshCoordinator _repositoryRefresh;
     private bool _disposed;
 
     public TrayService(
@@ -55,6 +56,8 @@ public sealed class TrayService : IDisposable
             ContextMenuStrip = _menu.Menu
         };
 
+        var dispatcher = System.Windows.Application.Current.Dispatcher;
+        _repositoryRefresh = new(action => dispatcher.BeginInvoke(action), RenderOverlayState);
         _stickyNotes.Error += OnStickyNotesError;
         _notifyIcon.DoubleClick += (_, _) => ToggleOverlay();
         _sessionController.StateChanged += OnSessionStateChanged;
@@ -124,6 +127,7 @@ public sealed class TrayService : IDisposable
         }
 
         _disposed = true;
+        _repositoryRefresh.Dispose();
         _stickyNotes.Error -= OnStickyNotesError;
         _settingsHost.Dispose();
         _sessionController.StateChanged -= OnSessionStateChanged;
@@ -308,17 +312,13 @@ public sealed class TrayService : IDisposable
         System.Windows.Application.Current.Shutdown();
     }
 
-    private void OnRepositoryStatusChanged(object? sender, RepositoryStatus status)
-    {
-        System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(ApplyOverlayState));
-    }
+    private void OnRepositoryStatusChanged(object? sender, RepositoryStatus status) => _repositoryRefresh.Request();
 
-    private void OnSessionStateChanged(object? sender, EventArgs e)
-    {
-        System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(ApplyOverlayState));
-    }
+    private void OnSessionStateChanged(object? sender, EventArgs e) => _repositoryRefresh.Request();
 
-    private void ApplyOverlayState()
+    private void ApplyOverlayState() => _repositoryRefresh.RefreshNow();
+
+    private void RenderOverlayState()
     {
         if (_disposed) return;
         var status = _repositoryWatcher.CurrentStatus;
