@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- Commit pending sticky-note titles and capture final state before shutdown persistence while preserving open-note restoration. Session-ending notifications flush pending changes without disposing the controller before shutdown is confirmed.
+- Commit pending sticky-note titles and capture final state before shutdown persistence while preserving open-note restoration.
 
 ### Added
 

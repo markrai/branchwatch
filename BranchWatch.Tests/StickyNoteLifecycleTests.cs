@@ -34,7 +34,7 @@ public sealed class StickyNoteLifecycleTests
     }
 
     [TestMethod]
-    public void Flush_CommitsPendingTitleWithoutClosingAndAllowsLaterEdits()
+    public void Dispose_DoesNotRestoreCancelledRenameOrDismissedAlarm()
     {
         WithController((controller, store, desktop) =>
         {
@@ -42,19 +42,17 @@ public sealed class StickyNoteLifecycleTests
             controller.OpenOnCurrentDesktop(note);
             var window = desktop.Window;
             window.BeginRename();
-            window.TitleEditor.Text = "Session ending";
-            Assert.IsTrue(controller.FlushPendingChanges());
-            Assert.IsTrue(controller.IsAvailable);
-            Assert.IsFalse(desktop.Disposed);
-            Assert.IsTrue(window.IsVisible);
-            Assert.AreEqual("Session ending", store.Load().Single(n => n.Id == note.Id).CustomTitle);
-            window.Editor.Text = "Still editing";
-            window.BeginRename();
-            window.TitleEditor.Text = "Later title";
+            window.TitleEditor.Text = "Cancelled title";
+            window.FinishRename(commit: false);
+            window.Editor.Text = "Final body";
+            note.ClearAlarm();
+            controller.AlarmChanged();
             controller.Dispose();
             var saved = store.Load().Single(n => n.Id == note.Id);
-            Assert.AreEqual("Later title", saved.CustomTitle);
-            Assert.AreEqual("Still editing", saved.Text);
+            Assert.AreEqual("Original", saved.CustomTitle);
+            Assert.AreEqual("Final body", saved.Text);
+            Assert.IsNull(saved.AlarmDueUtc);
+            Assert.IsFalse(saved.AlarmTriggered);
             Assert.IsTrue(saved.IsOpen);
         });
     }
@@ -93,7 +91,6 @@ public sealed class StickyNoteLifecycleTests
             controller.Start();
             Assert.IsFalse(controller.IsAvailable);
             Assert.IsTrue(desktop.Disposed);
-            Assert.IsFalse(controller.FlushPendingChanges());
             Assert.AreEqual("Unsaved edit", store.Load().Single(n => n.Id == note.Id).Text);
         });
     }

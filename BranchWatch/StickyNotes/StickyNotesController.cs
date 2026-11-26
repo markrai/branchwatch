@@ -397,13 +397,6 @@ public sealed class StickyNotesController : IDisposable
         }
     }
 
-    internal bool FlushPendingChanges()
-    {
-        if (!IsAvailable) return false;
-        CapturePendingChanges();
-        return Save();
-    }
-
     private void CapturePendingChanges()
     {
         SynchronizeAssignments();
