@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Reject stale Desktop Memory confirmations after page lifecycle or selection changes; consolidate confirmation revalidation and document final maintainability qualification gates.
+
 ### Changed
 
 - Coalesce repository-driven tray refreshes while preserving immediate user-command updates; share STA test execution and temporary-directory cleanup.
