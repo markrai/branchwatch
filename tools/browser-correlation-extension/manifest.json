@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "BranchWatch Browser Correlation Probe",
+  "version": "0.1.0",
+  "description": "Read-only local browser-window correlation qualification. Does not read tabs or URLs.",
+  "permissions": [
+    "nativeMessaging"
+  ],
+  "incognito": "not_allowed",
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

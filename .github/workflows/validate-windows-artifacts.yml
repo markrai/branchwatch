@@ -38,6 +38,9 @@ jobs:
       - name: Build Desktop Memory fixture
         run: dotnet build tools/DesktopMemoryFixture/DesktopMemoryFixture.csproj -c $env:CONFIGURATION
 
+      - name: Build and test browser correlation probe
+        run: dotnet run --project tools/BrowserCorrelationProbe/BrowserCorrelationProbe.csproj -c $env:CONFIGURATION -- --self-test
+
       - name: Test Desktop Memory evidence checks
         run: ./scripts/desktop-memory-qualification.ps1 -Action SelfTest
 
