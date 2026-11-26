@@ -4,6 +4,8 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Input;
+using System.Windows.Threading;
+using System.Diagnostics;
 using WpfContextMenu = System.Windows.Controls.ContextMenu;
 using WpfMenuItem = System.Windows.Controls.MenuItem;
 using WpfSeparator = System.Windows.Controls.Separator;
@@ -28,11 +30,16 @@ public partial class StickyNoteWindow : Window
     private readonly double _expandedMinHeight;
     private double _expandedHeight;
     private bool _changingCollapse;
+    private readonly DispatcherTimer _editTimer;
+    private readonly StickyNoteTemporaryEditing _temporaryEditing = new();
+    private StickyNoteOutsideClickWatcher? _outsideClickWatcher;
 
     internal StickyNoteWindow(StickyNote note, StickyNotesController controller)
     {
         _note = note;
         _controller = controller;
+        _editTimer = new DispatcherTimer(DispatcherPriority.Input, Dispatcher) { Interval = StickyNoteTemporaryEditing.Duration };
+        _editTimer.Tick += (_, _) => ExpireTemporaryEditing();
         InitializeComponent();
         _expandedMinHeight = MinHeight;
 
@@ -50,11 +57,25 @@ public partial class StickyNoteWindow : Window
         };
         LocationChanged += (_, _) => { CaptureBounds(); AlignPassiveBody(); };
         SizeChanged += (_, _) => { CaptureBounds(); AlignPassiveBody(); };
-        StateChanged += (_, _) => RefreshPassiveBody();
-        IsVisibleChanged += (_, _) => RefreshPassiveBody();
+        Editor.PreviewMouseDown += (_, _) => HoldTemporaryEditing();
+        Deactivated += (_, _) =>
+        {
+            if (_temporaryEditing.IsHeld) EndTemporaryEditing();
+        };
+        StateChanged += (_, _) =>
+        {
+            if (WindowState == WindowState.Minimized) EndTemporaryEditing();
+            RefreshPassiveBody();
+        };
+        IsVisibleChanged += (_, _) =>
+        {
+            if (!IsVisible) EndTemporaryEditing();
+            RefreshPassiveBody();
+        };
         Closing += (_, _) =>
         {
             _closing = true;
+            EndTemporaryEditing();
             RemovePassiveBody();
         };
         LayoutUpdated += (_, _) => AlignPassiveBody();
@@ -72,7 +93,7 @@ public partial class StickyNoteWindow : Window
     internal void FocusEditor()
     {
         Activate();
-        if (!_note.IsCollapsed && _note.TransparencyLevel == StickyNoteTransparency.MinLevel)
+        if (!_note.IsCollapsed && !WantsClickThrough)
         {
             Editor.Focus();
         }
@@ -144,6 +165,7 @@ public partial class StickyNoteWindow : Window
         {
             if (collapsed)
             {
+                EndTemporaryEditing();
                 _expandedHeight = Height;
                 _note.Height = _expandedHeight;
                 _shrinkStart = null;
@@ -222,16 +244,78 @@ public partial class StickyNoteWindow : Window
 
     internal void ApplyTransparency(int level)
     {
+        StopTemporaryEditing();
         _note.TransparencyLevel = level;
-        NoteSurface.Opacity = StickyNoteTransparency.OpacityForLevel(_note.TransparencyLevel);
         _passiveBodyFailed = false;
-        UpdateInputPresentation();
-        RefreshPassiveBody();
+        RefreshTransparencyPresentation();
     }
 
     internal bool IsBodyClickThrough => _passiveBody is { IsVisible: true };
 
-    private bool WantsClickThrough => _note.TransparencyLevel > StickyNoteTransparency.MinLevel;
+    private int EffectiveTransparencyLevel => _temporaryEditing.IsActive ? StickyNoteTransparency.MinLevel : _note.TransparencyLevel;
+
+    private bool WantsClickThrough => EffectiveTransparencyLevel > StickyNoteTransparency.MinLevel;
+
+    internal void ToggleTemporaryEditing()
+    {
+        if (_closing || _note.IsCollapsed || _note.TransparencyLevel == StickyNoteTransparency.MinLevel) return;
+        if (_temporaryEditing.IsActive)
+        {
+            EndTemporaryEditing();
+            return;
+        }
+
+        _temporaryEditing.Begin(Stopwatch.GetTimestamp());
+        RefreshTransparencyPresentation();
+        if (_temporaryEditing.IsPreview) _editTimer.Start();
+    }
+
+    internal void HoldTemporaryEditing()
+    {
+        if (!_temporaryEditing.IsPreview) return;
+        if (!_temporaryEditing.TryHold(Stopwatch.GetTimestamp()))
+        {
+            EndTemporaryEditing();
+            return;
+        }
+
+        _editTimer.Stop();
+        if (Handle != IntPtr.Zero)
+        {
+            _outsideClickWatcher = StickyNoteOutsideClickWatcher.TryStart(Handle, Dispatcher, () =>
+            {
+                if (_temporaryEditing.IsHeld) EndTemporaryEditing();
+            });
+        }
+    }
+
+    internal void ExpireTemporaryEditing()
+    {
+        if (_temporaryEditing.IsPreview) EndTemporaryEditing();
+        else _editTimer.Stop();
+    }
+
+    internal void EndTemporaryEditing()
+    {
+        if (!StopTemporaryEditing() || _closing) return;
+        RefreshTransparencyPresentation();
+    }
+
+    private bool StopTemporaryEditing()
+    {
+        _editTimer.Stop();
+        _outsideClickWatcher?.Dispose();
+        _outsideClickWatcher = null;
+        return _temporaryEditing.End();
+    }
+
+    private void RefreshTransparencyPresentation()
+    {
+        NoteSurface.Opacity = StickyNoteTransparency.OpacityForLevel(EffectiveTransparencyLevel);
+        if (!WantsClickThrough) RemovePassiveBody();
+        UpdateInputPresentation();
+        RefreshPassiveBody();
+    }
 
     private void UpdateInputPresentation()
     {
@@ -251,6 +335,14 @@ public partial class StickyNoteWindow : Window
 
     internal void RefreshPassiveBody()
     {
+        if (_desktopVerified && !_closing && _temporaryEditing.IsActive && !_controller.IsNoteOnCurrentDesktop(this))
+        {
+            if (StopTemporaryEditing())
+            {
+                NoteSurface.Opacity = StickyNoteTransparency.OpacityForLevel(EffectiveTransparencyLevel);
+                UpdateInputPresentation();
+            }
+        }
         if (!_desktopVerified || _closing || _changingCollapse || _refreshingPassiveBody)
         {
             return;
@@ -412,9 +504,16 @@ public partial class StickyNoteWindow : Window
 
     private void HeaderMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ButtonState == MouseButtonState.Pressed)
+        if (e.ButtonState != MouseButtonState.Pressed) return;
+        var left = Left;
+        var top = Top;
+        var hasStart = GetCursorPos(out var start);
+        DragMove();
+        if (hasStart && GetCursorPos(out var end) && Left == left && Top == top
+            && Math.Abs((long)end.X - start.X) < SystemParameters.MinimumHorizontalDragDistance * VisualTreeHelper.GetDpi(this).DpiScaleX
+            && Math.Abs((long)end.Y - start.Y) < SystemParameters.MinimumVerticalDragDistance * VisualTreeHelper.GetDpi(this).DpiScaleY)
         {
-            DragMove();
+            ToggleTemporaryEditing();
         }
     }
 
@@ -440,7 +539,7 @@ public partial class StickyNoteWindow : Window
 
         menu.Items.Add(colors);
         var transparency = new WpfMenuItem { Header = $"Transparency ({_note.TransparencyLevel})" };
-        transparency.ToolTip = "Levels 2–10 allow clicks through the body. Choose level 1 to edit.";
+        transparency.ToolTip = "Levels 2–10 allow clicks through the body. Click the note header for temporary editing, or choose level 1 to keep it editable.";
         for (var level = StickyNoteTransparency.MinLevel; level <= StickyNoteTransparency.MaxLevel; level++)
         {
             var selectedLevel = level;

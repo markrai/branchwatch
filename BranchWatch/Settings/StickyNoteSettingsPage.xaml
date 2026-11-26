@@ -65,7 +65,7 @@
                     </Border>
                 </Grid>
             </Border>
-            <TextBlock Text="Levels 2–10 allow clicks through the note body. Use level 1 to edit; the header always remains interactive." TextWrapping="Wrap" Margin="0,0,0,12"/>
+            <TextBlock Text="Levels 2–10 allow clicks through the note body. Click the header to edit temporarily for five seconds; click the text to keep editing until you click away or click the header again. Level 1 is always editable." TextWrapping="Wrap" Margin="0,0,0,12"/>
             <TextBlock Text="Save defaults to affect future notes only. Apply to all notes also replaces existing colors and transparency, including closed notes on other desktops."
                        TextWrapping="Wrap" Margin="0,0,0,12"/>
             <TextBlock x:Name="StatusText" TextWrapping="Wrap" MinHeight="20" Margin="0,0,0,8"
