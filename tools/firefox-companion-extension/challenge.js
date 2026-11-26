@@ -8,7 +8,8 @@ function stableIdentity(reply) {
         || !Number.isSafeInteger(reply.processId) || reply.processId <= 0
         || !Number.isSafeInteger(reply.threadId) || reply.threadId <= 0
         || !/^[1-9][0-9]*$/.test(reply.processCreation ?? "")
-        || !reply.membership?.desktopId || reply.membership.isCurrent !== true
+        || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(reply.membership?.desktopId ?? "")
+        || reply.membership.desktopId === "00000000-0000-0000-0000-000000000000" || reply.membership.isCurrent !== true
         || !Number.isInteger(reply.membership.desktopHResult) || reply.membership.desktopHResult < 0
         || !Number.isInteger(reply.membership.currentHResult) || reply.membership.currentHResult < 0
         || !Number.isSafeInteger(reply.dpi) || reply.dpi <= 0
@@ -20,10 +21,10 @@ async function activeContext(api, expected) {
     const tab = await api.tabs.getCurrent();
     const w = await api.windows.getCurrent();
     const active = await api.tabs.query({ windowId: w.id, active: true });
-    if (!tab || !Number.isSafeInteger(tab.id) || !Number.isSafeInteger(w.id) || w.id < 0
+    if (!tab || !Number.isSafeInteger(tab.id) || tab.id < 0 || !Number.isSafeInteger(w.id) || w.id < 0
         || tab.windowId !== w.id || tab.incognito !== false || w.incognito !== false
         || w.type !== "normal" || w.state !== "normal" || !w.focused
-        || active.length !== 1 || active[0].id !== tab.id || active[0].windowId !== w.id
+        || active.length !== 1 || active[0].id !== tab.id || active[0].windowId !== w.id || active[0].incognito !== false
         || ![w.left,w.top,w.width,w.height].every(Number.isSafeInteger) || w.width <= 0 || w.height <= 0)
         throw new Error("Keep the diagnostic tab active in a focused normal Firefox window.");
     const context = { tabId: tab.id, windowId: w.id, left: w.left, top: w.top, width: w.width, height: w.height };

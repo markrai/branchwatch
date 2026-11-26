@@ -4,6 +4,10 @@
 
 ### Added
 
+- Firefox Companion adds an explicit extension-owned two-marker correlation test, requiring unique native observations, stable window identity and verified marker removal. URL capture and restore remain disabled pending physical qualification.
+
+### Added
+
 - Experimental Firefox Companion connectivity and read-only foreground-window correlation diagnostic with Firefox-specific host registration. Firefox tab capture and restoration remain gated on verified window correlation.
 
 ### Added

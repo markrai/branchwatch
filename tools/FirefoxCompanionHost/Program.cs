@@ -98,6 +98,17 @@ internal static class Program
             json.Replace(FirefoxProtocol.ExtensionId, "other@example.org")));
         const string observation = """{"version":1,"command":"observe","windowId":7,"nonce":"0123456789abcdef0123456789abcdef","left":-500,"top":0,"width":400,"height":300}""";
         var request = FirefoxProtocol.ParseObservation(Encoding.UTF8.GetBytes(observation));
+        var present = observation.Replace("\"observe\"", "\"challenge-present\"");
+        var absent = observation.Replace("\"observe\"", "\"challenge-absent\"");
+        Require(FirefoxProtocol.ParseChallenge(Encoding.UTF8.GetBytes(present), "challenge-present") == request);
+        Require(FirefoxProtocol.ParseChallenge(Encoding.UTF8.GetBytes(absent), "challenge-absent") == request);
+        Reject(() => FirefoxProtocol.ParseChallenge(Encoding.UTF8.GetBytes(present), "challenge-absent"));
+        Reject(() => FirefoxProtocol.ParseChallenge(Encoding.UTF8.GetBytes(present), "restore"));
+        Reject(() => FirefoxProtocol.ParseChallenge(Encoding.UTF8.GetBytes(present.Replace("\"version\":1", "\"version\":1,\"url\":\"https://example.com\"")), "challenge-present"));
+        var marker = FirefoxChallengeObservation.Marker(request.Nonce);
+        Require(FirefoxChallengeObservation.HasMarker(marker + "Firefox", request.Nonce));
+        Require(!FirefoxChallengeObservation.HasMarker("other " + marker, request.Nonce));
+        Require(!FirefoxChallengeObservation.HasMarker(marker.TrimEnd() + "x", request.Nonce));
         Require(request.WindowId == 7 && request.Bounds == new ProbeRect(-500, 0, -100, 300));
         foreach (var invalid in new[]
         {
