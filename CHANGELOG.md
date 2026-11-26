@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Centralize sticky-note editing, rename, alarm acknowledgement and dialog/lifecycle interaction policy in a WPF-independent coordinator.
+
 ### Fixed
 
 - Commit pending sticky-note titles and capture final state before shutdown persistence while preserving open-note restoration.

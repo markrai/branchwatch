@@ -371,6 +371,28 @@ public sealed class StickyNoteWindowTests
         });
     }
 
+    [TestMethod]
+    public void AlarmAcknowledgement_ConsumesHeaderClickWithoutEndingHeldEditing()
+    {
+        WithWindow(new StickyNote { DesktopId = Guid.NewGuid(), TransparencyLevel = 8 }, (window, note) =>
+        {
+            var now = DateTimeOffset.UtcNow;
+            Assert.IsTrue(note.SetAlarm(now.AddMinutes(1), now));
+            window.BeginEditorSession();
+            Assert.IsTrue(note.AdvanceAlarm(now.AddMinutes(1)));
+            window.RefreshAlarmPresentation();
+            window.HandleHeaderClick();
+            Assert.IsNull(note.AlarmDueUtc);
+            Assert.AreEqual(Visibility.Collapsed, window.AlarmOutline.Visibility);
+            Assert.AreEqual(1.0, window.NoteSurface.Opacity);
+            Assert.IsFalse(window.Editor.IsReadOnly);
+            window.HandleHeaderClick();
+            Assert.AreEqual(0.55, window.NoteSurface.Opacity, 0.0001);
+            Assert.IsTrue(window.Editor.IsReadOnly);
+            Assert.AreEqual(8, note.TransparencyLevel);
+        });
+    }
+
     private static void WithWindow(StickyNote note, Action<StickyNoteWindow, StickyNote> action)
     {
         Exception? failure = null;
