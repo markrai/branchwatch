@@ -17,4 +17,4 @@ Only SetWindowPos with no activation, no z-order or owner z-order change, and as
 - Switch desktops during execution or cancel. Confirm no subsequent requests are issued and partial results are visible.
 - Validate mixed DPI and portrait displays, spanning windows, taskbar offsets, and application-enforced minimum sizes. Check that no foreground activation or z-order changes are intentionally requested.
 
-Physical validation is required before broad use. Phase 4 will add launching missing applications; non-normal show-state restoration is deliberately deferred until native placement evidence is available.
+Physical validation is required before broad use. Phase 4 adds [opt-in generic application launching](desktop-memory-launch.md); non-normal show-state restoration is deliberately deferred until native placement evidence is available.
