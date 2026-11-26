@@ -1,17 +1,7 @@
-<Window x:Class="BranchWatch.VirtualDesktopsWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Icon="pack://application:,,,/BranchWatch;component/Assets/BranchWatch.ico"
-        Title="Virtual Desktops"
-        Width="420"
-        MinWidth="320"
-        SizeToContent="Height"
-        ResizeMode="CanMinimize"
-        WindowStartupLocation="CenterScreen">
-    <ScrollViewer x:Name="ContentScrollViewer"
-                  VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled">
-        <Grid Margin="20">
+<UserControl x:Class="BranchWatch.DesktopOverlaySettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        <Grid Margin="0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -110,7 +100,7 @@
                         ValueChanged="OnSizeSliderChanged" />
                 <TextBlock x:Name="SizeLabel"
                            Margin="0,4,0,0"
-                           Foreground="Gray" />
+                           Foreground="#617083" />
             </StackPanel>
 
             <StackPanel Grid.Row="5" Margin="0,0,0,16">
@@ -125,7 +115,7 @@
                         ValueChanged="OnOpacitySliderChanged" />
                 <TextBlock x:Name="OpacityLabel"
                            Margin="0,4,0,0"
-                           Foreground="Gray" />
+                           Foreground="#617083" />
             </StackPanel>
 
             <StackPanel Grid.Row="6" Margin="0,0,0,16">
@@ -140,11 +130,11 @@
                         ValueChanged="OnForegroundOpacitySliderChanged" />
                 <TextBlock x:Name="ForegroundOpacityLabel"
                            Margin="0,4,0,0"
-                           Foreground="Gray" />
+                           Foreground="#617083" />
             </StackPanel>
 
             <StackPanel Grid.Row="7" Orientation="Horizontal" Margin="0,0,0,16">
-                <TextBlock Text="Font color"
+                <TextBlock Text="Default font color"
                            FontWeight="SemiBold"
                            VerticalAlignment="Center"
                            Margin="0,0,12,0" />
@@ -165,11 +155,6 @@
                 </Button>
             </StackPanel>
 
-            <Button Grid.Row="8"
-                    Content="Close"
-                    HorizontalAlignment="Right"
-                    Padding="16,6"
-                    Click="OnCloseClick" />
+            
         </Grid>
-    </ScrollViewer>
-</Window>
+</UserControl>

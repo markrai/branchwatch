@@ -4,22 +4,20 @@ using System.Windows.Media;
 
 namespace BranchWatch;
 
-public partial class StickyNotePreferencesWindow : Window
+public partial class StickyNoteSettingsPage : System.Windows.Controls.UserControl
 {
     private readonly SettingsService _settingsService;
     private readonly AppSettings _settings;
     private readonly StickyNotesController _controller;
     private bool _loading = true;
 
-    internal StickyNotePreferencesWindow(SettingsService settingsService, AppSettings settings, StickyNotesController controller)
+    internal StickyNoteSettingsPage(SettingsService settingsService, AppSettings settings, StickyNotesController controller)
     {
         _settingsService = settingsService;
         _settings = settings;
         _controller = controller;
         InitializeComponent();
 
-        MaxHeight = SystemParameters.WorkArea.Height * 0.95;
-        MaxWidth = SystemParameters.WorkArea.Width * 0.95;
         var appearance = StickyNoteAppearance.FromSettings(settings);
         ColorBox.ItemsSource = StickyNoteAppearance.Palette;
         ColorBox.SelectedValue = appearance.Color;
@@ -90,5 +88,4 @@ public partial class StickyNotePreferencesWindow : Window
             : "Defaults saved. Existing note changes could not be saved yet.";
     }
 
-    private void OnClose(object sender, RoutedEventArgs e) => Close();
 }

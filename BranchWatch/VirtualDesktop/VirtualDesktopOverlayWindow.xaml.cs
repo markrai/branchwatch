@@ -72,7 +72,7 @@ public partial class VirtualDesktopOverlayWindow : Window
 
         RootBorder.BorderThickness = settings.VirtualDesktopOverlayShowOutline ? new Thickness(1) : new Thickness(0);
 
-        var fontColor = OverlaySettings.ParseFontColor(settings.VirtualDesktopOverlayFontColor);
+        var fontColor = VirtualDesktopColors.Resolve(settings, _displayState?.ActiveDesktop.Id);
         var fontOpacity = OverlaySettings.ClampForegroundOpacity(settings.VirtualDesktopOverlayForegroundOpacity);
         var fontAlpha = (byte)Math.Round(fontOpacity * 255);
         DesktopText.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromArgb(fontAlpha, fontColor.R, fontColor.G, fontColor.B));
@@ -376,13 +376,14 @@ public partial class VirtualDesktopOverlayWindow : Window
         for (var i = 0; i < visible.Count; i++)
         {
             var desktop = visible[i];
+            var color = VirtualDesktopColors.Resolve(settings, desktop.Id);
             var label = new TextBlock
             {
                 Text = desktop.DisplayName,
                 FontSize = fontSize,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = new SolidColorBrush(System.Windows.Media.Color.FromArgb(
-                    foregroundAlpha, foreground.Color.R, foreground.Color.G, foreground.Color.B)),
+                    foregroundAlpha, color.R, color.G, color.B)),
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 MaxWidth = maxContentWidth,
                 VerticalAlignment = VerticalAlignment.Center
