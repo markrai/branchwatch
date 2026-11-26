@@ -14,7 +14,7 @@ internal static class MonitorMatcher
         {
             var source = saved[index].SourceName;
             var ids = savedIds[index];
-            if (ids.Length == 0)
+            if (ids.Length == 0 || (ids.Length == 1 && ids[0].Length == 0))
             {
                 result.Add(new(source, null, MonitorMatchKind.IdentityUnavailable));
                 continue;
@@ -30,7 +30,7 @@ internal static class MonitorMatcher
                 .Where(i => currentIds[i].Contains(ids[0], Comparer)).ToArray();
             if (matches.Length == 0)
             {
-                result.Add(new(source, null, currentIds.Any(list => list.Length == 0)
+                result.Add(new(source, null, currentIds.Any(list => list.Length == 0 || list.Contains("", Comparer))
                     ? MonitorMatchKind.IdentityUnavailable : MonitorMatchKind.Missing));
             }
             else if (matches.Length != 1 || currentIds[matches[0]].Length != 1)
@@ -47,6 +47,7 @@ internal static class MonitorMatcher
     }
 
     private static string[] ActiveIdentities(SnapshotMonitor monitor) =>
-        monitor.Devices.Where(d => (d.Flags & 1) != 0 && !string.IsNullOrWhiteSpace(d.InterfacePath))
-            .Select(d => d.InterfacePath!).Distinct(Comparer).ToArray();
+        monitor.Devices.Where(d => (d.Flags & 1) != 0)
+            .Select(d => string.IsNullOrWhiteSpace(d.InterfacePath) ? "" : d.InterfacePath!)
+            .ToArray();
 }

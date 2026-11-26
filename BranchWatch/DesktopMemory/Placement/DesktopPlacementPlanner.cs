@@ -11,6 +11,8 @@ internal static class DesktopPlacementPlanner
     {
         DesktopSnapshotValidation.Validate(snapshot);
         ValidateCurrent(current);
+        if (snapshot.Monitors.Any(m => !Contains(m.Bounds, m.WorkArea)))
+            throw new InvalidDataException("Saved monitor work area is outside its bounds.");
         if (!Enum.IsDefined(unmatched)) throw new ArgumentOutOfRangeException(nameof(unmatched));
 
         var matches = MonitorMatcher.Match(snapshot.Monitors, current.Monitors);
@@ -56,7 +58,7 @@ internal static class DesktopPlacementPlanner
             var visible = window.VisibleFrameBounds is { } frame && DesktopSnapshotCapture.Valid(frame)
                 && Contains(rect, frame) ? frame : rect;
             var touched = snapshot.Monitors.Where(m => DesktopSnapshotCapture.Intersects(visible, m.Bounds)).ToArray();
-            if (!fallback && touched.Length > 1 && TryTranslateSpan(rect, visible, touched, bySource,
+            if (!fallback && touched.Length > 1 && touched.Any(m => Comparer.Equals(m.SourceName, saved.SourceName)) && TryTranslateSpan(rect, visible, touched, bySource,
                     currentBySource, out var span))
             {
                 windows.Add(new(window.Id, target.SourceName, span, state,
@@ -65,7 +67,7 @@ internal static class DesktopPlacementPlanner
                 continue;
             }
 
-            if (!fallback && touched.Length <= 1 && SameGeometry(saved, target)
+            if (!fallback && touched.Length == 1 && Comparer.Equals(touched[0].SourceName, saved.SourceName) && SameGeometry(saved, target)
                 && Translate(rect, (long)target.Bounds.Left - saved.Bounds.Left,
                     (long)target.Bounds.Top - saved.Bounds.Top) is { } translated
                 && Translate(visible, (long)target.Bounds.Left - saved.Bounds.Left,
@@ -83,8 +85,9 @@ internal static class DesktopPlacementPlanner
                 : "Fit proportional position and size to the current monitor work area.";
             windows.Add(new(window.Id, target.SourceName, Adapt(rect, saved.WorkArea, target.WorkArea), state,
                 fallback ? WindowPlacementKind.PrimaryFallback : WindowPlacementKind.Adapted,
-                fallback || touched.Length > 1 || saved.ScalePercent != target.ScalePercent
-                    || saved.RotationDegrees != target.RotationDegrees, reason));
+                fallback || touched.Length != 1 || !Comparer.Equals(touched[0].SourceName, saved.SourceName)
+                    || !saved.ScalePercent.HasValue || saved.ScalePercent != target.ScalePercent
+                    || !saved.RotationDegrees.HasValue || saved.RotationDegrees != target.RotationDegrees, reason));
         }
 
         return new(snapshot.DesktopId, snapshot.CapturedUtc, current, matches, windows.ToArray());
@@ -173,12 +176,16 @@ internal static class DesktopPlacementPlanner
 
     internal static ProbeRect Adapt(ProbeRect window, ProbeRect savedWork, ProbeRect targetWork)
     {
-        var width = Math.Clamp(Round(window.Width / (double)savedWork.Width * targetWork.Width), 1, targetWork.Width);
-        var height = Math.Clamp(Round(window.Height / (double)savedWork.Height * targetWork.Height), 1, targetWork.Height);
-        var x = Math.Clamp((long)targetWork.Left + Round(((long)window.Left - savedWork.Left)
-            / (double)savedWork.Width * targetWork.Width), targetWork.Left, (long)targetWork.Right - width);
-        var y = Math.Clamp((long)targetWork.Top + Round(((long)window.Top - savedWork.Top)
-            / (double)savedWork.Height * targetWork.Height), targetWork.Top, (long)targetWork.Bottom - height);
+        if (!DesktopSnapshotCapture.Valid(window) || !DesktopSnapshotCapture.Valid(savedWork)
+            || !DesktopSnapshotCapture.Valid(targetWork))
+            throw new ArgumentException("Placement requires positive window and work area dimensions.");
+
+        var width = Math.Clamp(Round(Math.Clamp(window.Width / (double)savedWork.Width, 0, 1) * targetWork.Width), 1, targetWork.Width);
+        var height = Math.Clamp(Round(Math.Clamp(window.Height / (double)savedWork.Height, 0, 1) * targetWork.Height), 1, targetWork.Height);
+        var x = Math.Clamp((long)targetWork.Left + Round(Math.Clamp(((long)window.Left - savedWork.Left)
+            / (double)savedWork.Width, 0, 1) * targetWork.Width), targetWork.Left, (long)targetWork.Right - width);
+        var y = Math.Clamp((long)targetWork.Top + Round(Math.Clamp(((long)window.Top - savedWork.Top)
+            / (double)savedWork.Height, 0, 1) * targetWork.Height), targetWork.Top, (long)targetWork.Bottom - height);
         return new ProbeRect((int)x, (int)y, (int)(x + width), (int)(y + height));
     }
 

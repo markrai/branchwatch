@@ -216,7 +216,10 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private void OnPreview(object sender, RoutedEventArgs e)
     {
         if (_busy || !_storageAvailable || SelectedSaved is not { } saved || _draft?.DesktopId == saved.DesktopId) return;
+        var previousPolicy = _previewDesktop == saved.DesktopId && _previewCapture == saved.CapturedUtc
+            ? FallbackPicker.SelectedIndex : 0;
         ClearPreview();
+        FallbackPicker.SelectedIndex = previousPolicy;
         try
         {
             _previewTopology = DesktopMemoryProbe.CaptureDisplays();
@@ -249,6 +252,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         _previewTopology = null;
         _previewDesktop = null;
         _previewCapture = null;
+        FallbackPicker.SelectedIndex = 0;
         PlanCard.Visibility = Visibility.Collapsed;
         PlanCanvas.Children.Clear();
         MatchRows.ItemsSource = null;
