@@ -4,6 +4,10 @@
 
 ### Changed
 
+- Consolidate Git metadata watchers by directory, reuse unchanged subscriptions on refresh, and release partially initialized working-tree watchers on failure.
+
+### Changed
+
 - Suspend sticky-note maintenance when no windows, alarms, restore attempts or unsaved changes require it; reuse the taskbar z-order timer across overlay refreshes.
 
 ### Changed
