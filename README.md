@@ -172,3 +172,5 @@ The [Firefox Companion diagnostic](docs/desktop-memory-firefox-qualification.md)
 Firefox Companion 0.2.0 adds an explicit two-marker correlation diagnostic in an extension-owned test tab; see the [Firefox qualification guide](docs/desktop-memory-firefox-qualification.md).
 
 [Firefox session preparation](docs/desktop-memory-firefox-session-preparation.md) adds offline tab planning and snapshot compatibility. Live Firefox URL operations remain locked.
+
+The [Firefox physical qualification procedure](docs/desktop-memory-firefox-physical.md) includes an independent local evidence verifier. Firefox URL capture and restore remain locked.

@@ -38,7 +38,8 @@ function verifyProbe(report, label, identity) {
     assert(start <= finish, "Probe timestamps reversed");
     assert(guid(report.DesktopsBefore?.ActiveDesktopHint) === identity[4]
         && guid(report.DesktopsAfter?.ActiveDesktopHint) === identity[4], "Independent active desktop mismatch");
-    assert(Array.isArray(report.Windows) && Array.isArray(report.MonitorsAfter) && report.MonitorsAfter.length > 0,
+    assert(Array.isArray(report.Windows) && Array.isArray(report.MonitorsBefore) && report.MonitorsBefore.length > 0
+        && Array.isArray(report.MonitorsAfter) && report.MonitorsAfter.length > 0,
         "Independent window or monitor inventory missing");
     const matches = report.Windows.filter(w => typeof w.Title === "string" && (w.Title === label || w.Title.startsWith(label + " ")));
     assert(matches.length === 1, "Independent label missing or ambiguous");
@@ -68,6 +69,9 @@ function verify(challenge, before, after) {
     assert(Number.isSafeInteger(challenge.browserWindowId) && challenge.browserWindowId >= 0, "Invalid browser window ID");
     const start = utc(challenge.startedUtc), finish = utc(challenge.finishedUtc);
     assert(start <= finish && finish - start <= 120000, "Invalid challenge duration");
+    const geometry = challenge.browserObservation;
+    assert(geometry?.windowId === challenge.browserWindowId && [geometry.left, geometry.top, geometry.width, geometry.height].every(Number.isSafeInteger)
+        && geometry.width > 0 && geometry.height > 0, "Invalid browser geometry");
     const transcript = challenge.transcript;
     assert(Array.isArray(transcript) && transcript.length === 7, "Incomplete challenge transcript");
     const a = transcript[0].nonce, b = transcript[1].nonce;
@@ -97,6 +101,7 @@ function verify(challenge, before, after) {
 function main(args) {
     if (args.length !== 3) throw new Error("Usage: node scripts/firefox-qualification.cjs challenge.json before.probe.json after.probe.json");
     const inputs = args.map(path => {
+        if (!fs.statSync(path).isFile() || fs.statSync(path).size > 16 * 1024 * 1024) throw new Error("Invalid or oversized evidence file");
         const bytes = fs.readFileSync(path);
         if (bytes.length > 16 * 1024 * 1024) throw new Error("Evidence file exceeds limit");
         return { hash: crypto.createHash("sha256").update(bytes).digest("hex"), data: JSON.parse(bytes.toString("utf8").replace(/^\uFEFF/, "")) };
