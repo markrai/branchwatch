@@ -39,6 +39,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private Guid? _resultDesktop;
     private PlanWindowChoice[] _planChoices = [];
     private BrowserCaptureTicket? _browserTicket;
+    private long _browserCaptureRevision;
     private BrowserRestoreApproval? _browserRestore;
     private bool _renderingBrowserPicker;
     private BrowserReviewGroup[] _browserGroups = [];
@@ -205,6 +206,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         var existing = SelectedSaved;
         if (existing is not null && !Confirm("Replace this desktop's saved snapshot with the new capture?", "Replace snapshot")) return;
         if (!ConfirmLegacyMigration()) return;
+        if (_stopped || _busy || SelectedId != draft.DesktopId || !ReferenceEquals(_draft, draft)) return;
         try
         {
             CancelBrowserCapture();
@@ -306,6 +308,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
 
     private void CancelBrowserCapture()
     {
+        _browserCaptureRevision++;
         BrowserCaptureInbox.Shared.Cancel(_browserTicket?.Code);
         _browserTicket = null;
         if (BrowserTicketText is not null) BrowserTicketText.Text = "";
@@ -492,18 +495,20 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             return;
         }
         CancelBrowserCapture();
+        var revision = _browserCaptureRevision;
         _busy = true;
         Render();
         try
         {
             var verified = await DesktopMemorySta.Run(() => _captureService.ReverifyBrowser(draft.DesktopId, ticket));
-            if (_stopped || !IsVisible || !ReferenceEquals(_draft, draft)
-                || VirtualDesktopRegistryReader.TryGetVerifiedDisplayState()?.ActiveDesktop.Id != draft.DesktopId) return;
+            if (_stopped || !IsVisible || revision != _browserCaptureRevision || SelectedId != draft.DesktopId
+                || !ReferenceEquals(_draft, draft) || VirtualDesktopRegistryReader.TryGetVerifiedDisplayState()?.ActiveDesktop.Id != draft.DesktopId) return;
             if (!verified) throw new InvalidOperationException("Browser window could not be reverified.");
             var request = received.Request;
             var context = new BrowserWindowContext(received.Browser, request.ProfileId, request.Tabs);
             if (!Confirm($"Attach {context.Tabs.Count} HTTP(S) tabs to the selected browser window? {request.Omitted} tabs were omitted. URLs may contain private query parameters and will be stored locally only if you save the snapshot. Review the URLs before saving.", "Import browser tabs")) return;
-            if (_stopped || !IsVisible || !ReferenceEquals(_draft, draft) || VirtualDesktopRegistryReader.TryGetVerifiedDisplayState()?.ActiveDesktop.Id != draft.DesktopId) return;
+            if (_stopped || !IsVisible || revision != _browserCaptureRevision || SelectedId != draft.DesktopId
+                || !ReferenceEquals(_draft, draft) || VirtualDesktopRegistryReader.TryGetVerifiedDisplayState()?.ActiveDesktop.Id != draft.DesktopId) return;
             if (!_captureDraft.TryAttachBrowser(draft, ticket, context))
                 throw new InvalidOperationException("Browser capture no longer belongs to this draft.");
             StatusText.Text = "Browser tabs added to the unsaved capture. Review the URLs, then save or discard.";

@@ -344,6 +344,172 @@ public sealed class DesktopMemorySnapshotTests
         });
     }
 
+    [TestMethod]
+    public void CaptureService_CorrelatesOnlyUniqueLiveChromiumWindowAndReverifiesTicket()
+    {
+        var browser = BrowserProbe();
+        var report = Report([browser]);
+        var live = new RestoreLiveWindow(browser, new RestoreWindowToken(new IntPtr(1), 1, 2, 12345));
+        var inventory = new ExistingRestoreInventory(Desktop, new CurrentDisplayTopology(Captured, Snapshot().Monitors, []), [live]);
+        var service = new DesktopMemoryCaptureService(() => report, () => inventory);
+        var capture = service.Capture(Desktop);
+        var window = capture.Snapshot.Windows.Single();
+        var token = capture.Tokens[window.Id];
+        Assert.AreEqual(new BrowserNativeToken("0x1", 1, "12345"), token);
+        var ticket = new BrowserCaptureTicket("code", Desktop, window.Id, "chrome", token, 0);
+        Assert.IsTrue(service.ReverifyBrowser(Desktop, ticket));
+        inventory = inventory with { Windows = [live, live] };
+        Assert.IsEmpty(service.Capture(Desktop).Tokens);
+        Assert.IsFalse(service.ReverifyBrowser(Desktop, ticket));
+        inventory = inventory with { Windows = [live with { Token = live.Token! with { CreatedFileTime = 54321 } }] };
+        Assert.IsFalse(service.ReverifyBrowser(Desktop, ticket));
+        inventory = inventory with { ActiveDesktopId = Other, Windows = [live] };
+        Assert.IsEmpty(service.Capture(Desktop).Tokens);
+        Assert.IsFalse(service.ReverifyBrowser(Desktop, ticket));
+    }
+
+    [TestMethod]
+    public void CaptureService_FailedNativeInspectionPreservesLayoutWithoutBrowserTokens()
+    {
+        var report = Report([BrowserProbe()]);
+        var service = new DesktopMemoryCaptureService(() => report,
+            () => throw new InvalidOperationException("Synthetic inspection failure"));
+        var capture = service.Capture(Desktop);
+        Assert.HasCount(1, capture.Snapshot.Windows);
+        Assert.IsEmpty(capture.Tokens);
+        Assert.ThrowsExactly<InvalidOperationException>(() => service.Capture(Other));
+    }
+
+    [TestMethod]
+    public void CaptureService_FirefoxAndNonBrowserWindowsNeverRequestLiveCorrelation()
+    {
+        var firefox = BrowserProbe() with
+        {
+            ExecutablePath = @"C:\Apps\firefox.exe", ProcessName = "firefox", ClassName = "MozillaWindowClass"
+        };
+        var inspections = 0;
+        var service = new DesktopMemoryCaptureService(() => Report([firefox]), () =>
+        {
+            inspections++;
+            throw new InvalidOperationException("Unexpected native browser inspection");
+        });
+        Assert.IsEmpty(service.Capture(Desktop).Tokens);
+        Assert.AreEqual(0, inspections);
+    }
+
+    [TestMethod]
+    public void Draft_FolderEditPreservesBrowserSelectionAndRejectsStaleReference()
+    {
+        var capture = DraftCapture();
+        var draft = new DesktopMemoryDraft();
+        draft.Replace(capture);
+        var snapshot = draft.Snapshot!;
+        var browser = snapshot.Windows[0];
+        var editor = snapshot.Windows[1];
+        var ticket = Ticket(capture);
+        Assert.IsTrue(draft.TryAttachBrowser(snapshot, ticket, ReviewContext()));
+        draft.SetSelected(browser.Id, 1, false);
+        var reviewed = draft.Snapshot!;
+        var folder = new ApplicationFolderContext(ApplicationFolderKind.VisualStudioCode, @"C:\Projects");
+        Assert.IsTrue(draft.TrySetFolder(reviewed, editor.Id, folder));
+        Assert.IsFalse(draft.IsSelected(browser.Id, 1));
+        Assert.AreEqual(folder, draft.Snapshot!.Windows[1].FolderContext);
+        Assert.IsFalse(draft.TrySetFolder(reviewed, editor.Id, null));
+        Assert.IsFalse(draft.TryAttachBrowser(reviewed, ticket, ReviewContext()));
+        Assert.IsFalse(draft.TrySetFolder(draft.Snapshot!, browser.Id, folder));
+    }
+
+    [TestMethod]
+    public void Draft_RejectsMismatchedTicketAndRecaptureResetsOnlyReplacedReview()
+    {
+        var capture = DraftCapture();
+        var draft = new DesktopMemoryDraft();
+        draft.Replace(capture);
+        var snapshot = draft.Snapshot!;
+        var ticket = Ticket(capture);
+        var browser = snapshot.Windows[0];
+        Assert.IsFalse(draft.TryAttachBrowser(snapshot, ticket with { DesktopId = Other }, ReviewContext()));
+        Assert.IsFalse(draft.TryAttachBrowser(snapshot, ticket with { Token = ticket.Token with { ProcessCreation = "99" } }, ReviewContext()));
+        Assert.IsFalse(draft.TryAttachBrowser(snapshot, ticket, ReviewContext() with { Browser = "firefox" }));
+        Assert.IsTrue(draft.TryAttachBrowser(snapshot, ticket, ReviewContext()));
+        draft.SetAll(browser.Id, false);
+        Assert.IsTrue(draft.TryAttachBrowser(draft.Snapshot!, ticket, ReviewContext()));
+        Assert.IsTrue(draft.IsSelected(browser.Id, 0));
+        Assert.IsTrue(draft.IsSelected(browser.Id, 1));
+        draft.Clear();
+        Assert.IsNull(draft.Snapshot);
+        Assert.IsFalse(draft.HasBrowserToken(browser.Id));
+        Assert.IsFalse(draft.TryAttachBrowser(snapshot, ticket, ReviewContext()));
+    }
+
+    [TestMethod]
+    public void Draft_SaveFailureRetainsReviewAndSuccessfulSaveClearsTransientState()
+    {
+        InDirectory(directory =>
+        {
+            var store = new DesktopMemoryStore(Path.Combine(directory, "snapshots.json"));
+            var capture = DraftCapture();
+            var draft = new DesktopMemoryDraft();
+            draft.Replace(capture);
+            var ticket = Ticket(capture);
+            Assert.IsTrue(draft.TryAttachBrowser(draft.Snapshot!, ticket, ReviewContext()));
+            draft.SetSelected(ticket.WindowId, 1, false);
+            var expected = draft.Snapshot!;
+            store.Save(capture.Snapshot, null);
+            Assert.ThrowsExactly<InvalidOperationException>(() => draft.Save(store, expected, null));
+            Assert.AreSame(expected, draft.Snapshot);
+            Assert.IsTrue(draft.HasBrowserToken(ticket.WindowId));
+            Assert.IsFalse(draft.IsSelected(ticket.WindowId, 1));
+            draft.Save(store, expected, capture.Snapshot.CapturedUtc);
+            var saved = store.Load().Single();
+            Assert.HasCount(1, saved.Windows[0].BrowserContext!.Tabs);
+            Assert.AreEqual(ReviewContext().Tabs[0], saved.Windows[0].BrowserContext!.Tabs.Single());
+            Assert.IsNull(draft.Snapshot);
+            Assert.IsFalse(draft.HasBrowserToken(ticket.WindowId));
+        });
+    }
+
+    [TestMethod]
+    public void Draft_RejectsEmptySaveAndInvalidReplacementWithoutDiscardingExistingDraft()
+    {
+        InDirectory(directory =>
+        {
+            var store = new DesktopMemoryStore(Path.Combine(directory, "snapshots.json"));
+            var capture = DraftCapture();
+            var draft = new DesktopMemoryDraft();
+            draft.Replace(capture);
+            var invalid = capture with { Tokens = new Dictionary<Guid, BrowserNativeToken> { [Guid.NewGuid()] = Ticket(capture).Token } };
+            Assert.ThrowsExactly<InvalidOperationException>(() => draft.Replace(invalid));
+            Assert.AreSame(capture.Snapshot, draft.Snapshot);
+            var empty = capture.Snapshot with { Windows = [] };
+            draft.Replace(new(empty, new Dictionary<Guid, BrowserNativeToken>()));
+            Assert.ThrowsExactly<InvalidOperationException>(() => draft.Save(store, empty, null));
+            Assert.AreSame(empty, draft.Snapshot);
+            Assert.IsEmpty(store.Load());
+        });
+    }
+
+    private static ProbeWindow BrowserProbe() => Window(Desktop, true) with
+    {
+        ProcessName = "chrome", ExecutablePath = @"C:\Apps\chrome.exe", ClassName = "Chrome_WidgetWin_1"
+    };
+
+    private static DesktopCaptureDraft DraftCapture()
+    {
+        var snapshot = DesktopSnapshotCapture.FromReport(Desktop, Report([
+            BrowserProbe(),
+            Window(Desktop, true) with { EnumerationIndex = 1, Handle = "0x2", ProcessId = 2,
+                ProcessName = "Code", ExecutablePath = @"C:\Apps\Code.exe", ClassName = "Chrome_WidgetWin_1" }
+        ]));
+        return new(snapshot, new Dictionary<Guid, BrowserNativeToken> { [snapshot.Windows[0].Id] = new("0x1", 1, "12345") });
+    }
+
+    private static BrowserCaptureTicket Ticket(DesktopCaptureDraft capture) =>
+        new("code", capture.Snapshot.DesktopId, capture.Snapshot.Windows[0].Id, "chrome", capture.Tokens[capture.Snapshot.Windows[0].Id], 0);
+
+    private static BrowserWindowContext ReviewContext() => new("chrome", "0123456789abcdef0123456789abcdef",
+        [new("https://example.com/selected", false, true), new("https://example.com/omitted", false, false)]);
+
     private sealed class FailingProtector(int failAt) : IDesktopSnapshotProtector
     {
         private readonly CurrentUserSnapshotProtector _real = new();
