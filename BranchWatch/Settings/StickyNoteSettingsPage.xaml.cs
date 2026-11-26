@@ -1,6 +1,5 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
 
 namespace BranchWatch;
 
@@ -49,15 +48,12 @@ public partial class StickyNoteSettingsPage : System.Windows.Controls.UserContro
     {
         var appearance = SelectedAppearance;
         var color = StickyNoteAppearance.ResolveColor(appearance.Color);
-        PreviewSurface.Background = BrushFor(color.Body);
-        PreviewHeader.Background = BrushFor(color.Header);
+        PreviewSurface.Background = StickyNoteRenderingResources.BrushFor(color.Body);
+        PreviewHeader.Background = StickyNoteRenderingResources.BrushFor(color.Header);
         var opacity = StickyNoteTransparency.OpacityForLevel(appearance.TransparencyLevel);
         PreviewSurface.Opacity = opacity;
         TransparencyLabel.Text = $"Level {appearance.TransparencyLevel} · {opacity:P0} opaque";
     }
-
-    private static SolidColorBrush BrushFor(string value) =>
-        new((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(value)!);
 
     private bool SaveDefaults()
     {

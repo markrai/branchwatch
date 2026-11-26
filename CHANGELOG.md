@@ -4,6 +4,10 @@
 
 ### Changed
 
+- Share frozen sticky-note palette brushes and dispatcher-local scrollbar styles; release inactive alarm effects and reuse animation definitions.
+
+### Changed
+
 - Consolidate Git metadata watchers by directory, reuse unchanged subscriptions on refresh, and release partially initialized working-tree watchers on failure.
 
 ### Changed
