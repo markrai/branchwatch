@@ -17,7 +17,7 @@ public sealed class BrowserTabCaptureTests
         Assert.IsTrue(BrowserTabCapture.IsValid(new("chrome", Profile, Tabs)));
         foreach (var url in new[] { "file:///C:/secret", "javascript:alert(1)", "chrome://settings", "https://user:pass@example.com/", "relative", "https://example.com/a b", "https://example.com/" + new string('a', 2048) })
             Assert.IsFalse(BrowserTabCapture.IsUrl(url), url);
-        Assert.IsFalse(BrowserTabCapture.IsValid(new("edge", Profile, [])));
+        Assert.IsTrue(BrowserTabCapture.IsValid(new("edge", Profile, [])));
         Assert.IsFalse(BrowserTabCapture.IsValid(new("edge", Profile, [Tabs[1], Tabs[1]])));
         Assert.IsFalse(BrowserTabCapture.IsValid(new("edge", Profile, Enumerable.Repeat(Tabs[0], 101).ToArray())));
     }
@@ -27,6 +27,7 @@ public sealed class BrowserTabCaptureTests
     {
         var request = new BrowserCaptureRequest(1, "capture", Profile, Nonce, Profile, 7, Tabs, 0);
         var bytes = BrowserCompanionProtocol.Encode(request);
+        Assert.ThrowsExactly<InvalidDataException>(() => BrowserTabCapture.ParseRequest(BrowserCompanionProtocol.Encode(request with { Tabs = [] })));
         var parsed = BrowserTabCapture.ParseRequest(bytes);
         CollectionAssert.AreEqual(Tabs, parsed.Tabs.ToArray());
         var json = System.Text.Encoding.UTF8.GetString(bytes);

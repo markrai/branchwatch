@@ -37,6 +37,20 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private PlanWindowChoice[] _planChoices = [];
     private Dictionary<Guid, BrowserNativeToken> _browserTokens = new();
     private BrowserCaptureTicket? _browserTicket;
+    private readonly BrowserTabReview _browserReview = new();
+    private bool _renderingBrowserPicker;
+    private BrowserReviewGroup[] _browserGroups = [];
+    private sealed record BrowserReviewGroup(Guid WindowId, string Label, string Detail, bool Editable, BrowserReviewRow[] Tabs);
+    private sealed class BrowserReviewRow(Guid windowId, int index, BrowserSavedTab tab, bool selected, bool editable)
+    {
+        internal Guid WindowId { get; } = windowId;
+        internal int Index { get; } = index;
+        public string Url { get; } = tab.Url;
+        public string Detail { get; } = $"Tab {index + 1}" + (tab.Pinned ? " · Pinned" : "") + (tab.Active ? " · Active" : "")
+            + (tab.Url.Contains('?') || tab.Url.Contains('#') ? " · Review query/fragment" : "");
+        public bool Selected { get; set; } = selected;
+        public bool Editable { get; } = editable;
+    }
     private sealed record BrowserCaptureDraft(DesktopSnapshot Snapshot, Dictionary<Guid, BrowserNativeToken> Tokens);
 
     internal DesktopMemorySettingsPage(DesktopMemoryStore store)
@@ -128,6 +142,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         ClearPreview();
         CancelBrowserCapture();
         _browserTokens.Clear();
+        _browserReview.Clear();
         _draft = null;
         _busy = true;
         StatusText.Text = "Inspecting application windows and monitors...";
@@ -213,7 +228,9 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         try
         {
             CancelBrowserCapture();
-            _store.Save(draft, existing?.CapturedUtc);
+            var reviewed = _browserReview.Apply(draft);
+            _store.Save(reviewed, existing?.CapturedUtc);
+            _browserReview.Clear();
             _browserTokens.Clear();
             ClearPreview();
             _draft = null;
@@ -228,6 +245,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     {
         CancelBrowserCapture();
         _browserTokens.Clear();
+        _browserReview.Clear();
         _draft = null;
         StatusText.Text = "Unsaved capture discarded.";
         Render();
@@ -309,25 +327,74 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     {
         if (_browserTicket is { } ticket && (draft?.DesktopId != ticket.DesktopId || _active != ticket.DesktopId))
             CancelBrowserCapture();
+        _browserReview.Synchronize(_draft);
         var previous = BrowserWindowPicker.SelectedValue;
         var choices = draft?.Windows.Where(w => _browserTokens.ContainsKey(w.Id))
             .Select(w => new FolderWindowChoice(w.Id, w.Title ?? w.ProcessName ?? "Browser")).ToArray() ?? [];
-        BrowserWindowPicker.ItemsSource = choices;
-        BrowserWindowPicker.SelectedValue = previous is Guid id && choices.Any(c => c.Id == id) ? id : choices.FirstOrDefault()?.Id;
+        _renderingBrowserPicker = true;
+        try
+        {
+            BrowserWindowPicker.ItemsSource = choices;
+            BrowserWindowPicker.SelectedValue = previous is Guid id && choices.Any(c => c.Id == id) ? id : choices.FirstOrDefault()?.Id;
+        }
+        finally { _renderingBrowserPicker = false; }
+        if (_browserTicket is { } pending && !Equals(BrowserWindowPicker.SelectedValue, pending.WindowId))
+            CancelBrowserCapture();
+        BrowserCaptureControls.Visibility = choices.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         BrowserWindowPicker.IsEnabled = !_busy && draft is not null;
         ArmBrowserButton.IsEnabled = !_busy && draft is not null && draft.DesktopId == _active && choices.Length > 0;
         ImportBrowserButton.IsEnabled = !_busy && _browserTicket is not null;
-        ClearBrowserButton.IsEnabled = !_busy && draft is not null && choices.Length > 0;
-        BrowserRows.ItemsSource = snapshot?.Windows.Where(w => w.BrowserContext is not null).Select(w =>
+        var editable = !_busy && draft is not null;
+        _browserGroups = snapshot?.Windows.Where(w => w.BrowserContext is not null).OrderBy(w => w.EnumerationIndex).Select(w =>
         {
             var context = w.BrowserContext!;
-            return new DetailRow(w.Title ?? w.ProcessName ?? "Browser",
-                $"{context.Tabs.Count} saved tabs · {context.Browser}" + Environment.NewLine
-                + string.Join(Environment.NewLine, context.Tabs.Select(t => t.Url)));
-        }).ToArray();
-        BrowserEditor.Visibility = choices.Length > 0 || snapshot?.Windows.Any(w => w.BrowserContext is not null) == true
-            ? Visibility.Visible : Visibility.Collapsed;
+            var label = w.Title ?? w.ProcessName ?? "Browser";
+            var family = context.Browser == "chrome" ? "Chrome" : "Edge";
+            var detail = $"{family} · {w.MonitorSource} · Profile {context.ProfileId[..8]}…";
+            return new BrowserReviewGroup(w.Id, label, detail, editable,
+                context.Tabs.Select((tab, index) => new BrowserReviewRow(w.Id, index, tab,
+                    draft is null || _browserReview.IsSelected(w.Id, index), editable)).ToArray());
+        }).ToArray() ?? [];
+        BrowserRows.ItemsSource = _browserGroups;
+        BrowserReviewSummary.Visibility = _browserGroups.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        BrowserEditor.Visibility = choices.Length > 0 || _browserGroups.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        UpdateBrowserReviewSummary(draft is not null);
     }
+
+    private void UpdateBrowserReviewSummary(bool isDraft)
+    {
+        var total = _browserGroups.Sum(g => g.Tabs.Length);
+        var selected = _browserGroups.Sum(g => g.Tabs.Count(t => t.Selected));
+        BrowserReviewSummary.Text = isDraft
+            ? $"{selected} of {total} tabs selected across {_browserGroups.Length} browser windows. Unchecked URLs will not be saved."
+            : $"{total} saved tabs across {_browserGroups.Length} browser windows.";
+    }
+
+    private void OnBrowserWindowSelected(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_renderingBrowserPicker && _browserTicket is { } pending
+            && !Equals(BrowserWindowPicker.SelectedValue, pending.WindowId)) CancelBrowserCapture();
+    }
+
+    private bool CanEditBrowserReview => !_busy && !_stopped && _draft is { } draft && draft.DesktopId == SelectedId;
+
+    private void OnBrowserTabSelectionChanged(object sender, RoutedEventArgs e)
+    {
+        if (!CanEditBrowserReview || sender is not System.Windows.Controls.CheckBox { DataContext: BrowserReviewRow row } check
+            || !row.Editable || !_browserGroups.Any(g => g.Tabs.Contains(row))) return;
+        row.Selected = check.IsChecked == true;
+        _browserReview.Set(row.WindowId, row.Index, row.Selected);
+        UpdateBrowserReviewSummary(true);
+    }
+
+    private void OnSelectBrowserTabs(object sender, RoutedEventArgs e)
+    {
+        if (!CanEditBrowserReview || sender is not System.Windows.Controls.Button { DataContext: BrowserReviewGroup group } button
+            || !group.Editable || !_browserGroups.Contains(group)) return;
+        _browserReview.SetAll(group.WindowId, Equals(button.Tag, "all"));
+        RenderBrowserEditor(_draft, _draft);
+    }
+
 
     private void OnArmBrowser(object sender, RoutedEventArgs e)
     {
@@ -387,15 +454,6 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             _busy = false;
             if (!_stopped) RefreshDesktops();
         }
-    }
-
-    private void OnClearBrowser(object sender, RoutedEventArgs e)
-    {
-        if (_busy || _draft is not { } draft || draft.DesktopId != SelectedId
-            || BrowserWindowPicker.SelectedValue is not Guid id) return;
-        CancelBrowserCapture();
-        _draft = draft with { Windows = draft.Windows.Select(w => w.Id == id ? w with { BrowserContext = null } : w).ToArray() };
-        Render();
     }
 
     private void RenderFolderEditor(DesktopSnapshot? draft)

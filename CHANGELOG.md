@@ -4,6 +4,10 @@
 
 ### Added
 
+- Review browser sessions by window and profile, select individual tabs or whole windows, and save only selected URLs. Empty selections retain an explicit browser session without URLs.
+
+### Added
+
 - Experimental Chrome/Edge per-window tab capture with explicit one-time code, optional browser permission, native identity checks and local snapshot review. Automatic capture and tab restoration remain disabled.
 
 ### Added
