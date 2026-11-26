@@ -27,3 +27,5 @@ All outcomes still consume the previously issued one-time request. Even if nothi
 - Verify an old v1 restore client cannot redeem a code with the updated application. Hello and capture still use v1.
 
 Phase 8G introduces a separate [Firefox diagnostic](desktop-memory-firefox-qualification.md). Firefox does not use Chromium's parent-window argument; no Firefox tab operation is authorized by this diagnostic.
+
+Phase 8H.1 (Companion 0.4.1) additionally rejects newly reported window/tab IDs observed in the preceding normal-window inventory, and rechecks tab URLs and privacy state before modification and final success. Reload the updated extension; older clients still speak protocol v2 and do not gain these checks automatically.
