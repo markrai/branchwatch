@@ -40,16 +40,16 @@ internal sealed class StickyNotePassiveBodyLifecycle(
 
     internal void Refresh(bool eligible, bool layoutReady)
     {
-        if (!IsEnabled || _busy) return;
+        if (!IsEnabled) return;
+        if (!eligible)
+        {
+            Remove();
+            return;
+        }
+        if (_busy || _failed || !layoutReady) return;
         _busy = true;
         try
         {
-            if (!eligible)
-            {
-                Remove();
-                return;
-            }
-            if (_failed || !layoutReady) return;
             if (_body is { } existing)
             {
                 if (!existing.IsVisible || !existing.VerifyAffinity())
@@ -83,7 +83,11 @@ internal sealed class StickyNotePassiveBodyLifecycle(
             if (_disposed || revision != _revision) return;
             if (!shown || !candidate.IsVisible)
             {
-                Fail(candidate.LastError);
+                var reason = candidate.LastError;
+                var rejected = candidate;
+                candidate = null;
+                rejected.Dispose();
+                if (revision == _revision) Fail(reason);
                 return;
             }
 
@@ -111,12 +115,26 @@ internal sealed class StickyNotePassiveBodyLifecycle(
     private void AlignCore(IStickyNotePassiveBody body)
     {
         if (!ReferenceEquals(_body, body)) return;
-        if (!body.TryAlign() && ReferenceEquals(_body, body)) Fail(body.LastError);
+        if (!body.IsVisible)
+        {
+            Remove();
+            return;
+        }
+        if (body.TryAlign() || !ReferenceEquals(_body, body)) return;
+        var reason = body.LastError;
+        if (!body.VerifyAffinity())
+        {
+            Remove();
+            return;
+        }
+        Fail(reason);
     }
 
     internal void UpdateContent()
     {
-        if (!_disposed) _body?.UpdateContent(note);
+        if (_disposed || _body is not { } body) return;
+        try { body.UpdateContent(note); }
+        catch (Exception ex) when (IsWindowFailure(ex)) { Fail(ex.GetType().Name); }
     }
 
     internal void Remove()

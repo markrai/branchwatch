@@ -498,17 +498,18 @@ public partial class StickyNoteWindow : Window
         }
 
         if (_changingCollapse) return;
-        _passiveBody.Refresh(!_note.IsCollapsed && WantsClickThrough && IsVisible
-            && WindowState != WindowState.Minimized && current, IsBodyLayoutReady);
+        _passiveBody.Refresh(CanPresentPassiveBody && current, IsBodyLayoutReady);
     }
+
+    private bool CanPresentPassiveBody => !_note.IsCollapsed && WantsClickThrough && IsVisible
+        && WindowState != WindowState.Minimized;
 
     private bool IsBodyLayoutReady => IsLoaded && BodyHost.ActualWidth > 0 && BodyHost.ActualHeight > 0;
 
     private void AlignPassiveBody()
     {
         if (_interaction.IsClosing || _changingCollapse) return;
-        _passiveBody.Align(!_note.IsCollapsed && WantsClickThrough && IsVisible
-            && WindowState != WindowState.Minimized, IsBodyLayoutReady);
+        _passiveBody.Align(CanPresentPassiveBody, IsBodyLayoutReady);
     }
 
     private static SolidColorBrush BrushFor(string value) =>
