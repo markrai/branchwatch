@@ -42,12 +42,20 @@ async function inspectWindow(api) {
 const connect = document.getElementById("connect");
 const inspect = document.getElementById("inspect");
 const result = document.getElementById("result");
+const challenge = document.getElementById("challenge");
 async function run(action) {
-    connect.disabled = inspect.disabled = true;
+    connect.disabled = inspect.disabled = challenge.disabled = true;
     result.textContent = "Checking...";
     try { result.textContent = JSON.stringify(await action(browser), null, 2); }
     catch (error) { result.textContent = String(error.message ?? error); }
-    finally { connect.disabled = inspect.disabled = false; }
+    finally { connect.disabled = inspect.disabled = challenge.disabled = false; }
 }
 connect.addEventListener("click", () => run(checkConnection));
 inspect.addEventListener("click", () => run(inspectWindow));
+
+async function openChallengeTab(api) {
+    const source = windowObservation(await api.windows.getCurrent());
+    await api.tabs.create({ windowId: source.windowId, url: api.runtime.getURL("challenge.html"), active: true });
+    return { status: "diagnostic-tab-opened" };
+}
+challenge.addEventListener("click", () => run(openChallengeTab));

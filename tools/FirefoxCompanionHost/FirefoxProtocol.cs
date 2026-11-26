@@ -26,7 +26,15 @@ internal static class FirefoxProtocol
             && allowed[0].GetString() == ExtensionId;
     }
 
-    internal static BrowserProbeRequest ParseObservation(byte[] bytes)
+    internal static BrowserProbeRequest ParseObservation(byte[] bytes) => ParseObservation(bytes, "observe");
+
+    internal static BrowserProbeRequest ParseChallenge(byte[] bytes, string command)
+    {
+        if (command is not ("challenge-present" or "challenge-absent")) throw new InvalidDataException("Unknown challenge operation.");
+        return ParseObservation(bytes, command);
+    }
+
+    private static BrowserProbeRequest ParseObservation(byte[] bytes, string command)
     {
         using var doc = JsonDocument.Parse(bytes, new JsonDocumentOptions { MaxDepth = 4 });
         var root = doc.RootElement;
@@ -37,7 +45,7 @@ internal static class FirefoxProtocol
         var top = root.GetProperty("top").GetInt32();
         var width = root.GetProperty("width").GetInt32();
         var height = root.GetProperty("height").GetInt32();
-        if (root.GetProperty("version").GetInt32() != 1 || root.GetProperty("command").GetString() != "observe"
+        if (root.GetProperty("version").GetInt32() != 1 || root.GetProperty("command").GetString() != command
             || id < 0 || nonce is not { Length: 32 } || !nonce.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f')
             || width <= 0 || height <= 0) throw new InvalidDataException("Invalid Firefox observation.");
         return new(id, nonce, new(left, top, checked(left + width), checked(top + height)));

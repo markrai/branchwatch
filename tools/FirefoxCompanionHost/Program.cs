@@ -51,6 +51,11 @@ internal static class Program
                     observation = new(1, request.WindowId, request.Nonce, "foreground-changed");
                 reply = BrowserCompanionProtocol.Encode(observation);
             }
+            else if (command is "challenge-present" or "challenge-absent")
+            {
+                var request = FirefoxProtocol.ParseChallenge(bytes, command);
+                reply = BrowserCompanionProtocol.Encode(FirefoxChallengeObservation.Inspect(request, command == "challenge-present"));
+            }
             else return 2;
 
             BrowserCompanionProtocol.WriteAsync(Console.OpenStandardOutput(), reply, deadline.Token,
