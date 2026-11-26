@@ -257,6 +257,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             || draft.Windows.Count == 0) return;
         var existing = SelectedSaved;
         if (existing is not null && !Confirm("Replace this desktop's saved snapshot with the new capture?", "Replace snapshot")) return;
+        if (!ConfirmLegacyMigration()) return;
         try
         {
             CancelBrowserCapture();
@@ -287,6 +288,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     {
         if (_busy || !_storageAvailable || SelectedSaved is not { } saved
             || !Confirm("Delete this desktop's saved snapshot? Your open applications will not be affected.", "Delete snapshot")) return;
+        if (!ConfirmLegacyMigration()) return;
         try
         {
             CancelBrowserRestore();
@@ -298,6 +300,9 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         catch (Exception ex) { StatusText.Text = $"Snapshot was not deleted: {ex.Message}"; }
         RefreshDesktops();
     }
+
+    private bool ConfirmLegacyMigration() => _storageState != DesktopSnapshotStorageState.Legacy
+        || Confirm("This operation also protects the existing snapshot and recovery files for your Windows user. Older BranchWatch versions cannot read the protected format. Continue?", "Protect existing snapshots");
 
     private bool Confirm(string text, string title) => System.Windows.MessageBox.Show(
         Window.GetWindow(this), text, title, MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes;

@@ -1,4 +1,5 @@
 using System.IO;
+using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace BranchWatch.Tests;
@@ -107,6 +108,191 @@ public sealed class DesktopMemorySnapshotTests
             Assert.ThrowsExactly<InvalidDataException>(() => store.Save(Snapshot(), null));
             Assert.AreEqual(unsupported, File.ReadAllText(path));
         });
+    }
+
+    [TestMethod]
+    public void Protection_NewSnapshotsAndRecoveryBackupContainNoReadableSensitiveFields()
+    {
+        InDirectory(directory =>
+        {
+            var path = Path.Combine(directory, "snapshots.json");
+            var backup = Path.Combine(directory, "snapshots.backup.json");
+            var store = new DesktopMemoryStore(path);
+            var snapshot = SensitiveSnapshot();
+            Assert.AreEqual(DesktopSnapshotStorageState.Empty, store.GetStorageState());
+            store.Save(snapshot, null);
+            Assert.AreEqual(DesktopSnapshotStorageState.Protected, store.GetStorageState());
+            AssertProtected(path);
+            var replacement = snapshot with { CapturedUtc = Captured.AddMinutes(1) };
+            store.Save(replacement, Captured);
+            AssertProtected(path);
+            AssertProtected(backup);
+            AssertSensitive(new DesktopMemoryStore(path).Load().Single());
+            AssertSensitive(new DesktopMemoryStore(backup).Load().Single());
+            store.Delete(Desktop, replacement.CapturedUtc);
+            AssertProtected(path);
+            AssertProtected(backup);
+            Assert.HasCount(0, store.Load());
+            Assert.AreEqual(replacement.CapturedUtc, new DesktopMemoryStore(backup).Load().Single().CapturedUtc);
+        });
+    }
+
+    [TestMethod]
+    public void Protection_ExplicitMigrationPreservesBothLegacyGenerationsAndIsIdempotent()
+    {
+        InDirectory(directory =>
+        {
+            var path = Path.Combine(directory, "snapshots.json");
+            var backup = Path.Combine(directory, "snapshots.backup.json");
+            var snapshot = SensitiveSnapshot();
+            var previous = snapshot with { CapturedUtc = Captured.AddMinutes(-1) };
+            var legacy = JsonSerializer.Serialize(new DesktopSnapshotFile(1, [snapshot]));
+            var legacyBackup = JsonSerializer.Serialize(new DesktopSnapshotFile(1, [previous]));
+            File.WriteAllText(path, legacy);
+            File.WriteAllText(backup, legacyBackup);
+            var store = new DesktopMemoryStore(path);
+            Assert.AreEqual(DesktopSnapshotStorageState.Legacy, store.GetStorageState());
+            AssertSensitive(store.Load().Single());
+            Assert.AreEqual(legacy, File.ReadAllText(path));
+            Assert.AreEqual(legacyBackup, File.ReadAllText(backup));
+            store.ProtectLegacyFiles();
+            AssertProtected(path);
+            AssertProtected(backup);
+            Assert.AreEqual(DesktopSnapshotStorageState.Protected, store.GetStorageState());
+            Assert.AreEqual(snapshot.CapturedUtc, store.Load().Single().CapturedUtc);
+            Assert.AreEqual(previous.CapturedUtc, new DesktopMemoryStore(backup).Load().Single().CapturedUtc);
+            var migrated = File.ReadAllText(path);
+            var migratedBackup = File.ReadAllText(backup);
+            store.ProtectLegacyFiles();
+            Assert.AreEqual(migrated, File.ReadAllText(path));
+            Assert.AreEqual(migratedBackup, File.ReadAllText(backup));
+            Assert.HasCount(2, Directory.GetFiles(directory));
+        });
+    }
+
+    [TestMethod]
+    public void Protection_MigratesOnSaveAndPreservesPreviousPrimaryInProtectedBackup()
+    {
+        InDirectory(directory =>
+        {
+            var path = Path.Combine(directory, "snapshots.json");
+            var backup = Path.Combine(directory, "snapshots.backup.json");
+            var snapshot = SensitiveSnapshot();
+            File.WriteAllText(path, JsonSerializer.Serialize(new DesktopSnapshotFile(1, [snapshot])));
+            File.WriteAllText(backup, JsonSerializer.Serialize(new DesktopSnapshotFile(1, [])));
+            var store = new DesktopMemoryStore(path);
+            store.Save(snapshot with { CapturedUtc = Captured.AddMinutes(1) }, Captured);
+            AssertProtected(path);
+            AssertProtected(backup);
+            Assert.AreEqual(Captured, new DesktopMemoryStore(backup).Load().Single().CapturedUtc);
+            AssertSensitive(new DesktopMemoryStore(backup).Load().Single());
+        });
+    }
+
+    [TestMethod]
+    public void Protection_BackupOnlyMigrationDoesNotCreateOrAutomaticallyRestorePrimary()
+    {
+        InDirectory(directory =>
+        {
+            var path = Path.Combine(directory, "snapshots.json");
+            var backup = Path.Combine(directory, "snapshots.backup.json");
+            File.WriteAllText(backup, JsonSerializer.Serialize(new DesktopSnapshotFile(1, [SensitiveSnapshot()])));
+            var store = new DesktopMemoryStore(path);
+            Assert.AreEqual(DesktopSnapshotStorageState.Legacy, store.GetStorageState());
+            store.ProtectLegacyFiles();
+            Assert.IsFalse(File.Exists(path));
+            AssertProtected(backup);
+            Assert.HasCount(0, store.Load());
+            AssertSensitive(new DesktopMemoryStore(backup).Load().Single());
+        });
+    }
+
+    [TestMethod]
+    public void Protection_FailedMigrationEncryptionLeavesBothLegacyFilesUnchanged()
+    {
+        InDirectory(directory =>
+        {
+            var path = Path.Combine(directory, "snapshots.json");
+            var backup = Path.Combine(directory, "snapshots.backup.json");
+            var legacy = JsonSerializer.Serialize(new DesktopSnapshotFile(1, [SensitiveSnapshot()]));
+            File.WriteAllText(path, legacy);
+            File.WriteAllText(backup, legacy);
+            var store = new DesktopMemoryStore(path, new FailingProtector(2));
+            Assert.ThrowsExactly<CryptographicException>(() => store.ProtectLegacyFiles());
+            Assert.AreEqual(legacy, File.ReadAllText(path));
+            Assert.AreEqual(legacy, File.ReadAllText(backup));
+            Assert.HasCount(2, Directory.GetFiles(directory));
+        });
+    }
+
+    [TestMethod]
+    public void Protection_FailedDecryptOrInvalidBackupNeverOverwritesExistingFiles()
+    {
+        InDirectory(directory =>
+        {
+            var path = Path.Combine(directory, "snapshots.json");
+            var backup = Path.Combine(directory, "snapshots.backup.json");
+            var snapshot = SensitiveSnapshot();
+            var store = new DesktopMemoryStore(path);
+            store.Save(snapshot, null);
+            var original = File.ReadAllText(path);
+            var unavailable = new DesktopMemoryStore(path, new FailingProtector(1));
+            Assert.ThrowsExactly<InvalidDataException>(() => unavailable.Load());
+            Assert.ThrowsExactly<InvalidDataException>(() => unavailable.Save(snapshot with { CapturedUtc = Captured.AddMinutes(1) }, Captured));
+            Assert.AreEqual(original, File.ReadAllText(path));
+            File.WriteAllText(backup, "{");
+            Assert.ThrowsExactly<JsonException>(() => store.ProtectLegacyFiles());
+            Assert.ThrowsExactly<JsonException>(() => store.Delete(Desktop, Captured));
+            Assert.AreEqual(original, File.ReadAllText(path));
+            Assert.AreEqual("{", File.ReadAllText(backup));
+            var invalid = JsonSerializer.Serialize(new ProtectedDesktopSnapshotFile(2, "DPAPI-CurrentUser", new byte[32]));
+            File.WriteAllText(path, invalid);
+            Assert.ThrowsExactly<InvalidDataException>(() => store.Load());
+            Assert.AreEqual(invalid, File.ReadAllText(path));
+        });
+    }
+
+    private sealed class FailingProtector(int failAt) : IDesktopSnapshotProtector
+    {
+        private readonly CurrentUserSnapshotProtector _real = new();
+        private int _calls;
+        public byte[] Protect(byte[] data) => ++_calls == failAt ? throw new CryptographicException("Test failure") : _real.Protect(data);
+        public byte[] Unprotect(byte[] data) => throw new CryptographicException("Test failure");
+    }
+
+    private static DesktopSnapshot SensitiveSnapshot()
+    {
+        var snapshot = Snapshot();
+        var window = snapshot.Windows[0] with
+        {
+            Title = "sensitive-window-title",
+            ProcessName = "chrome",
+            ExecutablePath = @"C:\Apps\chrome.exe",
+            ClassName = "Chrome_WidgetWin_1",
+            BrowserContext = new("chrome", "0123456789abcdef0123456789abcdef",
+                [new("https://example.com/private?token=sensitive-url#fragment", false, true)])
+        };
+        return snapshot with { Windows = [window] };
+    }
+
+    private static void AssertProtected(string path)
+    {
+        var raw = File.ReadAllText(path);
+        Assert.IsFalse(raw.Contains("sensitive-url", StringComparison.Ordinal));
+        Assert.IsFalse(raw.Contains("sensitive-window-title", StringComparison.Ordinal));
+        Assert.IsFalse(raw.Contains("0123456789abcdef0123456789abcdef", StringComparison.Ordinal));
+        using var doc = JsonDocument.Parse(raw);
+        Assert.AreEqual(2, doc.RootElement.GetProperty("SchemaVersion").GetInt32());
+        Assert.AreEqual("DPAPI-CurrentUser", doc.RootElement.GetProperty("Protection").GetString());
+        Assert.IsTrue(doc.RootElement.GetProperty("Payload").GetBytesFromBase64().Length > 0);
+        Assert.IsFalse(doc.RootElement.TryGetProperty("Snapshots", out _));
+    }
+
+    private static void AssertSensitive(DesktopSnapshot snapshot)
+    {
+        var window = snapshot.Windows.Single();
+        Assert.AreEqual("sensitive-window-title", window.Title);
+        Assert.AreEqual("https://example.com/private?token=sensitive-url#fragment", window.BrowserContext!.Tabs.Single().Url);
     }
 
     private static DesktopSnapshot Snapshot() => DesktopSnapshotCapture.FromReport(Desktop, Report([Window(Desktop, true)]));
