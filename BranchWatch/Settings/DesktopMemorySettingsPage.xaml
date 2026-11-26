@@ -124,7 +124,7 @@
                         <DataTemplate>
                             <Border BorderBrush="#DDE4ED" BorderThickness="0,0,0,1" Padding="0,8">
                                 <StackPanel>
-                                    <CheckBox Content="{Binding Label}" IsChecked="{Binding Selected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding Eligible}" Click="OnPlanSelectionChanged" FontWeight="SemiBold" ToolTip="{Binding Label}" AutomationProperties.Name="{Binding Label}"/>
+                                    <CheckBox Content="{Binding Label}" IsChecked="{Binding Selected, Mode=OneWay}" IsEnabled="{Binding Eligible}" Click="OnPlanSelectionChanged" FontWeight="SemiBold" ToolTip="{Binding Label}" AutomationProperties.Name="{Binding Label}"/>
                                     <TextBlock Text="{Binding Detail}" Foreground="#617083" TextWrapping="Wrap" FontSize="12"/>
                                 </StackPanel>
                             </Border>

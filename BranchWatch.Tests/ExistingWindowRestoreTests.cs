@@ -158,6 +158,80 @@ public sealed class ExistingWindowRestoreTests
         Assert.AreEqual(a.Id, env.Applied[0]);
     }
 
+    [TestMethod]
+    public void Selection_ExecutesOnlySelectedWindowAndReportsEveryOutcome()
+    {
+        var a = Saved("A");
+        var b = Saved("B", 1);
+        var snapshot = Snapshot(a, b);
+        var env = new FakeEnvironment(Inventory(Live(a, 1), Live(b, 2)));
+        var service = new ExistingWindowRestoreService(env);
+        var prepared = RestoreSelection.Apply(service.Prepare(snapshot, Plan(snapshot), UnmatchedMonitorPolicy.Skip, default),
+            new HashSet<Guid> { b.Id });
+        var progress = new List<ExistingRestoreOutcome>();
+        var result = service.Execute(prepared, default, progress.Add);
+        Assert.AreEqual(ExistingRestoreStatus.UserSkipped, result[0].Status);
+        Assert.AreEqual(ExistingRestoreStatus.Restored, result[1].Status);
+        CollectionAssert.AreEqual(new[] { b.Id }, env.Applied.ToArray());
+        CollectionAssert.AreEqual(result.ToArray(), progress.ToArray());
+        Assert.HasCount(2, prepared.Snapshot.Windows);
+    }
+
+    [TestMethod]
+    public void Selection_DoesNotRemoveDuplicateIdentityEvidence()
+    {
+        var a = Saved("A");
+        var b = a with { Id = Guid.NewGuid(), EnumerationIndex = 1 };
+        var snapshot = Snapshot(a, b);
+        var env = new FakeEnvironment(Inventory(Live(a, 1)));
+        var service = new ExistingWindowRestoreService(env);
+        var prepared = RestoreSelection.Apply(service.Prepare(snapshot, Plan(snapshot), UnmatchedMonitorPolicy.Skip, default),
+            new HashSet<Guid> { a.Id });
+        var result = service.Execute(prepared, default);
+        Assert.AreEqual(ExistingRestoreStatus.AmbiguousWindow, result[0].Status);
+        Assert.AreEqual(ExistingRestoreStatus.UserSkipped, result[1].Status);
+        Assert.HasCount(0, env.Applied);
+    }
+
+    [TestMethod]
+    public void Selection_DefaultsExcludeReviewAndUnsupportedAndRetainOnlyUnchangedPlacements()
+    {
+        var a = Saved("A");
+        var b = Saved("B", 1);
+        var c = Saved("C", 2) with { Minimized = true };
+        var snapshot = Snapshot(a, b, c);
+        var original = Plan(snapshot);
+        var changed = original with
+        {
+            Windows = original.Windows.Select(w => w.WindowId == b.Id ? w with
+                { RequiresReview = true, Kind = WindowPlacementKind.PrimaryFallback } : w).ToArray()
+        };
+        CollectionAssert.AreEquivalent(new[] { a.Id }, RestoreSelection.Default(changed).ToArray());
+        CollectionAssert.AreEquivalent(new[] { a.Id }, RestoreSelection.Retain(original, changed,
+            RestoreSelection.Default(original)).ToArray());
+        Assert.IsFalse(RestoreSelection.CanSelect(changed.Windows.Single(w => w.WindowId == c.Id)));
+        var env = new FakeEnvironment(Inventory());
+        var service = new ExistingWindowRestoreService(env);
+        var preparation = service.Prepare(snapshot, original, UnmatchedMonitorPolicy.Skip, default);
+        Assert.ThrowsExactly<InvalidOperationException>(() => RestoreSelection.Apply(preparation, new HashSet<Guid> { c.Id }));
+        Assert.ThrowsExactly<InvalidOperationException>(() => RestoreSelection.Apply(preparation, new HashSet<Guid> { Guid.NewGuid() }));
+    }
+
+    [TestMethod]
+    public void ProgressObserverFailure_DoesNotChangeRestoreOutcome()
+    {
+        var a = Saved("A");
+        var b = Saved("B", 1);
+        var snapshot = Snapshot(a, b);
+        var env = new FakeEnvironment(Inventory(Live(a, 1), Live(b, 2)));
+        var service = new ExistingWindowRestoreService(env);
+        var prepared = service.Prepare(snapshot, Plan(snapshot), UnmatchedMonitorPolicy.Skip, default);
+        var result = service.Execute(prepared, default, _ => throw new InvalidOperationException("Observer failure"));
+        Assert.HasCount(2, result);
+        Assert.IsTrue(result.All(r => r.Status == ExistingRestoreStatus.Restored));
+        Assert.HasCount(2, env.Applied);
+    }
+
     private static SnapshotWindow Saved(string title, int index = 0) =>
         new(Guid.NewGuid(), "Editor", @"C:\Apps\Editor.exe", title, "EditorWindow", Desired, null, Desired,
             false, false, 1, 0, "main", 96, index, ["main"]);

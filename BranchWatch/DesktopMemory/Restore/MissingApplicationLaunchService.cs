@@ -49,7 +49,7 @@ internal sealed class MissingApplicationLaunchService(IExistingWindowRestoreEnvi
         void Record(ExistingRestoreOutcome outcome)
         {
             results[outcome.WindowId] = outcome;
-            progress?.Invoke(outcome);
+            RestoreProgressReporter.Notify(progress, outcome);
         }
         foreach (var candidate in approved.Items)
         {

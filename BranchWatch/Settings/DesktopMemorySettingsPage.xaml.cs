@@ -127,6 +127,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             if (_stopped) return;
             _draft = result;
             InventoryExpander.IsExpanded = true;
+            SnapshotCard.BringIntoView();
             StatusText.Text = result.Windows.Count == 0 ? "No eligible windows captured. Nothing was saved."
                 : "Review the capture below, then save it when ready.";
         }
@@ -355,7 +356,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         var policy = FallbackPicker.SelectedIndex == 1 ? UnmatchedMonitorPolicy.Primary : UnmatchedMonitorPolicy.Skip;
         var plan = DesktopPlacementPlanner.Plan(saved, topology, policy);
         var priorSelection = _reviewedPlan is null ? RestoreSelection.Default(plan)
-            : _planChoices.Where(w => w.Selected && w.Eligible).Select(w => w.Id).ToHashSet();
+            : RestoreSelection.Retain(_reviewedPlan, plan, _planChoices.Where(w => w.Selected && w.Eligible).Select(w => w.Id).ToHashSet());
         _reviewedPlan = plan;
         var skipped = plan.Windows.Count(w => w.Kind == WindowPlacementKind.Skipped);
         var review = plan.Windows.Count(w => w.RequiresReview && w.Kind != WindowPlacementKind.Skipped);
@@ -381,7 +382,12 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         UpdateSelectionPreview();
     }
 
-    private void OnPlanSelectionChanged(object sender, RoutedEventArgs e) => UpdateSelectionPreview();
+    private void OnPlanSelectionChanged(object sender, RoutedEventArgs e)
+    {
+        if (_busy || sender is not System.Windows.Controls.CheckBox { DataContext: PlanWindowChoice choice } check) return;
+        choice.Selected = choice.Eligible && check.IsChecked == true;
+        UpdateSelectionPreview();
+    }
 
     private void OnSelectSafe(object sender, RoutedEventArgs e) => SelectWindows(false, false);
     private void OnSelectAll(object sender, RoutedEventArgs e) => SelectWindows(true, false);
@@ -479,7 +485,8 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             var ready = approved.Items.Where(i => i.Status == ExistingRestoreStatus.Ready).ToArray();
             var launchReady = launchPlan?.Items.Where(i => i.Status == ExistingRestoreStatus.LaunchReady).ToArray()
                 ?? Array.Empty<MissingApplicationLaunchItem>();
-            RestoreSummary.Text = $"{ready.Length} matched · {launchReady.Length} eligible launches · {approved.Items.Count - ready.Length - launchReady.Length} not eligible";
+            var unselected = approved.Items.Count(i => i.Status == ExistingRestoreStatus.UserSkipped);
+            RestoreSummary.Text = $"{ready.Length} matched · {launchReady.Length} eligible launches · {unselected} not selected · {approved.Items.Count - ready.Length - launchReady.Length - unselected} other incomplete";
             if (ready.Length == 0 && launchReady.Length == 0) return;
             var launchNames = string.Join(Environment.NewLine, launchReady.Select(i => i.Spec?.Description ?? i.ExecutablePath));
             var names = string.Join(Environment.NewLine, ready.Take(8).Select(i => $"• {i.Label}"));
@@ -501,6 +508,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             RestoreProgress.Maximum = Math.Max(1, approved.Items.Count);
             RestoreProgress.Value = 0;
             RestoreProgress.Visibility = Visibility.Visible;
+            RestoreRows.ItemsSource = approved.Items.Select(i => new DetailRow(i.Label, "Pending...")).ToArray();
             var acceptingProgress = true;
             void Report(ExistingRestoreOutcome outcome)
             {

@@ -27,7 +27,7 @@ internal sealed class ExistingWindowRestoreService(IExistingWindowRestoreEnviron
         void Record(ExistingRestoreOutcome outcome)
         {
             results.Add(outcome);
-            progress?.Invoke(outcome);
+            RestoreProgressReporter.Notify(progress, outcome);
         }
         var stopped = false;
         foreach (var item in approved.Items)

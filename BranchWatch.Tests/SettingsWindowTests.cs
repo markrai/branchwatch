@@ -33,6 +33,13 @@ public sealed class SettingsWindowTests
                         Assert.AreEqual(Visibility.Visible, pages[(int)section].Visibility);
                     }
 
+                    window.Navigate(SettingsSection.DesktopMemory);
+                    var memory = (DesktopMemorySettingsPage)window.MemoryHost.Content;
+                    Assert.AreEqual(Visibility.Collapsed, memory.PlanCard.Visibility);
+                    Assert.AreEqual(Visibility.Collapsed, memory.RestoreResultsCard.Visibility);
+                    Assert.AreEqual(Visibility.Collapsed, memory.RestoreProgress.Visibility);
+                    Assert.IsFalse(memory.RestoreButton.IsEnabled);
+                    Assert.AreEqual(false, memory.LaunchMissingCheck.IsChecked);
                     window.Navigate(SettingsSection.StickyNotes);
                     var page = (StickyNoteSettingsPage)window.NotesHost.Content;
                     page.TransparencySlider.Value = 8;
