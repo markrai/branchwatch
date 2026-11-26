@@ -22,6 +22,9 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private CurrentDisplayTopology? _previewTopology;
     private Guid? _previewDesktop;
     private DateTimeOffset? _previewCapture;
+    private DesktopPlacementPlan? _reviewedPlan;
+    private CancellationTokenSource? _restoreCancellation;
+    private Guid? _resultDesktop;
 
     internal DesktopMemorySettingsPage(DesktopMemoryStore store)
     {
@@ -31,7 +34,11 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         RefreshDesktops();
     }
 
-    internal void Stop() => _stopped = true;
+    internal void Stop()
+    {
+        _stopped = true;
+        _restoreCancellation?.Cancel();
+    }
 
     internal void RefreshDesktops()
     {
@@ -77,6 +84,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private void OnDesktopSelected(object sender, SelectionChangedEventArgs e)
     {
         if (_updating) return;
+        ClearResults();
         ClearPreview();
         Render();
     }
@@ -177,6 +185,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private void Render()
     {
         if (_stopped) return;
+        if (_resultDesktop != SelectedId && !_busy) ClearResults();
         var draft = _draft?.DesktopId == SelectedId ? _draft : null;
         var snapshot = draft ?? SelectedSaved;
         DesktopPicker.IsEnabled = !_busy;
@@ -187,6 +196,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         PreviewButton.IsEnabled = !_busy && _storageAvailable && draft is null && SelectedSaved is not null;
         if (!PreviewButton.IsEnabled || _previewDesktop != SelectedId || _previewCapture != SelectedSaved?.CapturedUtc)
             ClearPreview();
+        UpdateRestoreAvailability();
         DeleteButton.IsEnabled = !_busy && _storageAvailable && SelectedSaved is not null;
         SaveButton.Visibility = DiscardButton.Visibility = draft is null ? Visibility.Collapsed : Visibility.Visible;
         SaveButton.IsEnabled = !_busy && _storageAvailable && draft is { Windows.Count: > 0 };
@@ -249,6 +259,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
 
     private void ClearPreview()
     {
+        _reviewedPlan = null;
         _previewTopology = null;
         _previewDesktop = null;
         _previewCapture = null;
@@ -264,6 +275,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         var topology = _previewTopology!;
         var policy = FallbackPicker.SelectedIndex == 1 ? UnmatchedMonitorPolicy.Primary : UnmatchedMonitorPolicy.Skip;
         var plan = DesktopPlacementPlanner.Plan(saved, topology, policy);
+        _reviewedPlan = plan;
         var skipped = plan.Windows.Count(w => w.Kind == WindowPlacementKind.Skipped);
         var review = plan.Windows.Count(w => w.RequiresReview && w.Kind != WindowPlacementKind.Skipped);
         PlanSummary.Text = $"{plan.Windows.Count - skipped} proposed · {skipped} skipped · {review} need review · checked {topology.ObservedUtc.ToLocalTime():g}";
@@ -281,11 +293,121 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             + (w.ScreenBounds is { } b ? $" · ({b.Left}, {b.Top}) · {b.Width} × {b.Height} px" : "")
             + Environment.NewLine + w.Reason)).ToArray();
         PlanWarnings.Text = string.Join(Environment.NewLine, topology.Warnings.Append(
-            "Preview reflects the displays at the time shown. Refresh after changing your monitor configuration. Application state and window matching are not verified yet."));
+            "Preview reflects the displays at the time shown. Refresh after changing your monitor configuration. Running window identity and normal state will be verified before any move."));
         DrawLayout(PlanCanvas, topology.Monitors, plan.Windows.Reverse()
             .Where(w => w.ScreenBounds.HasValue && w.State != PlannedWindowState.Minimized)
             .Select(w => w.ScreenBounds!.Value).ToArray());
         PlanCard.Visibility = Visibility.Visible;
+        UpdateRestoreAvailability();
+    }
+
+    private void UpdateRestoreAvailability()
+    {
+        RestoreButton.IsEnabled = !_busy && _storageAvailable && _reviewedPlan is not null
+            && SelectedId.HasValue && SelectedId == _active
+            && _reviewedPlan.Windows.Any(w => w.State == PlannedWindowState.Normal && w.Kind != WindowPlacementKind.Skipped);
+        RestoreHint.Text = SelectedId != _active || _active is null
+            ? "Switch to the snapshot's original desktop before restoring."
+            : "Only uniquely matched, already-running normal windows are eligible. No windows will be launched, closed or activated.";
+    }
+
+    private void ClearResults()
+    {
+        _resultDesktop = null;
+        RestoreResultsCard.Visibility = Visibility.Collapsed;
+        RestoreRows.ItemsSource = null;
+    }
+
+    private void OnCancelRestore(object sender, RoutedEventArgs e)
+    {
+        _restoreCancellation?.Cancel();
+        CancelRestoreButton.IsEnabled = false;
+        RestoreSummary.Text = "Cancelling remaining moves...";
+    }
+
+    private async void OnRestore(object sender, RoutedEventArgs e)
+    {
+        if (_busy || !_storageAvailable || _reviewedPlan is not { } reviewed || SelectedSaved is not { } saved
+            || SelectedId != _active || saved.DesktopId != reviewed.DesktopId || saved.CapturedUtc != reviewed.SnapshotCapturedUtc)
+            return;
+        var policy = FallbackPicker.SelectedIndex == 1 ? UnmatchedMonitorPolicy.Primary : UnmatchedMonitorPolicy.Skip;
+        ClearResults();
+        _resultDesktop = saved.DesktopId;
+        RestoreResultsCard.Visibility = Visibility.Visible;
+        RestoreSummary.Text = "Checking running windows...";
+        var cancellation = new CancellationTokenSource();
+        _restoreCancellation = cancellation;
+        CancelRestoreButton.Visibility = Visibility.Visible;
+        CancelRestoreButton.IsEnabled = true;
+        _busy = true;
+        Render();
+        var service = new ExistingWindowRestoreService(new NativeExistingWindowRestoreEnvironment());
+        try
+        {
+            VerifySavedSnapshot(saved);
+            var approved = await RunOnSta(() => service.Prepare(saved, reviewed, policy, cancellation.Token));
+            if (_stopped || cancellation.IsCancellationRequested) return;
+            RestoreRows.ItemsSource = approved.Items.Select(i => new DetailRow(i.Label, $"{i.Status} · {i.Detail}")).ToArray();
+            var ready = approved.Items.Where(i => i.Status == ExistingRestoreStatus.Ready).ToArray();
+            RestoreSummary.Text = $"{ready.Length} matched · {approved.Items.Count - ready.Length} not eligible";
+            if (ready.Length == 0) return;
+            var names = string.Join(Environment.NewLine, ready.Take(8).Select(i => $"• {i.Label}"));
+            if (ready.Length > 8) names += $"{Environment.NewLine}… and {ready.Length - 8} more";
+            if (!Confirm($"Reposition {ready.Length} matching running windows on this desktop?{Environment.NewLine}{Environment.NewLine}{names}{Environment.NewLine}{Environment.NewLine}Other windows will not be intentionally moved. No applications will be launched. Geometry changes may be partial and are not automatically undone.", "Restore existing windows"))
+            {
+                RestoreSummary.Text = "Restore cancelled. No placement requests issued.";
+                return;
+            }
+
+            if (_stopped || cancellation.IsCancellationRequested) return;
+            VerifySavedSnapshot(saved);
+            RestoreSummary.Text = "Restoring matched windows...";
+            var results = await RunOnSta(() => service.Execute(approved, cancellation.Token));
+            if (_stopped) return;
+            RestoreRows.ItemsSource = results.Select(i => new DetailRow(i.Label, $"{i.Status} · {i.Detail}")).ToArray();
+            RestoreSummary.Text = $"{results.Count(i => i.Status == ExistingRestoreStatus.Restored)} restored · "
+                + $"{results.Count(i => i.Status == ExistingRestoreStatus.AlreadyPlaced)} already placed · "
+                + $"{results.Count(i => i.Status is not (ExistingRestoreStatus.Restored or ExistingRestoreStatus.AlreadyPlaced))} not completed";
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            if (!_stopped) RestoreSummary.Text = "Cancelled.";
+        }
+        catch (Exception ex)
+        {
+            if (!_stopped) RestoreSummary.Text = $"Restore stopped: {ex.Message}";
+        }
+        finally
+        {
+            _restoreCancellation = null;
+            cancellation.Dispose();
+            _busy = false;
+            if (!_stopped)
+            {
+                CancelRestoreButton.Visibility = Visibility.Collapsed;
+                RefreshDesktops();
+            }
+        }
+    }
+
+    private void VerifySavedSnapshot(DesktopSnapshot saved)
+    {
+        var current = _store.Load().SingleOrDefault(s => s.DesktopId == saved.DesktopId);
+        if (current is null || System.Text.Json.JsonSerializer.Serialize(current) != System.Text.Json.JsonSerializer.Serialize(saved))
+            throw new InvalidOperationException("The saved snapshot changed. Refresh before restoring.");
+    }
+
+    private static Task<T> RunOnSta<T>(Func<T> work)
+    {
+        var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            try { completion.SetResult(work()); }
+            catch (Exception ex) { completion.SetException(ex); }
+        }) { IsBackground = true };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        return completion.Task;
     }
 
     private void DrawLayout(DesktopSnapshot snapshot) =>

@@ -65,7 +65,7 @@
                     <Button x:Name="SaveButton" Content="Save snapshot" Style="{DynamicResource PrimaryButton}" Click="OnSave" Margin="0,0,8,6"/>
                     <Button x:Name="DiscardButton" Content="Discard capture" Click="OnDiscard" Margin="0,0,8,6"/>
                 </WrapPanel>
-                <TextBlock Text="Restoration is preview-only in this phase. No application windows will be moved or launched." Foreground="#617083" Margin="0,8,0,0"/>
+                <TextBlock Text="Restore existing normal windows only. Missing applications will not be launched in this phase." Foreground="#617083" Margin="0,8,0,0"/>
             </StackPanel>
         </Border>
         <Border x:Name="PlanCard" Visibility="Collapsed" Style="{DynamicResource SettingsCard}">
@@ -111,7 +111,30 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
                 <TextBlock x:Name="PlanWarnings" Foreground="#8C5918" TextWrapping="Wrap" Margin="0,12,0,0"/>
-                <Button Content="Refresh preview" HorizontalAlignment="Left" Click="OnPreview" Margin="0,14,0,0"/>
+                <WrapPanel Margin="0,14,0,0">
+                    <Button x:Name="RestoreButton" Content="Restore existing windows..." Style="{DynamicResource PrimaryButton}" Click="OnRestore" Margin="0,0,8,6"/>
+                    <Button Content="Refresh preview" Click="OnPreview" Margin="0,0,0,6"/>
+                </WrapPanel>
+                <TextBlock x:Name="RestoreHint" Foreground="#617083" TextWrapping="Wrap" Margin="0,4,0,0"/>
+            </StackPanel>
+        </Border>
+        <Border x:Name="RestoreResultsCard" Style="{DynamicResource SettingsCard}" Visibility="Collapsed">
+            <StackPanel>
+                <TextBlock Text="Restore results" Style="{DynamicResource CardTitle}"/>
+                <TextBlock x:Name="RestoreSummary" Style="{DynamicResource Description}" AutomationProperties.LiveSetting="Polite"/>
+                <Button x:Name="CancelRestoreButton" Content="Cancel remaining moves" HorizontalAlignment="Left" Click="OnCancelRestore" Visibility="Collapsed" Margin="0,0,0,10"/>
+                <ItemsControl x:Name="RestoreRows">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border BorderBrush="#DDE4ED" BorderThickness="0,0,0,1" Padding="0,8">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Label}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip="{Binding Label}"/>
+                                    <TextBlock Text="{Binding Detail}" Foreground="#617083" TextWrapping="Wrap" FontSize="12"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
             </StackPanel>
         </Border>
         <Border Style="{DynamicResource SettingsCard}">

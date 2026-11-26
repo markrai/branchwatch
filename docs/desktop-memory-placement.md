@@ -16,4 +16,4 @@ Open Settings → Desktop Memory, select a saved snapshot and click Preview rest
 
 Compare an unchanged layout, a physical monitor moved to the opposite side, changed resolution/scaling/rotation, a missing secondary monitor, and a spanning window crossing a gap. Verify the schematic and per-window positions; choose skip and primary fallback separately. Check that repeated previews produce identical geometry for an unchanged topology. Existing Phase 1 snapshots need no migration.
 
-The next phase must re-read topology, verify desktop membership and window identity immediately before placement, and not execute an estimated or stale plan as if it were authoritative. Actual window placement, application matching and minimized/maximized restoration remain unqualified.
+Phase 3 adds [existing-window restoration](desktop-memory-restore.md). Native placement and minimized/maximized restoration remain subject to physical qualification.
