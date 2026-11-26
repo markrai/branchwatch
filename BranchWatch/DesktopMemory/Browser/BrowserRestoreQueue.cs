@@ -10,7 +10,6 @@ internal sealed class BrowserRestoreQueue(Func<long>? clock = null)
 {
     private readonly Func<long> _clock = clock ?? Stopwatch.GetTimestamp;
     internal static BrowserRestoreQueue Shared { get; } = new();
-    private static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(2);
     private readonly object _gate = new();
     private readonly HashSet<BrowserRestoreKey> _attempted = [];
     private BrowserRestoreApproval? _pending;
@@ -34,7 +33,7 @@ internal sealed class BrowserRestoreQueue(Func<long>? clock = null)
                 key, context with { Tabs = context.Tabs.ToArray() }, _clock());
             _pending = approval;
             _stillCurrent = stillCurrent;
-            _expiry = new System.Threading.Timer(_ => Cancel(approval.Code), null, Lifetime, System.Threading.Timeout.InfiniteTimeSpan);
+            _expiry = new System.Threading.Timer(_ => Cancel(approval.Code), null, BrowserAuthorizationPolicy.Lifetime, System.Threading.Timeout.InfiniteTimeSpan);
             return approval;
         }
     }
@@ -43,17 +42,23 @@ internal sealed class BrowserRestoreQueue(Func<long>? clock = null)
     {
         var request = envelope.RestoreRequest;
         BrowserRestoreReply Rejected() => new(BrowserRestoreProtocol.Version, "rejected", request.ProfileId, request.Nonce);
+        BrowserRestoreApproval pending;
+        Func<bool>? verify;
         lock (_gate)
         {
-            if (!BrowserTabCapture.SupportsLiveSession(envelope.Browser)
-                || _pending is not { } pending || Stopwatch.GetElapsedTime(pending.Started, _clock()) >= Lifetime
-                || request.Ticket != pending.Code || envelope.DesktopId != pending.Key.DesktopId
-                || envelope.Browser != pending.Context.Browser || request.ProfileId != pending.Context.ProfileId
-                || _attempted.Contains(pending.Key)) return Rejected();
-            bool current;
-            try { current = _stillCurrent?.Invoke() == true; }
-            catch (Exception) { current = false; }
-            if (!current || Stopwatch.GetElapsedTime(pending.Started, _clock()) >= Lifetime)
+            if (_pending is not { } candidate || !Matches(candidate, envelope)) return Rejected();
+            pending = candidate;
+            verify = _stillCurrent;
+        }
+
+        bool current;
+        try { current = verify?.Invoke() == true; }
+        catch (Exception) { current = false; }
+
+        lock (_gate)
+        {
+            if (!ReferenceEquals(_pending, pending)) return Rejected();
+            if (!current || !Matches(pending, envelope))
             {
                 Clear();
                 return Rejected();
@@ -64,6 +69,13 @@ internal sealed class BrowserRestoreQueue(Func<long>? clock = null)
             return new(BrowserRestoreProtocol.Version, "authorized", request.ProfileId, request.Nonce, pending.Context.Tabs);
         }
     }
+
+    private bool Matches(BrowserRestoreApproval pending, BrowserRestoreEnvelope envelope) =>
+        BrowserTabCapture.SupportsLiveSession(envelope.Browser)
+        && !BrowserAuthorizationPolicy.Expired(pending.Started, _clock())
+        && envelope.RestoreRequest.Ticket == pending.Code && envelope.DesktopId == pending.Key.DesktopId
+        && envelope.Browser == pending.Context.Browser && envelope.RestoreRequest.ProfileId == pending.Context.ProfileId
+        && !_attempted.Contains(pending.Key);
 
     internal void Cancel(string? code)
     {

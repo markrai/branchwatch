@@ -489,6 +489,129 @@ public sealed class DesktopMemorySnapshotTests
         });
     }
 
+    [TestMethod]
+    public void BrowserPolicy_RejectsInconsistentNativeTokenAndIneligibleWindow()
+    {
+        var browser = BrowserProbe();
+        var live = new RestoreLiveWindow(browser, new RestoreWindowToken(new IntPtr(1), 1, 2, 12345));
+        Assert.AreEqual(new BrowserNativeToken("0x1", 1, "12345"), BrowserAuthorizationPolicy.LiveToken(live, Desktop, "chrome"));
+        Assert.IsNull(BrowserAuthorizationPolicy.LiveToken(live with { Token = live.Token! with { ProcessId = 2 } }, Desktop, "chrome"));
+        Assert.IsNull(BrowserAuthorizationPolicy.LiveToken(live with { Token = live.Token! with { Handle = new IntPtr(2) } }, Desktop, "chrome"));
+        Assert.IsNull(BrowserAuthorizationPolicy.LiveToken(live with { Token = live.Token! with { CreatedFileTime = 0 } }, Desktop, "chrome"));
+        Assert.IsNull(BrowserAuthorizationPolicy.LiveToken(live with { Window = browser with { Visible = false } }, Desktop, "chrome"));
+        Assert.IsNull(BrowserAuthorizationPolicy.LiveToken(live with { Window = browser with { Maximized = true } }, Desktop, "chrome"));
+        Assert.IsNull(BrowserAuthorizationPolicy.LiveToken(live, Other, "chrome"));
+        Assert.IsNull(BrowserAuthorizationPolicy.LiveToken(live, Desktop, "firefox"));
+    }
+
+    [TestMethod]
+    public void BrowserAuthorization_CancelledImportCannotAttachAfterVisibilityReturns()
+    {
+        var capture = DraftCapture();
+        var draft = new DesktopMemoryDraft();
+        draft.Replace(capture);
+        var inbox = new BrowserCaptureInbox();
+        var queue = new BrowserRestoreQueue();
+        Guid? active = Desktop;
+        var session = new BrowserAuthorizationSession(draft, inbox, queue, () => active, () => []);
+        var id = capture.Snapshot.Windows[0].Id;
+        var ticket = session.ArmCapture(Desktop, id);
+        try
+        {
+            Assert.IsTrue(inbox.TryReceive(ImportEnvelope(ticket)));
+            var import = session.TakeCapture(Desktop, id);
+            Assert.IsNotNull(import);
+            Assert.IsNull(session.CaptureTicket);
+            Assert.IsTrue(session.ImportCurrent(import!, Desktop));
+            active = Other;
+            Assert.IsFalse(session.ImportCurrent(import!, Desktop));
+            active = Desktop;
+            session.CancelCapture();
+            Assert.IsFalse(session.AttachCapture(import!, Desktop));
+            Assert.IsNull(draft.Snapshot!.Windows[0].BrowserContext);
+            var next = session.ArmCapture(Desktop, id);
+            Assert.IsTrue(inbox.TryReceive(ImportEnvelope(next)));
+            var valid = session.TakeCapture(Desktop, id);
+            Assert.IsNotNull(valid);
+            Assert.IsTrue(session.AttachCapture(valid!, Desktop));
+            Assert.IsFalse(session.AttachCapture(valid!, Desktop));
+            Assert.HasCount(2, draft.Snapshot!.Windows[0].BrowserContext!.Tabs);
+        }
+        finally { session.CancelCapture(); }
+    }
+
+    [TestMethod]
+    public void BrowserAuthorization_ReplacedDraftInvalidatesArmedCaptureAndConsumedImport()
+    {
+        var capture = DraftCapture();
+        var draft = new DesktopMemoryDraft();
+        draft.Replace(capture);
+        var inbox = new BrowserCaptureInbox();
+        var session = new BrowserAuthorizationSession(draft, inbox, new BrowserRestoreQueue(), () => Desktop, () => []);
+        var id = capture.Snapshot.Windows[0].Id;
+        var ticket = session.ArmCapture(Desktop, id);
+        try
+        {
+            Assert.IsTrue(inbox.TryReceive(ImportEnvelope(ticket)));
+            draft.Replace(capture with { Snapshot = capture.Snapshot with { } });
+            Assert.IsNull(session.TakeCapture(Desktop, id));
+            Assert.IsNull(session.CaptureTicket);
+            var next = session.ArmCapture(Desktop, id);
+            Assert.IsTrue(inbox.TryReceive(ImportEnvelope(next)));
+            var import = session.TakeCapture(Desktop, id);
+            Assert.IsNotNull(import);
+            draft.Replace(capture);
+            Assert.IsFalse(session.AttachCapture(import!, Desktop));
+            Assert.IsNull(draft.Snapshot!.Windows[0].BrowserContext);
+        }
+        finally { session.CancelCapture(); }
+    }
+
+    [TestMethod]
+    public void BrowserAuthorization_RestoreRequiresCurrentConfirmationAndSavedSession()
+    {
+        var capture = DraftCapture();
+        var saved = capture.Snapshot with
+        {
+            Windows = [capture.Snapshot.Windows[0] with { BrowserContext = ReviewContext() }]
+        };
+        var current = saved;
+        Guid? active = Desktop;
+        var queue = new BrowserRestoreQueue();
+        var session = new BrowserAuthorizationSession(new DesktopMemoryDraft(), new BrowserCaptureInbox(), queue,
+            () => active, () => [current]);
+        var id = saved.Windows[0].Id;
+        var revision = session.RestoreRevision;
+        session.CancelRestore();
+        Assert.ThrowsExactly<InvalidOperationException>(() => session.ArmRestore(saved, id, revision));
+        active = Other;
+        Assert.ThrowsExactly<InvalidOperationException>(() => session.ArmRestore(saved, id, session.RestoreRevision));
+        active = Desktop;
+        var approval = session.ArmRestore(saved, id, session.RestoreRevision);
+        try
+        {
+            Assert.AreEqual(BrowserRestoreRequestState.Pending, session.GetRestoreState(saved, Desktop, false));
+            current = saved with { Windows = [saved.Windows[0] with { BrowserContext = ReviewContext() with { Tabs = [ReviewContext().Tabs[0]] } }] };
+            Assert.AreEqual(BrowserRestoreRequestState.Stale, session.GetRestoreState(current, Desktop, false));
+            var request = new BrowserRestoreEnvelope(new(2, "restore", approval.Context.ProfileId,
+                "fedcba9876543210fedcba9876543210", approval.Code, 7), "chrome", Desktop);
+            Assert.AreEqual("rejected", queue.Redeem(request).Status);
+            Assert.IsFalse(queue.WasIssued(approval.Key));
+            current = saved;
+            var next = session.ArmRestore(saved, id, session.RestoreRevision);
+            Assert.AreEqual("authorized", queue.Redeem(request with { RestoreRequest = request.RestoreRequest with { Ticket = next.Code } }).Status);
+            Assert.AreEqual(BrowserRestoreRequestState.Issued, session.GetRestoreState(saved, Desktop, false));
+        }
+        finally { session.CancelRestore(); }
+    }
+
+    private static BrowserCaptureEnvelope ImportEnvelope(BrowserCaptureTicket ticket)
+    {
+        var context = ReviewContext();
+        return new(new(1, "capture", context.ProfileId, "fedcba9876543210fedcba9876543210",
+            ticket.Code, 7, context.Tabs, 0), ticket.Browser, ticket.Token, ticket.DesktopId);
+    }
+
     private static ProbeWindow BrowserProbe() => Window(Desktop, true) with
     {
         ProcessName = "chrome", ExecutablePath = @"C:\Apps\chrome.exe", ClassName = "Chrome_WidgetWin_1"

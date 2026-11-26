@@ -3,10 +3,11 @@ using System.Security.Cryptography;
 
 namespace BranchWatch;
 
-internal sealed class BrowserCaptureInbox
+internal sealed class BrowserCaptureInbox(Func<long>? clock = null)
 {
     internal static BrowserCaptureInbox Shared { get; } = new();
-    internal static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(2);
+    private readonly Func<long> _clock = clock ?? Stopwatch.GetTimestamp;
+    internal static readonly TimeSpan Lifetime = BrowserAuthorizationPolicy.Lifetime;
     private readonly object _gate = new();
     private BrowserCaptureTicket? _pending;
     private BrowserCaptureEnvelope? _received;
@@ -19,7 +20,7 @@ internal sealed class BrowserCaptureInbox
         {
             Clear();
             var ticket = new BrowserCaptureTicket(Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant(),
-                desktopId, windowId, browser, token, Stopwatch.GetTimestamp());
+                desktopId, windowId, browser, token, _clock());
             _pending = ticket;
             _expiry = new System.Threading.Timer(_ => Cancel(ticket.Code), null, Lifetime, System.Threading.Timeout.InfiniteTimeSpan);
             return ticket;
@@ -66,5 +67,5 @@ internal sealed class BrowserCaptureInbox
         _received = null;
     }
 
-    private static bool Expired(BrowserCaptureTicket ticket) => Stopwatch.GetElapsedTime(ticket.Started) >= Lifetime;
+    private bool Expired(BrowserCaptureTicket ticket) => BrowserAuthorizationPolicy.Expired(ticket.Started, _clock());
 }

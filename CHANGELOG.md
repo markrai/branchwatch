@@ -4,6 +4,10 @@
 
 ### Changed
 
+- Centralize Desktop Memory browser authorization, ticket lifecycle and native correlation checks; revalidate restore approvals after cancellable saved-session verification.
+
+### Changed
+
 - Extract Desktop Memory restore preparation, execution, cancellation and progress into a single-use session, retaining explicit confirmation and native safety checks.
 
 ### Changed
