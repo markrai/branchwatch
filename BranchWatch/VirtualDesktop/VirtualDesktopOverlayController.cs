@@ -1,4 +1,4 @@
-using System.Windows;
+using System.Windows.Threading;
 
 namespace BranchWatch;
 
@@ -7,7 +7,8 @@ public sealed class VirtualDesktopOverlayController : IDisposable
     private readonly SettingsService _settingsService;
     private readonly AppSettings _settings;
     private readonly VirtualDesktopMonitor _monitor;
-    private readonly VirtualDesktopOverlayWindow _overlayWindow;
+    private readonly OverlayWindowHost<VirtualDesktopOverlayWindow> _overlay = new(() => new VirtualDesktopOverlayWindow());
+    private readonly UiRefreshCoordinator _refresh;
     private bool _disposed;
 
     public VirtualDesktopOverlayController(SettingsService settingsService, AppSettings settings)
@@ -15,7 +16,8 @@ public sealed class VirtualDesktopOverlayController : IDisposable
         _settingsService = settingsService;
         _settings = settings;
         _monitor = new VirtualDesktopMonitor();
-        _overlayWindow = new VirtualDesktopOverlayWindow();
+        var dispatcher = Dispatcher.CurrentDispatcher;
+        _refresh = new(action => dispatcher.BeginInvoke(action), ApplyOverlayState);
         _monitor.StateChanged += OnDisplayStateChanged;
     }
 
@@ -23,14 +25,18 @@ public sealed class VirtualDesktopOverlayController : IDisposable
 
     public void Start()
     {
-        ApplyOverlayState();
+        if (_disposed) return;
+        _refresh.RefreshNow();
         _monitor.Start();
     }
 
-    internal void RefreshSettings() => ApplyOverlayState();
+    internal void RefreshSettings() => _refresh.RefreshNow();
+
+    internal VirtualDesktopOverlayWindow? CurrentOverlay => _overlay.Current;
 
     internal bool ToggleVisibility()
     {
+        if (_disposed) return _settings.VirtualDesktopOverlayVisible;
         var previous = _settings.VirtualDesktopOverlayVisible;
         _settings.VirtualDesktopOverlayVisible = !previous;
         try
@@ -43,7 +49,7 @@ public sealed class VirtualDesktopOverlayController : IDisposable
             throw;
         }
 
-        ApplyOverlayState();
+        _refresh.RefreshNow();
         return _settings.VirtualDesktopOverlayVisible;
     }
 
@@ -55,34 +61,28 @@ public sealed class VirtualDesktopOverlayController : IDisposable
         }
 
         _disposed = true;
+        _refresh.Dispose();
         _monitor.StateChanged -= OnDisplayStateChanged;
         _monitor.Dispose();
-        _overlayWindow.Close();
+        _overlay.Dispose();
     }
 
     private void OnDisplayStateChanged(object? sender, VirtualDesktopDisplayState state)
     {
-        System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
-        {
-            _overlayWindow.SetDisplayState(state);
-            ApplyOverlayState();
-        });
+        if (_settings.VirtualDesktopOverlayVisible) _refresh.Request();
     }
 
     private void ApplyOverlayState()
     {
-        if (!_settings.VirtualDesktopOverlayVisible)
+        _overlay.Render(_settings.VirtualDesktopOverlayVisible, window =>
         {
-            _overlayWindow.Hide();
-            return;
-        }
+            var state = _monitor.CurrentState ?? VirtualDesktopRegistryReader.TryGetDisplayState();
+            if (state is not null)
+            {
+                window.SetDisplayState(state);
+            }
 
-        var state = _monitor.CurrentState ?? VirtualDesktopRegistryReader.TryGetDisplayState();
-        if (state is not null)
-        {
-            _overlayWindow.SetDisplayState(state);
-        }
-
-        _overlayWindow.ShowOverlay(_settings);
+            window.ShowOverlay(_settings);
+        });
     }
 }
