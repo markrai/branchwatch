@@ -74,8 +74,8 @@ Self-tests cover statistics, CPU normalization, comparison deltas, JSON round tr
 | M.0 | Repeatable profiling, baseline and comparison | Merged; Windows CI passed; interactive baseline pending |
 | M.1 | Lazy overlay window creation and resource release | Merged; Windows CI passed; physical measurements pending |
 | M.2 | Lazy settings pages and snapshot loading | Merged; Windows CI passed; physical measurements pending |
-| M.3 | Demand-driven timers and background activity | Implemented; Windows CI and physical measurements pending |
-| M.4 | Filesystem watcher consolidation and reuse | Planned |
+| M.3 | Demand-driven timers and background activity | Merged; Windows CI passed; physical measurements pending |
+| M.4 | Filesystem watcher consolidation and reuse | Implemented; Windows CI and physical measurements pending |
 | M.5 | Sticky-note rendering and shared resources | Planned |
 | M.6 | Controlled runtime/GC experiments only if evidence warrants | Planned |
 | M.7 | Final repeat profiling and functional regression qualification | Planned |
@@ -111,3 +111,15 @@ The virtual desktop taskbar overlay reuses its active 400 ms z-order timer acros
 Four STA regression tests cover idle startup, dirty wakeup, closed-note alarm latch/reschedule/dismissal, save retry, restore retry exhaustion, open-window maintenance, and final close. The existing taskbar lifecycle test also checks position changes. M.2 merged with passing CI; M.3 Windows CI and physical profiling remain pending.
 
 Use equivalent idle-long workloads with no notes, closed notes without pending alarms, closed notes with pending alarms, and open notes. The primary expected improvement is reduced idle wakeups and allocation churn, not a guaranteed private-byte reduction. Verify alarm firing after sleep/resume, save retries, and desktop restoration manually. M.4 targets filesystem watcher consolidation and reuse.
+
+## M.4: filesystem watcher consolidation
+
+GitMetadataWatchers reconciles the desired exact filename subscriptions per nonrecursive directory rather than disposing all watchers on every repository refresh. HEAD, packed-refs and (in workspace mode) index share a watcher when they occupy the same metadata directory. The current loose ref uses its own directory watcher when necessary. Linked worktrees retain separate private and common metadata directories. A changed branch subscription replaces only the affected watcher, while unchanged subscriptions remain active. Rename notifications classify both old and new names, route refresh and index activity separately, and exclude unrelated files and lock files. Watching packed-refs even before it exists handles its subsequent creation.
+
+A typical ordinary repository with an existing packed-refs file and loose ref previously used four metadata watchers in workspace mode; it now uses two. Pinned mode previously used three under the same conditions and now uses two. Without an existing packed-refs file the previous counts were smaller. These are subscription counts inferred from the implementation, not measured process handle or byte savings. No cross-repository sharing is introduced; the selected repository's independent watcher and explicit full workspace rescans are intentionally retained to preserve session and recovery behavior.
+
+Metadata watcher errors invalidate the affected subscription and schedule a normal status refresh, allowing reconciliation to recreate it. No index promotion is fabricated for unknown overflow events. Missing or inaccessible directories are retried on subsequent reconciliation; this is not a guarantee of recovery without a further refresh if creation fails. Working-tree watchers now attach callbacks before enabling events and dispose partially initialized resources on failure. Their recursive scope, 64 KiB buffer, existing filters and debounce/recovery timings remain unchanged. Reducing buffers or sharing recursive watches across repositories is deferred unless measurements justify it.
+
+Six tests cover watcher reuse and counts, changed refs, detached HEAD, clearing and disposal, linked worktrees, missing directory recovery, exact filename/rename routing, and live packed-refs/index/HEAD notifications. Existing workspace promotion and pinned behavior coverage remains in place. M.3 merged with passing CI; M.4 Windows CI and comparative profiling pending.
+
+Profile a fixed workspace of known repository count and equivalent pinned mode before and after this change. Compare private bytes, handles, CPU and repeated activity; exercise branch checkout, index updates, packed refs, linked worktrees, workspace rescan and transition back to pinned mode. No measured MiB or process handle reductions claimed before matched captures. M.5 will address sticky-note rendering resources.
