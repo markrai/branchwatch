@@ -18,4 +18,4 @@ Captured coordinates distinguish screen bounds, DWM visible bounds and raw WINDO
 - Corrupt a test copy of the snapshot file and verify the page reports the error without overwriting it. Back up real data before testing.
 - Complete the Phase 0 hardware qualification before trusting placement coordinates. Restore remains intentionally unavailable.
 
-Next: monitor matching and placement intelligence, independent of the UI and without moving windows.
+Phase 2 adds [monitor matching and a placement preview](desktop-memory-placement.md), without moving windows.

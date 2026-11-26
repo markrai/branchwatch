@@ -12,6 +12,7 @@
                 <WrapPanel>
                     <Button x:Name="CaptureButton" Content="Capture layout" Style="{DynamicResource PrimaryButton}" Click="OnCapture" Margin="0,0,8,6"/>
                     <Button Content="Refresh" Click="OnRefresh" Margin="0,0,8,6"/>
+                    <Button x:Name="PreviewButton" Content="Preview restoration" Click="OnPreview" Margin="0,0,8,6"/>
                     <Button x:Name="DeleteButton" Content="Delete snapshot" Click="OnDelete" Margin="0,0,0,6"/>
                 </WrapPanel>
                 <TextBlock x:Name="StatusText" Foreground="#617083" TextWrapping="Wrap" Margin="0,6,0,0" AutomationProperties.LiveSetting="Polite"/>
@@ -64,7 +65,53 @@
                     <Button x:Name="SaveButton" Content="Save snapshot" Style="{DynamicResource PrimaryButton}" Click="OnSave" Margin="0,0,8,6"/>
                     <Button x:Name="DiscardButton" Content="Discard capture" Click="OnDiscard" Margin="0,0,8,6"/>
                 </WrapPanel>
-                <TextBlock Text="Restore will become available in a later phase." Foreground="#617083" Margin="0,8,0,0"/>
+                <TextBlock Text="Restoration is preview-only in this phase. No application windows will be moved or launched." Foreground="#617083" Margin="0,8,0,0"/>
+            </StackPanel>
+        </Border>
+        <Border x:Name="PlanCard" Visibility="Collapsed" Style="{DynamicResource SettingsCard}">
+            <StackPanel>
+                <TextBlock Text="Restore preview" Style="{DynamicResource CardTitle}"/>
+                <TextBlock x:Name="PlanSummary" Style="{DynamicResource Description}"/>
+                <TextBlock Text="Unmatched monitors" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                <ComboBox x:Name="FallbackPicker" SelectedIndex="0" MinHeight="34" SelectionChanged="OnFallbackChanged"
+                          AutomationProperties.Name="Unmatched monitor policy">
+                    <ComboBoxItem Content="Skip affected windows"/>
+                    <ComboBoxItem Content="Preview on primary monitor"/>
+                </ComboBox>
+                <Border Background="#EEF2F7" CornerRadius="8" Padding="10" Margin="0,14,0,8">
+                    <Viewbox Stretch="Uniform" MaxHeight="220">
+                        <Canvas x:Name="PlanCanvas" Width="420" Height="210" ClipToBounds="True" Background="Transparent"/>
+                    </Viewbox>
+                </Border>
+                <TextBlock Text="Current monitors · window rectangles are proposed positions, not actual windows." Foreground="#617083" FontSize="11" Margin="0,0,0,12"/>
+                <TextBlock Text="Monitor matching" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <ItemsControl x:Name="MatchRows">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border BorderBrush="#DDE4ED" BorderThickness="0,0,0,1" Padding="0,8">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Label}" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding Detail}" Foreground="#617083" TextWrapping="Wrap" FontSize="12"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="Planned windows" FontWeight="SemiBold" Margin="0,16,0,8"/>
+                <ItemsControl x:Name="PlanRows">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border BorderBrush="#DDE4ED" BorderThickness="0,0,0,1" Padding="0,8">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Label}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip="{Binding Label}"/>
+                                    <TextBlock Text="{Binding Detail}" Foreground="#617083" TextWrapping="Wrap" FontSize="12"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock x:Name="PlanWarnings" Foreground="#8C5918" TextWrapping="Wrap" Margin="0,12,0,0"/>
+                <Button Content="Refresh preview" HorizontalAlignment="Left" Click="OnPreview" Margin="0,14,0,0"/>
             </StackPanel>
         </Border>
         <Border Style="{DynamicResource SettingsCard}">

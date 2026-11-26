@@ -19,6 +19,9 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private bool _busy;
     private bool _stopped;
     private bool _storageAvailable;
+    private CurrentDisplayTopology? _previewTopology;
+    private Guid? _previewDesktop;
+    private DateTimeOffset? _previewCapture;
 
     internal DesktopMemorySettingsPage(DesktopMemoryStore store)
     {
@@ -74,12 +77,14 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private void OnDesktopSelected(object sender, SelectionChangedEventArgs e)
     {
         if (_updating) return;
+        ClearPreview();
         Render();
     }
 
     private void OnRefresh(object sender, RoutedEventArgs e)
     {
         if (_busy) return;
+        ClearPreview();
         Reload();
         if (_storageAvailable) StatusText.Text = "Snapshot list refreshed.";
         RefreshDesktops();
@@ -89,6 +94,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     {
         if (_busy || !_storageAvailable || SelectedId is not { } id || id != _active) return;
         if (_draft is not null && !Confirm("Discard the unsaved capture and take a new one?", "Capture layout")) return;
+        ClearPreview();
         _draft = null;
         _busy = true;
         StatusText.Text = "Inspecting application windows and monitors...";
@@ -134,6 +140,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         try
         {
             _store.Save(draft, existing?.CapturedUtc);
+            ClearPreview();
             _draft = null;
             Reload();
             if (_storageAvailable) StatusText.Text = "Snapshot saved locally.";
@@ -156,6 +163,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         try
         {
             _store.Delete(saved.DesktopId, saved.CapturedUtc);
+            ClearPreview();
             Reload();
             if (_storageAvailable) StatusText.Text = "Snapshot deleted. The local recovery backup may retain an older copy.";
         }
@@ -176,6 +184,9 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         CaptureHint.Text = _active is null ? "Windows could not verify the active desktop. Capture is unavailable."
             : SelectedId == _active ? "Arrange your applications before taking a capture."
             : "Switch to the selected desktop before taking a capture.";
+        PreviewButton.IsEnabled = !_busy && _storageAvailable && draft is null && SelectedSaved is not null;
+        if (!PreviewButton.IsEnabled || _previewDesktop != SelectedId || _previewCapture != SelectedSaved?.CapturedUtc)
+            ClearPreview();
         DeleteButton.IsEnabled = !_busy && _storageAvailable && SelectedSaved is not null;
         SaveButton.Visibility = DiscardButton.Visibility = draft is null ? Visibility.Collapsed : Visibility.Visible;
         SaveButton.IsEnabled = !_busy && _storageAvailable && draft is { Windows.Count: > 0 };
@@ -202,48 +213,127 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         DrawLayout(snapshot);
     }
 
-    private void DrawLayout(DesktopSnapshot snapshot)
+    private void OnPreview(object sender, RoutedEventArgs e)
     {
-        var left = snapshot.Monitors.Min(m => m.Bounds.Left);
-        var top = snapshot.Monitors.Min(m => m.Bounds.Top);
-        var right = snapshot.Monitors.Max(m => m.Bounds.Right);
-        var bottom = snapshot.Monitors.Max(m => m.Bounds.Bottom);
+        if (_busy || !_storageAvailable || SelectedSaved is not { } saved || _draft?.DesktopId == saved.DesktopId) return;
+        var previousPolicy = _previewDesktop == saved.DesktopId && _previewCapture == saved.CapturedUtc
+            ? FallbackPicker.SelectedIndex : 0;
+        ClearPreview();
+        FallbackPicker.SelectedIndex = previousPolicy;
+        try
+        {
+            _previewTopology = DesktopMemoryProbe.CaptureDisplays();
+            _previewDesktop = saved.DesktopId;
+            _previewCapture = saved.CapturedUtc;
+            RenderPlan(saved);
+            StatusText.Text = "Preview calculated. No windows or display settings were changed.";
+        }
+        catch (Exception ex)
+        {
+            ClearPreview();
+            StatusText.Text = $"Preview unavailable: {ex.Message}";
+        }
+    }
+
+    private void OnFallbackChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_previewTopology is null || SelectedSaved is not { } saved || saved.DesktopId != _previewDesktop
+            || saved.CapturedUtc != _previewCapture) return;
+        try { RenderPlan(saved); }
+        catch (Exception ex)
+        {
+            ClearPreview();
+            StatusText.Text = $"Preview unavailable: {ex.Message}";
+        }
+    }
+
+    private void ClearPreview()
+    {
+        _previewTopology = null;
+        _previewDesktop = null;
+        _previewCapture = null;
+        FallbackPicker.SelectedIndex = 0;
+        PlanCard.Visibility = Visibility.Collapsed;
+        PlanCanvas.Children.Clear();
+        MatchRows.ItemsSource = null;
+        PlanRows.ItemsSource = null;
+    }
+
+    private void RenderPlan(DesktopSnapshot saved)
+    {
+        var topology = _previewTopology!;
+        var policy = FallbackPicker.SelectedIndex == 1 ? UnmatchedMonitorPolicy.Primary : UnmatchedMonitorPolicy.Skip;
+        var plan = DesktopPlacementPlanner.Plan(saved, topology, policy);
+        var skipped = plan.Windows.Count(w => w.Kind == WindowPlacementKind.Skipped);
+        var review = plan.Windows.Count(w => w.RequiresReview && w.Kind != WindowPlacementKind.Skipped);
+        PlanSummary.Text = $"{plan.Windows.Count - skipped} proposed · {skipped} skipped · {review} need review · checked {topology.ObservedUtc.ToLocalTime():g}";
+        MatchRows.ItemsSource = plan.MonitorMatches.Select(m => new DetailRow(m.SavedSource,
+            m.CurrentSource is { } target ? $"Matched physical monitor: {target}" : m.Kind switch
+            {
+                MonitorMatchKind.Missing => "Monitor not detected",
+                MonitorMatchKind.Ambiguous => "Ambiguous physical identity",
+                _ => "Physical identity unavailable"
+            })).ToArray();
+        var byId = saved.Windows.ToDictionary(w => w.Id);
+        PlanRows.ItemsSource = plan.Windows.Select(w => new DetailRow(
+            byId[w.WindowId].Title ?? byId[w.WindowId].ProcessName ?? "Unknown application",
+            $"{w.Kind} · {w.TargetSource ?? "No target"} · {w.State}{(w.RequiresReview ? " · Review required" : "")}"
+            + (w.ScreenBounds is { } b ? $" · ({b.Left}, {b.Top}) · {b.Width} × {b.Height} px" : "")
+            + Environment.NewLine + w.Reason)).ToArray();
+        PlanWarnings.Text = string.Join(Environment.NewLine, topology.Warnings.Append(
+            "Preview reflects the displays at the time shown. Refresh after changing your monitor configuration. Application state and window matching are not verified yet."));
+        DrawLayout(PlanCanvas, topology.Monitors, plan.Windows.Reverse()
+            .Where(w => w.ScreenBounds.HasValue && w.State != PlannedWindowState.Minimized)
+            .Select(w => w.ScreenBounds!.Value).ToArray());
+        PlanCard.Visibility = Visibility.Visible;
+    }
+
+    private void DrawLayout(DesktopSnapshot snapshot) =>
+        DrawLayout(MonitorCanvas, snapshot.Monitors, snapshot.Windows.Where(w => !w.Minimized)
+            .OrderByDescending(w => w.EnumerationIndex).Select(w => w.VisibleFrameBounds ?? w.ScreenBounds).ToArray());
+
+    private static void DrawLayout(WpfCanvas canvas, IReadOnlyList<SnapshotMonitor> monitors, IReadOnlyList<ProbeRect> windows)
+    {
+        canvas.Children.Clear();
+        var left = monitors.Min(m => m.Bounds.Left);
+        var top = monitors.Min(m => m.Bounds.Top);
+        var right = monitors.Max(m => m.Bounds.Right);
+        var bottom = monitors.Max(m => m.Bounds.Bottom);
         var scale = Math.Min(400.0 / ((long)right - left), 190.0 / ((long)bottom - top));
         var offsetX = (420 - ((long)right - left) * scale) / 2;
         var offsetY = (210 - ((long)bottom - top) * scale) / 2;
-        foreach (var (monitor, index) in snapshot.Monitors.Select((m, i) => (m, i)))
+        foreach (var (monitor, index) in monitors.Select((m, i) => (m, i)))
         {
             var bounds = monitor.Bounds;
             var x = offsetX + ((long)bounds.Left - left) * scale;
             var y = offsetY + ((long)bounds.Top - top) * scale;
             var width = bounds.Width * scale;
             var height = bounds.Height * scale;
-            AddRectangle(x, y, width, height, "#263141", "#8998AA");
-            foreach (var window in snapshot.Windows.Where(w => !w.Minimized).OrderByDescending(w => w.EnumerationIndex))
+            AddRectangle(canvas, x, y, width, height, "#263141", "#8998AA");
+            foreach (var b in windows)
             {
-                var b = window.VisibleFrameBounds ?? window.ScreenBounds;
                 var x1 = Math.Max(b.Left, bounds.Left);
                 var y1 = Math.Max(b.Top, bounds.Top);
                 var x2 = Math.Min(b.Right, bounds.Right);
                 var y2 = Math.Min(b.Bottom, bounds.Bottom);
                 if (x2 <= x1 || y2 <= y1) continue;
-                AddRectangle(offsetX + ((long)x1 - left) * scale, offsetY + ((long)y1 - top) * scale,
+                AddRectangle(canvas, offsetX + ((long)x1 - left) * scale, offsetY + ((long)y1 - top) * scale,
                     ((long)x2 - x1) * scale, ((long)y2 - y1) * scale, "#526B8B", "#B4C8E1");
             }
             var label = new WpfTextBlock { Text = $"{index + 1}{(monitor.Primary ? " ★" : "")}", Foreground = System.Windows.Media.Brushes.White,
                 Background = Brush("#263141"), Padding = new Thickness(3, 1, 3, 1), FontSize = 11, IsHitTestVisible = false };
             WpfCanvas.SetLeft(label, x + 2);
             WpfCanvas.SetTop(label, y + 2);
-            MonitorCanvas.Children.Add(label);
+            canvas.Children.Add(label);
         }
     }
 
-    private void AddRectangle(double x, double y, double width, double height, string fill, string stroke)
+    private static void AddRectangle(WpfCanvas canvas, double x, double y, double width, double height, string fill, string stroke)
     {
         var rect = new WpfRectangle { Width = width, Height = height, Fill = Brush(fill), Stroke = Brush(stroke), StrokeThickness = 0.7, RadiusX = 2, RadiusY = 2 };
         WpfCanvas.SetLeft(rect, x);
         WpfCanvas.SetTop(rect, y);
-        MonitorCanvas.Children.Add(rect);
+        canvas.Children.Add(rect);
     }
 
     private static SolidColorBrush Brush(string hex) => new((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex)!);

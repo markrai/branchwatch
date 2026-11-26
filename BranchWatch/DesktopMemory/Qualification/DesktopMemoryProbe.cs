@@ -47,6 +47,32 @@ internal static class DesktopMemoryProbe
         }
     }
 
+    internal static CurrentDisplayTopology CaptureDisplays()
+    {
+        var previousDpi = SetThreadDpiAwarenessContext(new IntPtr(-4));
+        if (previousDpi == IntPtr.Zero)
+            throw new Win32Exception(Marshal.GetLastPInvokeError(), "Per-monitor DPI context unavailable.");
+
+        try
+        {
+            var warnings = new List<string>();
+            var first = ReadMonitors(includeIdentities: true, warnings);
+            var second = ReadMonitors(includeIdentities: true, warnings);
+            if (first.Count == 0 || !ProbePolicy.SameTopology(first, second)
+                || warnings.Any(w => w.StartsWith("GetMonitorInfo failed", StringComparison.Ordinal)))
+                throw new InvalidOperationException("Display configuration was unavailable or changed during inspection. Try again.");
+
+            return new CurrentDisplayTopology(DateTimeOffset.UtcNow,
+                second.Select(m => new SnapshotMonitor(m.SourceName, m.Bounds, m.WorkArea, m.Primary,
+                    m.RotationDegrees, m.ModeWidth, m.ModeHeight, m.RefreshHz, m.ScalePercent, m.Devices.ToArray())).ToArray(),
+                warnings.ToArray());
+        }
+        finally
+        {
+            SetThreadDpiAwarenessContext(previousDpi);
+        }
+    }
+
     private static ProbeDesktopState? ReadDesktops(bool includeIdentities, bool strictDesktop)
     {
         var state = strictDesktop ? VirtualDesktopRegistryReader.TryGetVerifiedDisplayState()
