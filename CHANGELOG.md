@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Security
+
+- Protect complete Desktop Memory snapshots and recovery backups using Windows current-user DPAPI. Read legacy files without modifying them; explicitly migrate existing files or migrate on save/delete. Reject unreadable protected files without plaintext fallback.
+
 ### Fixed
 
 - Reject inconsistent browser capture inventories and recheck restored tab identity, URL and privacy state before reporting success. Prevent updates to observed pre-existing tab identities and concurrent capture/restore popup actions.

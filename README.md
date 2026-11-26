@@ -176,3 +176,5 @@ Firefox Companion 0.2.0 adds an explicit two-marker correlation diagnostic in an
 The [Firefox physical qualification procedure](docs/desktop-memory-firefox-physical.md) includes an independent local evidence verifier. Firefox URL capture and restore remain locked.
 
 See the [browser security review and outstanding release gates](docs/desktop-memory-browser-security-review.md) before qualifying browser restoration for daily use.
+
+[Desktop Memory snapshot protection](docs/desktop-memory-snapshot-protection.md) encrypts saved layouts and their recovery backup for the current Windows user. Legacy files remain readable until explicitly migrated or changed.

@@ -15,6 +15,8 @@
                     <Button x:Name="PreviewButton" Content="Preview restoration" Click="OnPreview" Margin="0,0,8,6"/>
                     <Button x:Name="DeleteButton" Content="Delete snapshot" Click="OnDelete" Margin="0,0,0,6"/>
                 </WrapPanel>
+                <TextBlock x:Name="SnapshotProtectionText" Foreground="#617083" TextWrapping="Wrap" Margin="0,6,0,6"/>
+                <Button x:Name="ProtectSnapshotsButton" Content="Protect existing snapshots" Click="OnProtectSnapshots" HorizontalAlignment="Left" Visibility="Collapsed" Margin="0,0,0,6"/>
                 <TextBlock x:Name="StatusText" Foreground="#617083" TextWrapping="Wrap" Margin="0,6,0,0" AutomationProperties.LiveSetting="Polite"/>
             </StackPanel>
         </Border>
