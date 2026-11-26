@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "BranchWatch Companion",
+  "version": "0.1.0",
+  "description": "Check the local BranchWatch connection. No tabs or browsing history access.",
+  "permissions": [
+    "nativeMessaging",
+    "storage"
+  ],
+  "incognito": "not_allowed",
+  "background": {
+    "service_worker": "worker.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

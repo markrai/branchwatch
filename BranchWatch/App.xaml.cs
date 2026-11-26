@@ -14,6 +14,7 @@ public partial class App : System.Windows.Application
     private TrayService? _trayService;
     private StickyNotesController? _stickyNotes;
     private BranchWatchIpcServer? _ipcServer;
+    private BrowserCompanionServer? _browserCompanion;
 
     public App()
     {
@@ -38,6 +39,8 @@ public partial class App : System.Windows.Application
         _sessionController = new RepositorySessionController(_settingsService, settings, _repositoryWatcher);
         _ipcServer = new BranchWatchIpcServer(_sessionController);
         _ipcServer.Start();
+        _browserCompanion = new BrowserCompanionServer(BrowserCompanionProtocol.PipeName);
+        _browserCompanion.Start();
         _overlayWindow = new OverlayWindow();
         _virtualDesktopOverlayController = new VirtualDesktopOverlayController(_settingsService, settings);
         _stickyNotes = new StickyNotesController(_virtualDesktopOverlayController.Monitor,
@@ -80,6 +83,7 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _browserCompanion?.Dispose();
         _ipcServer?.Dispose();
         _stickyNotes?.Dispose();
         _trayService?.Dispose();
