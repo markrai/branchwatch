@@ -669,7 +669,7 @@ public partial class StickyNoteWindow : Window
 
     internal void HandleHeaderClick()
     {
-        if (_note.AdvanceAlarm(DateTimeOffset.UtcNow)) _controller.AlarmChanged();
+        _note.AdvanceAlarm(DateTimeOffset.UtcNow);
         if (_note.IsAlarmRinging)
         {
             _note.ClearAlarm();
@@ -715,8 +715,8 @@ public partial class StickyNoteWindow : Window
         AlarmButton.ToolTip = label;
         System.Windows.Automation.AutomationProperties.SetName(AlarmButton, label);
         var passive = IsBodyClickThrough && WantsClickThrough;
-        AlarmOutline.VerticalAlignment = passive ? VerticalAlignment.Top : VerticalAlignment.Stretch;
-        AlarmOutline.Height = passive ? HeaderRow.Height.Value : double.NaN;
+        AlarmOverlay.VerticalAlignment = passive ? VerticalAlignment.Top : VerticalAlignment.Stretch;
+        AlarmOverlay.Height = passive ? HeaderRow.Height.Value : double.NaN;
         AlarmOutline.BorderThickness = passive ? new Thickness(3, 3, 3, 0) : new Thickness(3);
         _alarmPulse.Update(ringing, StickyNoteAppearance.ResolveColor(_note.Color).Alarm);
         _passiveBody?.UpdateContent(_note);

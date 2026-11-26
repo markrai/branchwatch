@@ -11,7 +11,7 @@ internal readonly record struct StickyNoteAppearance(string Color, int Transpare
         new("Pink", "#FCE1E8", "#F3BACB", "#DB6391"),
         new("Blue", "#DDEEFF", "#B7D7F4", "#4A9CE5"),
         new("Purple", "#EEE3FC", "#D8C3F1", "#9C70DB"),
-        new("White", "#F5F5F5", "#DDDDDD", "#EEEEEE")
+        new("White", "#F5F5F5", "#DDDDDD", "#CFCFCF")
     });
 
     internal static StickyNoteColor ResolveColor(string? name) =>

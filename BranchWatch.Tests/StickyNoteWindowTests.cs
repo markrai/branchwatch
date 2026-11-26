@@ -101,7 +101,8 @@ public sealed class StickyNoteWindowTests
                     Assert.IsFalse(window.IsBodyClickThrough);
                     Assert.AreEqual("Expand note", window.CollapseButton.ToolTip);
                     Assert.AreEqual(2, System.Windows.Controls.Grid.GetColumn(window.CollapseButton));
-                    Assert.AreEqual(3, System.Windows.Controls.Grid.GetColumn(window.OptionsButton));
+                    Assert.AreEqual(3, System.Windows.Controls.Grid.GetColumn(window.AlarmButton));
+                    Assert.AreEqual(4, System.Windows.Controls.Grid.GetColumn(window.OptionsButton));
 
                     foreach (var level in new[] { 1, 10, 3 })
                     {
@@ -305,6 +306,63 @@ public sealed class StickyNoteWindowTests
             Assert.IsNotNull(track.Thumb);
             Assert.AreEqual(System.Windows.Controls.Primitives.ScrollBar.PageUpCommand, track.DecreaseRepeatButton.Command);
             Assert.AreEqual(System.Windows.Controls.Primitives.ScrollBar.PageDownCommand, track.IncreaseRepeatButton.Command);
+        });
+    }
+
+    [TestMethod]
+    public void Alarm_GlowTracksNoteColorAndHeaderDismissesWithoutChangingTransparency()
+    {
+        WithWindow(new StickyNote { DesktopId = Guid.NewGuid(), TransparencyLevel = 8, Color = "Blue" }, (window, note) =>
+        {
+            Assert.AreEqual(Visibility.Collapsed, window.AlarmOutline.Visibility);
+            Assert.AreEqual(Visibility.Collapsed, window.AlarmDot.Visibility);
+            var now = DateTimeOffset.UtcNow;
+            Assert.IsTrue(note.SetAlarm(now.AddMinutes(1), now));
+            window.RefreshAlarmPresentation();
+            Assert.AreEqual(Visibility.Visible, window.AlarmDot.Visibility);
+            Assert.AreEqual(Visibility.Collapsed, window.AlarmOutline.Visibility);
+            Assert.IsTrue(note.AdvanceAlarm(now.AddMinutes(1)));
+            window.RefreshAlarmPresentation();
+            Assert.AreEqual(Visibility.Visible, window.AlarmOutline.Visibility);
+            Assert.IsFalse(window.AlarmOverlay.IsHitTestVisible);
+            Assert.IsFalse(window.AlarmOutline.IsHitTestVisible);
+            Assert.AreEqual(System.Windows.Media.Color.FromRgb(0x4A, 0x9C, 0xE5),
+                ((SolidColorBrush)window.AlarmOutline.BorderBrush).Color);
+            Assert.AreEqual(0.55, window.NoteSurface.Opacity, 0.0001);
+            window.ApplyAppearance(new StickyNoteAppearance("Pink", 8));
+            Assert.AreEqual(System.Windows.Media.Color.FromRgb(0xDB, 0x63, 0x91),
+                ((SolidColorBrush)window.AlarmOutline.BorderBrush).Color);
+            window.SetCollapsed(true);
+            Assert.AreEqual(Visibility.Visible, window.AlarmOutline.Visibility);
+            window.HandleHeaderClick();
+            Assert.IsNull(note.AlarmDueUtc);
+            Assert.IsFalse(note.AlarmTriggered);
+            Assert.AreEqual(Visibility.Collapsed, window.AlarmOutline.Visibility);
+            Assert.AreEqual(Visibility.Collapsed, window.AlarmDot.Visibility);
+            Assert.AreEqual(8, note.TransparencyLevel);
+            Assert.AreEqual(0.55, window.NoteSurface.Opacity, 0.0001);
+        });
+    }
+
+    [TestMethod]
+    public void AlarmDialog_UsesDigitalTimeAndPreselectsScheduledDate()
+    {
+        WithWindow(new StickyNote { DesktopId = Guid.NewGuid() }, (_, _) =>
+        {
+            var future = DateTimeOffset.Now.AddDays(2);
+            var dialog = new StickyNoteAlarmDialog(future, ringing: false);
+            try
+            {
+                Assert.AreEqual(future.LocalDateTime.Date, dialog.AlarmCalendar.SelectedDate);
+                Assert.HasCount(24, dialog.HourPicker.Items);
+                Assert.HasCount(60, dialog.MinutePicker.Items);
+                Assert.AreEqual(future.LocalDateTime.Hour, dialog.HourPicker.SelectedIndex);
+                Assert.AreEqual(future.LocalDateTime.Minute, dialog.MinutePicker.SelectedIndex);
+                Assert.AreEqual("00", dialog.HourPicker.Items[0]);
+                Assert.AreEqual("59", dialog.MinutePicker.Items[59]);
+                Assert.AreEqual(Visibility.Visible, dialog.RemoveButton.Visibility);
+            }
+            finally { dialog.Close(); }
         });
     }
 
