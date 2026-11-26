@@ -4,6 +4,10 @@
 
 ### Added
 
+- Desktop Memory can reposition uniquely matched, already-running normal windows on the active saved desktop after explicit confirmation. Reports skipped, changed and failed windows separately; no launching or cross-desktop movement.
+
+### Added
+
 - Desktop Memory placement preview with physical monitor matching, proportional adaptation, spanning-window checks and explicit missing-monitor fallback. No windows are moved or launched yet.
 
 ### Added
