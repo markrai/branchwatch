@@ -241,8 +241,8 @@ public sealed class DesktopMemorySnapshotTests
             Assert.ThrowsExactly<InvalidDataException>(() => unavailable.Save(snapshot with { CapturedUtc = Captured.AddMinutes(1) }, Captured));
             Assert.AreEqual(original, File.ReadAllText(path));
             File.WriteAllText(backup, "{");
-            Assert.ThrowsExactly<JsonException>(() => store.ProtectLegacyFiles());
-            Assert.ThrowsExactly<JsonException>(() => store.Delete(Desktop, Captured));
+            Assert.Throws<JsonException>(() => store.ProtectLegacyFiles());
+            Assert.Throws<JsonException>(() => store.Delete(Desktop, Captured));
             Assert.AreEqual(original, File.ReadAllText(path));
             Assert.AreEqual("{", File.ReadAllText(backup));
             var invalid = JsonSerializer.Serialize(new ProtectedDesktopSnapshotFile(2, "DPAPI-CurrentUser", new byte[32]));
@@ -284,7 +284,7 @@ public sealed class DesktopMemorySnapshotTests
         using var doc = JsonDocument.Parse(raw);
         Assert.AreEqual(2, doc.RootElement.GetProperty("SchemaVersion").GetInt32());
         Assert.AreEqual("DPAPI-CurrentUser", doc.RootElement.GetProperty("Protection").GetString());
-        Assert.IsTrue(doc.RootElement.GetProperty("Payload").GetBytesFromBase64().Length > 0);
+        Assert.IsNotEmpty(doc.RootElement.GetProperty("Payload").GetBytesFromBase64());
         Assert.IsFalse(doc.RootElement.TryGetProperty("Snapshots", out _));
     }
 
