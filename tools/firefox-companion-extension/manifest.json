@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BranchWatch Companion for Firefox (diagnostic)",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Local connection and explicit extension-owned window correlation diagnostic; no saved URLs.",
   "permissions": [
     "nativeMessaging",

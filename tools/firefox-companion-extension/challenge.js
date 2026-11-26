@@ -33,15 +33,21 @@ async function activeContext(api, expected) {
 }
 async function runChallenge(api, page, settle = () => new Promise(resolve => setTimeout(resolve, 150))) {
     const context = await activeContext(api);
+    const startedUtc = new Date().toISOString();
+    const originalTitle = page.title;
+    if (originalTitle !== normalTitle && !/^BranchWatch Firefox qualification [A-Za-z0-9-]{1,32}$/.test(originalTitle))
+        throw new Error("Unexpected diagnostic title.");
     const { tabId, ...geometry } = context;
     const nonces = [newNonce(), newNonce()];
     if (nonces[0] === nonces[1]) throw new Error("Challenge randomness unavailable.");
+    const transcript = [];
     async function ask(command, nonce) {
         await activeContext(api, context);
         const reply = await api.runtime.sendNativeMessage(challengeHost, { version: 1, command, nonce, ...geometry });
         await activeContext(api, context);
         if (reply?.version !== 1 || reply.windowId !== context.windowId || reply.nonce !== nonce)
             throw new Error("Challenge reply did not match.");
+        transcript.push({ command, nonce, reply });
         return reply;
     }
     async function absent(nonce) {
@@ -64,20 +70,30 @@ async function runChallenge(api, page, settle = () => new Promise(resolve => set
         if (stableIdentity(observed[0]) !== stableIdentity(observed[1])) throw new Error("Native window identity changed.");
         await absent(nonces[0]);
     } finally {
-        page.title = normalTitle;
+        page.title = originalTitle;
     }
     await settle();
     await absent(nonces[0]);
     await absent(nonces[1]);
-    return { status: "challenge-correlated-not-authorized", authorized: false, browserWindowId: context.windowId,
-        nativeObservation: observed[1], cleanup: "verified" };
+    return { schemaVersion: 1, status: "challenge-correlated-not-authorized", authorized: false,
+        startedUtc, finishedUtc: new Date().toISOString(), diagnosticTitle: originalTitle,
+        browserWindowId: context.windowId, browserObservation: geometry, nativeObservation: observed[1],
+        transcript, cleanup: "verified" };
 }
 const runButton = document.getElementById("run");
 const output = document.getElementById("result");
+const labelInput = document.getElementById("label");
+const labelButton = document.getElementById("setLabel");
+labelButton.addEventListener("click", () => {
+    const label = labelInput.value.trim();
+    if (!/^[A-Za-z0-9-]{1,32}$/.test(label)) { output.textContent = "Use a unique test label (1–32 letters, digits or hyphens)."; return; }
+    document.title = "BranchWatch Firefox qualification " + label;
+    output.textContent = "Label set. Take the independent before probe now.";
+});
 runButton.addEventListener("click", async () => {
-    runButton.disabled = true;
+    runButton.disabled = labelButton.disabled = labelInput.disabled = true;
     output.textContent = "Checking...";
     try { output.textContent = JSON.stringify(await runChallenge(browser, document), null, 2); }
     catch (error) { output.textContent = "Not qualified: " + String(error.message ?? error) + ". Close this test tab if necessary."; }
-    finally { runButton.disabled = false; }
+    finally { runButton.disabled = labelButton.disabled = labelInput.disabled = false; }
 });

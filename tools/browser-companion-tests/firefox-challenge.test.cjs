@@ -41,6 +41,10 @@ test("two different markers on the same native identity and verified cleanup", a
     assert.equal(result.cleanup, "verified");
     assert.equal(page.title, title);
     assert.equal(calls.length, 7);
+    assert.equal(result.schemaVersion, 1);
+    assert.equal(result.transcript.length, 7);
+    assert.equal(result.diagnosticTitle, title);
+    assert.equal(result.transcript[2].reply.handle, result.transcript[3].reply.handle);
     const markers = calls.filter(c => c.request.command === "challenge-present");
     assert.equal(markers.length, 2);
     assert.notEqual(markers[0].request.nonce, markers[1].request.nonce);
@@ -89,4 +93,13 @@ test("rejects private or missing diagnostic tab and focus drift", async () => {
         await assert.rejects(() => runChallenge(api, page, async () => {}));
         assert.equal(page.title, title);
     }
+});
+
+test("qualification label is restored and retained in the report", async () => {
+    const { api, page } = fixture();
+    page.title = "BranchWatch Firefox qualification window-A";
+    const result = await runChallenge(api, page, async () => {});
+    assert.equal(page.title, "BranchWatch Firefox qualification window-A");
+    assert.equal(result.diagnosticTitle, page.title);
+    assert.equal(result.browserObservation.windowId, 7);
 });
