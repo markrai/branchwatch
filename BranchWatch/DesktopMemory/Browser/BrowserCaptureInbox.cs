@@ -14,6 +14,7 @@ internal sealed class BrowserCaptureInbox
 
     internal BrowserCaptureTicket Arm(Guid desktopId, Guid windowId, string browser, BrowserNativeToken token)
     {
+        if (!BrowserTabCapture.SupportsLiveSession(browser)) throw new InvalidOperationException("Browser capture is not qualified.");
         lock (_gate)
         {
             Clear();
@@ -29,7 +30,8 @@ internal sealed class BrowserCaptureInbox
     {
         lock (_gate)
         {
-            if (_pending is not { } ticket || Expired(ticket) || _received is not null
+            if (!BrowserTabCapture.SupportsLiveSession(envelope.Browser)
+                || _pending is not { } ticket || Expired(ticket) || _received is not null
                 || envelope.Request.Ticket != ticket.Code || envelope.Browser != ticket.Browser
                 || envelope.DesktopId != ticket.DesktopId || envelope.Token != ticket.Token) return false;
             _received = envelope;

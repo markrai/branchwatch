@@ -4,6 +4,10 @@
 
 ### Added
 
+- Prepare Firefox session snapshot validation and offline tab planning, with explicit live-operation rejection pending physical correlation qualification. Container tabs are not converted to default-store tabs.
+
+### Added
+
 - Firefox Companion adds an explicit extension-owned two-marker correlation test, requiring unique native observations, stable window identity and verified marker removal. URL capture and restore remain disabled pending physical qualification.
 
 ### Added

@@ -46,3 +46,5 @@ pwsh -File scripts/firefox-companion.ps1 -Action Unregister
 Remove the temporary add-on in about:debugging. Delete the local diagnostic host directory if desired. Unregistration refuses to remove a registration pointing to a different manifest.
 
 References: [Mozilla native messaging](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Native_messaging), [native manifests](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Native_manifests), [temporary extension installation](https://extensionworkshop.com/documentation/develop/temporary-installation-in-firefox/).
+
+Phase 8G.3A prepares [offline Firefox session data and live-operation gates](desktop-memory-firefox-session-preparation.md). Real browser capture and reopening remain disabled.
