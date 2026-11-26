@@ -4,7 +4,7 @@
     <StackPanel>
         <Border Style="{DynamicResource SettingsCard}">
             <StackPanel>
-                <TextBlock Text="Working environment" Style="{DynamicResource CardTitle}"/>
+                <TextBlock Text="1 · Choose a desktop" Style="{DynamicResource CardTitle}"/>
                 <TextBlock Text="Select a virtual desktop. Capture is available only while that desktop is active." Style="{DynamicResource Description}"/>
                 <ComboBox x:Name="DesktopPicker" DisplayMemberPath="Label" SelectedValuePath="Id" MinHeight="34"
                           SelectionChanged="OnDesktopSelected" AutomationProperties.Name="Virtual desktop"/>
@@ -28,12 +28,18 @@
             <StackPanel>
                 <TextBlock x:Name="SnapshotHeading" Style="{DynamicResource CardTitle}"/>
                 <TextBlock x:Name="SnapshotSummary" Style="{DynamicResource Description}"/>
+                <WrapPanel Margin="0,0,0,10">
+                    <Button x:Name="SaveButton" Content="Save snapshot" Style="{DynamicResource PrimaryButton}" Click="OnSave" Margin="0,0,8,6"/>
+                    <Button x:Name="DiscardButton" Content="Discard capture" Click="OnDiscard" Margin="0,0,8,6"/>
+                </WrapPanel>
                 <Border Background="#EEF2F7" CornerRadius="8" Padding="10" Margin="0,0,0,14">
                     <Viewbox Stretch="Uniform" MaxHeight="220">
                         <Canvas x:Name="MonitorCanvas" Width="420" Height="210" ClipToBounds="True" Background="Transparent"/>
                     </Viewbox>
                 </Border>
                 <TextBlock Text="Schematic preview · numbers correspond to the monitor list" Foreground="#617083" FontSize="11" Margin="0,0,0,12"/>
+                <Expander x:Name="InventoryExpander" Header="Captured monitors and windows" IsExpanded="True" Margin="0,0,0,8">
+                <StackPanel Margin="0,8,0,0">
                 <TextBlock Text="Monitors" FontWeight="SemiBold" Margin="0,0,0,8"/>
                 <ItemsControl x:Name="MonitorRows">
                     <ItemsControl.ItemTemplate>
@@ -60,6 +66,8 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+                </StackPanel>
+                </Expander>
                 <StackPanel x:Name="FolderEditor" Visibility="Collapsed" Margin="0,14,0,0">
                     <TextBlock Text="Application folders" FontWeight="SemiBold" Margin="0,0,0,6"/>
                     <TextBlock Text="Optional: associate a local folder with a captured Explorer, Cursor, VS Code or Windows Terminal window. This is your chosen reopen location, not an inferred running process command line." Foreground="#617083" TextWrapping="Wrap" Margin="0,0,0,8"/>
@@ -71,16 +79,12 @@
                     </WrapPanel>
                 </StackPanel>
                 <TextBlock x:Name="WarningsText" Foreground="#8C5918" TextWrapping="Wrap" Margin="0,12,0,0"/>
-                <WrapPanel Margin="0,16,0,0">
-                    <Button x:Name="SaveButton" Content="Save snapshot" Style="{DynamicResource PrimaryButton}" Click="OnSave" Margin="0,0,8,6"/>
-                    <Button x:Name="DiscardButton" Content="Discard capture" Click="OnDiscard" Margin="0,0,8,6"/>
-                </WrapPanel>
-                <TextBlock Text="Restore matching normal windows. Optional folder adapters can reopen a chosen project or directory." Foreground="#617083" Margin="0,8,0,0"/>
+                <TextBlock Text="Restore matching normal windows. Optional folder adapters can reopen a chosen project or directory." Foreground="#617083" TextWrapping="Wrap" Margin="0,8,0,0"/>
             </StackPanel>
         </Border>
         <Border x:Name="PlanCard" Visibility="Collapsed" Style="{DynamicResource SettingsCard}">
             <StackPanel>
-                <TextBlock Text="Restore preview" Style="{DynamicResource CardTitle}"/>
+                <TextBlock Text="3 · Review restoration" Style="{DynamicResource CardTitle}"/>
                 <TextBlock x:Name="PlanSummary" Style="{DynamicResource Description}"/>
                 <TextBlock Text="Unmatched monitors" FontWeight="SemiBold" Margin="0,0,0,6"/>
                 <ComboBox x:Name="FallbackPicker" SelectedIndex="0" MinHeight="34" SelectionChanged="OnFallbackChanged"
@@ -93,7 +97,7 @@
                         <Canvas x:Name="PlanCanvas" Width="420" Height="210" ClipToBounds="True" Background="Transparent"/>
                     </Viewbox>
                 </Border>
-                <TextBlock Text="Current monitors · window rectangles are proposed positions, not actual windows." Foreground="#617083" FontSize="11" Margin="0,0,0,12"/>
+                <TextBlock Text="Current monitors · selected proposed windows only, not actual windows." Foreground="#617083" FontSize="11" Margin="0,0,0,12"/>
                 <TextBlock Text="Monitor matching" FontWeight="SemiBold" Margin="0,0,0,8"/>
                 <ItemsControl x:Name="MatchRows">
                     <ItemsControl.ItemTemplate>
@@ -107,13 +111,20 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-                <TextBlock Text="Planned windows" FontWeight="SemiBold" Margin="0,16,0,8"/>
+                <TextBlock Text="Choose windows to restore" FontWeight="SemiBold" Margin="0,16,0,6"/>
+                <TextBlock Text="Windows needing review start unchecked. Unchecked windows will not be moved or launched." Foreground="#617083" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                <WrapPanel Margin="0,0,0,6">
+                    <Button x:Name="SelectSafeButton" Content="Select ready placements" Click="OnSelectSafe" Margin="0,0,8,6"/>
+                    <Button x:Name="SelectAllButton" Content="Select all eligible" Click="OnSelectAll" Margin="0,0,8,6"/>
+                    <Button x:Name="SelectNoneButton" Content="Clear selection" Click="OnSelectNone" Margin="0,0,0,6"/>
+                </WrapPanel>
+                <TextBlock x:Name="SelectionSummary" Foreground="#315EAE" FontWeight="SemiBold" Margin="0,0,0,6"/>
                 <ItemsControl x:Name="PlanRows">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Border BorderBrush="#DDE4ED" BorderThickness="0,0,0,1" Padding="0,8">
                                 <StackPanel>
-                                    <TextBlock Text="{Binding Label}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip="{Binding Label}"/>
+                                    <CheckBox Content="{Binding Label}" IsChecked="{Binding Selected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding Eligible}" Click="OnPlanSelectionChanged" FontWeight="SemiBold" ToolTip="{Binding Label}" AutomationProperties.Name="{Binding Label}"/>
                                     <TextBlock Text="{Binding Detail}" Foreground="#617083" TextWrapping="Wrap" FontSize="12"/>
                                 </StackPanel>
                             </Border>
@@ -133,8 +144,9 @@
         </Border>
         <Border x:Name="RestoreResultsCard" Style="{DynamicResource SettingsCard}" Visibility="Collapsed">
             <StackPanel>
-                <TextBlock Text="Restore results" Style="{DynamicResource CardTitle}"/>
+                <TextBlock Text="4 · Restore results" Style="{DynamicResource CardTitle}"/>
                 <TextBlock x:Name="RestoreSummary" Style="{DynamicResource Description}" AutomationProperties.LiveSetting="Polite"/>
+                <ProgressBar x:Name="RestoreProgress" Height="8" Minimum="0" Maximum="1" Value="0" Visibility="Collapsed" Margin="0,0,0,12" AutomationProperties.Name="Restore progress"/>
                 <Button x:Name="CancelRestoreButton" Content="Cancel remaining operations" HorizontalAlignment="Left" Click="OnCancelRestore" Visibility="Collapsed" Margin="0,0,0,10"/>
                 <ItemsControl x:Name="RestoreRows">
                     <ItemsControl.ItemTemplate>

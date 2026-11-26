@@ -39,12 +39,18 @@ internal sealed class MissingApplicationLaunchService(IExistingWindowRestoreEnvi
     }
 
     internal IReadOnlyList<ExistingRestoreOutcome> Execute(MissingApplicationLaunchPreparation approved,
-        IReadOnlyList<ExistingRestoreOutcome> existingResults, CancellationToken cancellation)
+        IReadOnlyList<ExistingRestoreOutcome> existingResults, CancellationToken cancellation,
+        Action<ExistingRestoreOutcome>? progress = null)
     {
         var existing = approved.Existing;
         var stopped = existingResults.Any(r => r.Status is ExistingRestoreStatus.Changed or ExistingRestoreStatus.Failed
             or ExistingRestoreStatus.Cancelled or ExistingRestoreStatus.NotAttempted);
         var results = existingResults.ToDictionary(r => r.WindowId);
+        void Record(ExistingRestoreOutcome outcome)
+        {
+            results[outcome.WindowId] = outcome;
+            progress?.Invoke(outcome);
+        }
         foreach (var candidate in approved.Items)
         {
             var item = candidate.RestoreItem;
@@ -52,13 +58,13 @@ internal sealed class MissingApplicationLaunchService(IExistingWindowRestoreEnvi
                 new(item.WindowId, item.Label, status, detail);
             if (candidate.Status != ExistingRestoreStatus.LaunchReady || candidate.ExecutablePath is not { } path)
             {
-                results[item.WindowId] = Outcome(candidate.Status, candidate.Detail);
+                Record(Outcome(candidate.Status, candidate.Detail));
                 continue;
             }
             if (stopped || cancellation.IsCancellationRequested)
             {
-                results[item.WindowId] = Outcome(cancellation.IsCancellationRequested ? ExistingRestoreStatus.Cancelled
-                    : ExistingRestoreStatus.NotAttempted, "No application launch requested.");
+                Record(Outcome(cancellation.IsCancellationRequested ? ExistingRestoreStatus.Cancelled
+                    : ExistingRestoreStatus.NotAttempted, "No application launch requested."));
                 continue;
             }
 
@@ -72,14 +78,14 @@ internal sealed class MissingApplicationLaunchService(IExistingWindowRestoreEnvi
                     .Single(i => i.WindowId == item.WindowId);
                 if (match.Status != ExistingRestoreStatus.MissingWindow || HasApplicationWindow(before, path))
                 {
-                    results[item.WindowId] = Outcome(ExistingRestoreStatus.LaunchBlocked,
-                        "Application or matching window appeared after approval. No launch requested.");
+                    Record(Outcome(ExistingRestoreStatus.LaunchBlocked,
+                        "Application or matching window appeared after approval. No launch requested."));
                     continue;
                 }
                 var spec = candidate.Spec ?? new ApplicationLaunchSpec(path, null, [], false);
                 if (launcher.CheckLaunchBlock(spec) is { } reason)
                 {
-                    results[item.WindowId] = Outcome(ExistingRestoreStatus.LaunchBlocked, reason);
+                    Record(Outcome(ExistingRestoreStatus.LaunchBlocked, reason));
                     continue;
                 }
 
@@ -88,8 +94,8 @@ internal sealed class MissingApplicationLaunchService(IExistingWindowRestoreEnvi
                 if (spec.OpenOnly)
                 {
                     launcher.OpenFolder(spec, existing.Snapshot.DesktopId, existing.Plan.Current, cancellation);
-                    results[item.WindowId] = Outcome(ExistingRestoreStatus.LaunchUnverified,
-                        "Folder opening requested. Brokered window identity and placement are not verified; no automatic move was attempted.");
+                    Record(Outcome(ExistingRestoreStatus.LaunchUnverified,
+                        "Folder opening requested. Brokered window identity and placement are not verified; no automatic move was attempted."));
                     stopped = true;
                     continue;
                 }
@@ -127,8 +133,8 @@ internal sealed class MissingApplicationLaunchService(IExistingWindowRestoreEnvi
                 if (correlated is null)
                 {
                     stopped = true;
-                    results[item.WindowId] = Outcome(ExistingRestoreStatus.LaunchUnverified,
-                        "Application was started, but no unique new matching window was verified. It was left running; no retry or unrelated move was attempted.");
+                    Record(Outcome(ExistingRestoreStatus.LaunchUnverified,
+                        "Application was started, but no unique new matching window was verified. It was left running; no retry or unrelated move was attempted."));
                     continue;
                 }
                 cancellation.ThrowIfCancellationRequested();
@@ -139,32 +145,32 @@ internal sealed class MissingApplicationLaunchService(IExistingWindowRestoreEnvi
                 if (!launcher.IsRunning(process) || finalMatch.Status != ExistingRestoreStatus.Ready || finalMatch.Token != correlated.Token)
                 {
                     stopped = true;
-                    results[item.WindowId] = Outcome(ExistingRestoreStatus.LaunchUnverified,
-                        "Application started, but correlated window changed before positioning. No move was requested.");
+                    Record(Outcome(ExistingRestoreStatus.LaunchUnverified,
+                        "Application started, but correlated window changed before positioning. No move was requested."));
                     continue;
                 }
                 var placement = windows.Apply(existing.Snapshot.DesktopId, existing.Plan.Current, finalMatch, cancellation);
                 if (placement.Status is ExistingRestoreStatus.Restored or ExistingRestoreStatus.AlreadyPlaced)
-                    results[item.WindowId] = Outcome(ExistingRestoreStatus.LaunchedAndRestored,
-                        "Started application; new matching window bounds verified.");
+                    Record(Outcome(ExistingRestoreStatus.LaunchedAndRestored,
+                        "Started application; new matching window bounds verified."));
                 else
                 {
                     stopped = true;
-                    results[item.WindowId] = Outcome(placement.Status, "Application started. " + placement.Detail);
+                    Record(Outcome(placement.Status, "Application started. " + placement.Detail));
                 }
             }
             catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
             {
                 stopped = true;
-                results[item.WindowId] = Outcome(ExistingRestoreStatus.Cancelled, attempted
+                Record(Outcome(ExistingRestoreStatus.Cancelled, attempted
                     ? "Cancelled after launch attempt; the application may remain running. No further launch requested."
-                    : "Cancelled before launch.");
+                    : "Cancelled before launch."));
             }
             catch (Exception ex)
             {
                 stopped = true;
-                results[item.WindowId] = Outcome(attempted ? ExistingRestoreStatus.LaunchUnverified : ExistingRestoreStatus.Changed,
-                    (attempted ? "Launch attempted; outcome unverified. " : "Launch stopped before execution. ") + ex.Message);
+                Record(Outcome(attempted ? ExistingRestoreStatus.LaunchUnverified : ExistingRestoreStatus.Changed,
+                    (attempted ? "Launch attempted; outcome unverified. " : "Launch stopped before execution. ") + ex.Message));
             }
         }
         return existing.Items.Select(i => results[i.WindowId]).ToArray();

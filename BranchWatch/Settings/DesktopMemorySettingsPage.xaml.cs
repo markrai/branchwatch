@@ -12,6 +12,14 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private sealed record DesktopChoice(Guid Id, string Label);
     private sealed record DetailRow(string Label, string Detail);
     private sealed record FolderWindowChoice(Guid Id, string Label);
+    private sealed class PlanWindowChoice(Guid id, string label, string detail, bool eligible, bool selected)
+    {
+        internal Guid Id { get; } = id;
+        public string Label { get; } = label;
+        public string Detail { get; } = detail;
+        public bool Eligible { get; } = eligible;
+        public bool Selected { get; set; } = selected;
+    }
     private readonly DesktopMemoryStore _store;
     private IReadOnlyList<DesktopSnapshot> _saved = [];
     private DesktopSnapshot? _draft;
@@ -26,6 +34,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private DesktopPlacementPlan? _reviewedPlan;
     private CancellationTokenSource? _restoreCancellation;
     private Guid? _resultDesktop;
+    private PlanWindowChoice[] _planChoices = [];
 
     internal DesktopMemorySettingsPage(DesktopMemoryStore store)
     {
@@ -117,6 +126,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             var result = await CaptureOnSta(id);
             if (_stopped) return;
             _draft = result;
+            InventoryExpander.IsExpanded = true;
             StatusText.Text = result.Windows.Count == 0 ? "No eligible windows captured. Nothing was saved."
                 : "Review the capture below, then save it when ready.";
         }
@@ -217,7 +227,8 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             return;
         }
 
-        SnapshotHeading.Text = draft is null ? "Saved snapshot" : "Unsaved capture";
+        SnapshotHeading.Text = draft is null ? "2 · Saved snapshot" : "2 · Review unsaved capture";
+        SaveButton.Content = SelectedSaved is null ? "Save snapshot" : "Replace snapshot";
         SnapshotSummary.Text = $"{snapshot.CapturedUtc.ToLocalTime():g} · {snapshot.Monitors.Count} monitors · {snapshot.Windows.Count} windows";
         WarningsText.Text = string.Join(Environment.NewLine, snapshot.Warnings);
         RenderFolderEditor(draft);
@@ -300,6 +311,8 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             _previewDesktop = saved.DesktopId;
             _previewCapture = saved.CapturedUtc;
             RenderPlan(saved);
+            InventoryExpander.IsExpanded = false;
+            PlanCard.BringIntoView();
             StatusText.Text = "Preview calculated. No windows or display settings were changed.";
         }
         catch (Exception ex)
@@ -324,6 +337,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private void ClearPreview()
     {
         _reviewedPlan = null;
+        _planChoices = [];
         LaunchMissingCheck.IsChecked = false;
         _previewTopology = null;
         _previewDesktop = null;
@@ -340,6 +354,8 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         var topology = _previewTopology!;
         var policy = FallbackPicker.SelectedIndex == 1 ? UnmatchedMonitorPolicy.Primary : UnmatchedMonitorPolicy.Skip;
         var plan = DesktopPlacementPlanner.Plan(saved, topology, policy);
+        var priorSelection = _reviewedPlan is null ? RestoreSelection.Default(plan)
+            : _planChoices.Where(w => w.Selected && w.Eligible).Select(w => w.Id).ToHashSet();
         _reviewedPlan = plan;
         var skipped = plan.Windows.Count(w => w.Kind == WindowPlacementKind.Skipped);
         var review = plan.Windows.Count(w => w.RequiresReview && w.Kind != WindowPlacementKind.Skipped);
@@ -352,17 +368,45 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
                 _ => "Physical identity unavailable"
             })).ToArray();
         var byId = saved.Windows.ToDictionary(w => w.Id);
-        PlanRows.ItemsSource = plan.Windows.Select(w => new DetailRow(
+        _planChoices = plan.Windows.Select(w => new PlanWindowChoice(w.WindowId,
             byId[w.WindowId].Title ?? byId[w.WindowId].ProcessName ?? "Unknown application",
             $"{w.Kind} · {w.TargetSource ?? "No target"} · {w.State}{(w.RequiresReview ? " · Review required" : "")}"
             + (w.ScreenBounds is { } b ? $" · ({b.Left}, {b.Top}) · {b.Width} × {b.Height} px" : "")
-            + Environment.NewLine + w.Reason)).ToArray();
+            + Environment.NewLine + w.Reason, RestoreSelection.CanSelect(w),
+            RestoreSelection.CanSelect(w) && priorSelection.Contains(w.WindowId))).ToArray();
+        PlanRows.ItemsSource = _planChoices;
         PlanWarnings.Text = string.Join(Environment.NewLine, topology.Warnings.Append(
             "Preview reflects the displays at the time shown. Refresh after changing your monitor configuration. Running window identity and normal state will be verified before any move."));
-        DrawLayout(PlanCanvas, topology.Monitors, plan.Windows.Reverse()
-            .Where(w => w.ScreenBounds.HasValue && w.State != PlannedWindowState.Minimized)
-            .Select(w => w.ScreenBounds!.Value).ToArray());
         PlanCard.Visibility = Visibility.Visible;
+        UpdateSelectionPreview();
+    }
+
+    private void OnPlanSelectionChanged(object sender, RoutedEventArgs e) => UpdateSelectionPreview();
+
+    private void OnSelectSafe(object sender, RoutedEventArgs e) => SelectWindows(false, false);
+    private void OnSelectAll(object sender, RoutedEventArgs e) => SelectWindows(true, false);
+    private void OnSelectNone(object sender, RoutedEventArgs e) => SelectWindows(false, true);
+
+    private void SelectWindows(bool includeReview, bool clear)
+    {
+        if (_busy || _reviewedPlan is not { } plan) return;
+        var allowed = clear ? new HashSet<Guid>() : includeReview
+            ? plan.Windows.Where(RestoreSelection.CanSelect).Select(w => w.WindowId).ToHashSet()
+            : RestoreSelection.Default(plan).ToHashSet();
+        foreach (var choice in _planChoices) choice.Selected = choice.Eligible && allowed.Contains(choice.Id);
+        PlanRows.ItemsSource = null;
+        PlanRows.ItemsSource = _planChoices;
+        UpdateSelectionPreview();
+    }
+
+    private void UpdateSelectionPreview()
+    {
+        if (_busy || _reviewedPlan is not { } plan) return;
+        var selected = _planChoices.Where(w => w.Eligible && w.Selected).Select(w => w.Id).ToHashSet();
+        SelectionSummary.Text = $"{selected.Count} of {_planChoices.Count(w => w.Eligible)} eligible placements selected";
+        DrawLayout(PlanCanvas, plan.Current.Monitors, plan.Windows.Reverse()
+            .Where(w => selected.Contains(w.WindowId) && w.ScreenBounds.HasValue)
+            .Select(w => w.ScreenBounds!.Value).ToArray());
         UpdateRestoreAvailability();
     }
 
@@ -370,7 +414,8 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     {
         RestoreButton.IsEnabled = !_busy && _storageAvailable && _reviewedPlan is not null
             && SelectedId.HasValue && SelectedId == _active
-            && _reviewedPlan.Windows.Any(w => w.State == PlannedWindowState.Normal && w.Kind != WindowPlacementKind.Skipped);
+            && _planChoices.Any(w => w.Eligible && w.Selected);
+        RestoreButton.Content = $"Restore selected ({_planChoices.Count(w => w.Eligible && w.Selected)})...";
         LaunchMissingCheck.IsEnabled = RestoreButton.IsEnabled;
         RestoreHint.Text = SelectedId != _active || _active is null
             ? "Switch to the snapshot's original desktop before restoring."
@@ -382,6 +427,8 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         _resultDesktop = null;
         RestoreResultsCard.Visibility = Visibility.Collapsed;
         RestoreRows.ItemsSource = null;
+        RestoreProgress.Visibility = Visibility.Collapsed;
+        RestoreProgress.Value = 0;
     }
 
     private void OnCancelRestore(object sender, RoutedEventArgs e)
@@ -398,6 +445,8 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             return;
         var policy = FallbackPicker.SelectedIndex == 1 ? UnmatchedMonitorPolicy.Primary : UnmatchedMonitorPolicy.Skip;
         var launchMissing = LaunchMissingCheck.IsChecked == true;
+        var selected = _planChoices.Where(w => w.Eligible && w.Selected).Select(w => w.Id).ToHashSet();
+        if (selected.Count == 0) return;
         ClearResults();
         _resultDesktop = saved.DesktopId;
         RestoreResultsCard.Visibility = Visibility.Visible;
@@ -415,7 +464,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         try
         {
             VerifySavedSnapshot(saved);
-            var approved = await RunOnSta(() => service.Prepare(saved, reviewed, policy, cancellation.Token));
+            var approved = await RunOnSta(() => RestoreSelection.Apply(service.Prepare(saved, reviewed, policy, cancellation.Token), selected));
             if (_stopped) return;
             cancellation.Token.ThrowIfCancellationRequested();
             MissingApplicationLaunchPreparation? launchPlan = launchMissing
@@ -446,18 +495,44 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             if (_stopped) return;
             cancellation.Token.ThrowIfCancellationRequested();
             VerifySavedSnapshot(saved);
-            RestoreSummary.Text = launchPlan is null ? "Restoring matched windows..." : "Restoring matched windows and eligible missing applications...";
+            RestoreSummary.Text = "Restoring selected windows...";
+            var pendingLaunches = launchPlan?.Items.Select(i => i.RestoreItem.WindowId).ToHashSet() ?? [];
+            var progressRows = new Dictionary<Guid, ExistingRestoreOutcome>();
+            RestoreProgress.Maximum = Math.Max(1, approved.Items.Count);
+            RestoreProgress.Value = 0;
+            RestoreProgress.Visibility = Visibility.Visible;
+            var acceptingProgress = true;
+            void Report(ExistingRestoreOutcome outcome)
+            {
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (_stopped || !acceptingProgress || _restoreCancellation != cancellation) return;
+                    progressRows[outcome.WindowId] = outcome;
+                    RestoreProgress.Value = progressRows.Count;
+                    RestoreSummary.Text = cancellation.IsCancellationRequested ? "Cancelling remaining operations..."
+                        : $"Processed {progressRows.Count} of {approved.Items.Count} windows";
+                    RestoreRows.ItemsSource = approved.Items.Select(i => progressRows.TryGetValue(i.WindowId, out var completed)
+                        ? new DetailRow(i.Label, $"{completed.Status} · {completed.Detail}")
+                        : new DetailRow(i.Label, "Pending...")).ToArray();
+                }));
+            }
             var results = await RunOnSta(() =>
             {
-                var existingResults = service.Execute(approved, cancellation.Token);
-                return launchPlan is null ? existingResults : launches.Execute(launchPlan, existingResults, cancellation.Token);
+                var existingResults = service.Execute(approved, cancellation.Token, outcome =>
+                {
+                    if (!pendingLaunches.Contains(outcome.WindowId)) Report(outcome);
+                });
+                return launchPlan is null ? existingResults : launches.Execute(launchPlan, existingResults, cancellation.Token, Report);
             });
+            acceptingProgress = false;
+            if (!_stopped) RestoreProgress.Value = results.Count;
             if (_stopped) return;
             RestoreRows.ItemsSource = results.Select(i => new DetailRow(i.Label, $"{i.Status} · {i.Detail}")).ToArray();
             RestoreSummary.Text = $"{results.Count(i => i.Status == ExistingRestoreStatus.Restored)} restored · "
                 + $"{results.Count(i => i.Status == ExistingRestoreStatus.LaunchedAndRestored)} launched and restored · "
                 + $"{results.Count(i => i.Status == ExistingRestoreStatus.AlreadyPlaced)} already placed · "
-                + $"{results.Count(i => i.Status is not (ExistingRestoreStatus.Restored or ExistingRestoreStatus.AlreadyPlaced or ExistingRestoreStatus.LaunchedAndRestored))} not completed";
+                + $"{results.Count(i => i.Status == ExistingRestoreStatus.UserSkipped)} not selected · "
+                + $"{results.Count(i => i.Status is not (ExistingRestoreStatus.Restored or ExistingRestoreStatus.AlreadyPlaced or ExistingRestoreStatus.LaunchedAndRestored or ExistingRestoreStatus.UserSkipped))} other incomplete";
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {

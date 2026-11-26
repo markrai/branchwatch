@@ -4,6 +4,10 @@
 
 ### Added
 
+- Desktop Memory review workflow with explicit per-window selection, safe defaults, selected-placement diagrams and incremental restore results.
+
+### Added
+
 - Desktop Memory optional application folder adapters for Cursor, VS Code, File Explorer and Windows Terminal. Explicit folder assignments generate typed launch arguments; brokered folder openings are not reported as verified window restoration.
 
 ### Added
