@@ -681,6 +681,7 @@ public partial class StickyNoteWindow : Window
         if (!_interaction.TryBeginAlarmDialog()) return;
         try
         {
+            FinishRename(commit: true, focusHeader: false);
             FinishEditing();
             var dialog = new StickyNoteAlarmDialog(_note.AlarmDueUtc, _note.IsAlarmRinging) { Owner = this, Topmost = true };
             if (dialog.ShowDialog() != true) return;

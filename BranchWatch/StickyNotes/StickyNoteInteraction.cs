@@ -47,7 +47,7 @@ internal sealed class StickyNoteInteraction(StickyNote note)
 
     internal StickyNoteInteractionChange HoldTemporaryEditing(long timestamp)
     {
-        if (!IsPreview) return StickyNoteInteractionChange.None;
+        if (!CanTemporarilyEdit || !IsPreview) return StickyNoteInteractionChange.None;
         return _editing.TryHold(timestamp) ? StickyNoteInteractionChange.PreviewHeld : EndEditing();
     }
 
