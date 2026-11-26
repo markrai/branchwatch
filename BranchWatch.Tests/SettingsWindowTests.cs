@@ -134,7 +134,7 @@ public sealed class SettingsWindowTests
                 Assert.AreNotEqual(true, desktop.ShowOverlayCheckBox.IsChecked);
                 settings.VirtualDesktopOverlayVisible = true;
                 window.RefreshExternalSettings();
-                Assert.AreEqual(true, desktop.ShowOverlayCheckBox.IsChecked);
+                Assert.IsTrue(desktop.ShowOverlayCheckBox.IsChecked ?? false);
                 window.Navigate(SettingsSection.GitWatcher);
                 Assert.AreSame(git, window.GitOverlayHost.Content);
                 window.Navigate(SettingsSection.VirtualDesktops);
