@@ -4,6 +4,10 @@
 
 ### Changed
 
+- Extract Desktop Memory capture, transient draft identities and reviewed snapshot persistence from the settings page; share the STA execution helper.
+
+### Changed
+
 - Isolate sticky-note passive-body ownership and native lifecycle from the WPF window, preserving desktop affinity and click-through fallback.
 
 ### Changed
