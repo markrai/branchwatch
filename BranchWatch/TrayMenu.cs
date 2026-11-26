@@ -114,11 +114,7 @@ internal sealed class TrayMenu : IDisposable
         if (_disposed) return;
         var choices = _notes();
         while (_reopen.DropDownItems.Count > 0)
-        {
-            var item = _reopen.DropDownItems[0];
-            _reopen.DropDownItems.RemoveAt(0);
-            item.Dispose();
-        }
+            _reopen.DropDownItems[0].Dispose();
 
         foreach (var note in choices)
             _reopen.DropDownItems.Add(CreateItem(TrayMenuState.Literal(note.Label), (_, _) => _reopenNote(note.Id)));
