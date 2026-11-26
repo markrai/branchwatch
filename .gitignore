@@ -51,3 +51,4 @@ desktop-memory-probe-*.json.*
 snapshots.json
 snapshots.json.*
 snapshots.backup.json
+desktop-memory-qualification/

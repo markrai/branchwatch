@@ -150,3 +150,5 @@ Open Settings → Desktop Memory, select the active virtual desktop, and choose 
 Desktop Memory optionally accepts [application folder assignments](docs/desktop-memory-adapters.md) for Cursor, VS Code, Explorer and Windows Terminal when reviewing a new capture. Brokered folder openings are not counted as restored windows.
 
 Use [the Desktop Memory review workflow](docs/desktop-memory-workflow.md) to select individual windows and track incremental restoration results. Review-required placements start unchecked.
+
+Desktop Memory's [hardware qualification guide](docs/desktop-memory-hardware.md) describes the local Windows evidence harness and release gate. CI alone does not establish native restoration readiness.

@@ -35,6 +35,12 @@ jobs:
       - name: Test
         run: dotnet test $env:SOLUTION_PATH -c $env:CONFIGURATION
 
+      - name: Build Desktop Memory fixture
+        run: dotnet build tools/DesktopMemoryFixture/DesktopMemoryFixture.csproj -c $env:CONFIGURATION
+
+      - name: Test Desktop Memory evidence checks
+        run: ./scripts/desktop-memory-qualification.ps1 -Action SelfTest
+
   package:
     name: Package ${{ matrix.rid }}
     runs-on: windows-latest
