@@ -276,6 +276,7 @@ public sealed class StickyNotesController : IDisposable
 
     internal void ScheduleRestore(Guid desktopId)
     {
+        if (!IsAvailable) return;
         _restoreDesktop = StickyNote.ForDesktop(_notes, desktopId).Any(note => !_windows.ContainsKey(note.Id))
             ? desktopId : null;
         _restoreAttempts = _restoreDesktop.HasValue ? 3 : 0;
@@ -387,24 +388,20 @@ public sealed class StickyNotesController : IDisposable
         {
             if (!_available) return false;
             if (!_dirty) return true;
-
-            try
+            _store.Save(_notes);
+            _dirty = false;
+            _saveErrorReported = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            if (!_saveErrorReported)
             {
-                _store.Save(_notes);
-                _dirty = false;
-                _saveErrorReported = false;
-                return true;
+                _saveErrorReported = true;
+                Error?.Invoke($"Unable to save sticky notes. Changes will be retried. {ex.Message}");
             }
-            catch (Exception ex)
-            {
-                if (!_saveErrorReported)
-                {
-                    _saveErrorReported = true;
-                    Error?.Invoke($"Unable to save sticky notes. Changes will be retried. {ex.Message}");
-                }
 
-                return false;
-            }
+            return false;
         }
         finally
         {
