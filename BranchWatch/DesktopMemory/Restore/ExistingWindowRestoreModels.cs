@@ -31,7 +31,11 @@ internal enum ExistingRestoreStatus
     Changed,
     Failed,
     Cancelled,
-    NotAttempted
+    NotAttempted,
+    LaunchReady,
+    LaunchBlocked,
+    LaunchUnverified,
+    LaunchedAndRestored
 }
 
 internal sealed record ExistingRestoreItem(Guid WindowId, string Label, PlannedWindowPlacement Placement,

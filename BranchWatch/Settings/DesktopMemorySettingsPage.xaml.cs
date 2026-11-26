@@ -264,6 +264,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private void ClearPreview()
     {
         _reviewedPlan = null;
+        LaunchMissingCheck.IsChecked = false;
         _previewTopology = null;
         _previewDesktop = null;
         _previewCapture = null;
@@ -310,9 +311,10 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         RestoreButton.IsEnabled = !_busy && _storageAvailable && _reviewedPlan is not null
             && SelectedId.HasValue && SelectedId == _active
             && _reviewedPlan.Windows.Any(w => w.State == PlannedWindowState.Normal && w.Kind != WindowPlacementKind.Skipped);
+        LaunchMissingCheck.IsEnabled = RestoreButton.IsEnabled;
         RestoreHint.Text = SelectedId != _active || _active is null
             ? "Switch to the snapshot's original desktop before restoring."
-            : "Only uniquely matched, already-running normal windows are eligible. No windows will be launched, closed or activated.";
+            : "Only verified normal windows are positioned. Missing applications are launched only when explicitly enabled and approved.";
     }
 
     private void ClearResults()
@@ -326,7 +328,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     {
         _restoreCancellation?.Cancel();
         CancelRestoreButton.IsEnabled = false;
-        RestoreSummary.Text = "Cancelling remaining moves...";
+        RestoreSummary.Text = "Cancelling remaining operations...";
     }
 
     private async void OnRestore(object sender, RoutedEventArgs e)
@@ -335,6 +337,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             || SelectedId != _active || saved.DesktopId != reviewed.DesktopId || saved.CapturedUtc != reviewed.SnapshotCapturedUtc)
             return;
         var policy = FallbackPicker.SelectedIndex == 1 ? UnmatchedMonitorPolicy.Primary : UnmatchedMonitorPolicy.Skip;
+        var launchMissing = LaunchMissingCheck.IsChecked == true;
         ClearResults();
         _resultDesktop = saved.DesktopId;
         RestoreResultsCard.Visibility = Visibility.Visible;
@@ -346,39 +349,59 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         _busy = true;
         Render();
         RestoreResultsCard.BringIntoView();
-        var service = new ExistingWindowRestoreService(new NativeExistingWindowRestoreEnvironment());
+        var environment = new NativeExistingWindowRestoreEnvironment();
+        var service = new ExistingWindowRestoreService(environment);
+        var launches = new MissingApplicationLaunchService(environment, new NativeMissingApplicationLaunchEnvironment());
         try
         {
             VerifySavedSnapshot(saved);
             var approved = await RunOnSta(() => service.Prepare(saved, reviewed, policy, cancellation.Token));
             if (_stopped) return;
             cancellation.Token.ThrowIfCancellationRequested();
-            RestoreRows.ItemsSource = approved.Items.Select(i => new DetailRow(i.Label, $"{i.Status} · {i.Detail}")).ToArray();
+            MissingApplicationLaunchPreparation? launchPlan = launchMissing
+                ? await RunOnSta(() => launches.Prepare(approved, cancellation.Token)) : null;
+            if (_stopped) return;
+            cancellation.Token.ThrowIfCancellationRequested();
+            var byId = launchPlan?.Items.ToDictionary(i => i.RestoreItem.WindowId);
+            RestoreRows.ItemsSource = approved.Items.Select(i =>
+                byId is not null && byId.TryGetValue(i.WindowId, out var launch)
+                    ? new DetailRow(i.Label, $"{launch.Status} · {launch.ExecutablePath} · {launch.Detail}")
+                    : new DetailRow(i.Label, $"{i.Status} · {i.Detail}")).ToArray();
             var ready = approved.Items.Where(i => i.Status == ExistingRestoreStatus.Ready).ToArray();
-            RestoreSummary.Text = $"{ready.Length} matched · {approved.Items.Count - ready.Length} not eligible";
-            if (ready.Length == 0) return;
+            var launchReady = launchPlan?.Items.Where(i => i.Status == ExistingRestoreStatus.LaunchReady).ToArray()
+                ?? Array.Empty<MissingApplicationLaunchItem>();
+            RestoreSummary.Text = $"{ready.Length} matched · {launchReady.Length} eligible launches · {approved.Items.Count - ready.Length - launchReady.Length} not eligible";
+            if (ready.Length == 0 && launchReady.Length == 0) return;
+            var launchNames = string.Join(Environment.NewLine, launchReady.Select(i => i.ExecutablePath));
             var names = string.Join(Environment.NewLine, ready.Take(8).Select(i => $"• {i.Label}"));
             if (ready.Length > 8) names += $"{Environment.NewLine}… and {ready.Length - 8} more";
-            if (!Confirm($"Reposition {ready.Length} matching running windows on this desktop?{Environment.NewLine}{Environment.NewLine}{names}{Environment.NewLine}{Environment.NewLine}Other windows will not be intentionally moved. No applications will be launched. Geometry changes may be partial and are not automatically undone.", "Restore existing windows"))
+            var launchDescription = launchReady.Length == 0 ? "No applications will be launched."
+                : $"Launch these {launchReady.Length} executables without arguments:{Environment.NewLine}{launchNames}{Environment.NewLine}Apps may activate themselves. Launches cannot be undone automatically.";
+            if (!Confirm($"Reposition {ready.Length} matching running windows on this desktop?{Environment.NewLine}{names}{Environment.NewLine}{Environment.NewLine}{launchDescription}{Environment.NewLine}{Environment.NewLine}Geometry changes may be partial and are not automatically undone.", "Restore desktop"))
             {
-                RestoreSummary.Text = "Restore cancelled. No placement requests issued.";
+                RestoreSummary.Text = "Restore cancelled. No placement or launch requests issued.";
                 return;
             }
 
             if (_stopped) return;
             cancellation.Token.ThrowIfCancellationRequested();
             VerifySavedSnapshot(saved);
-            RestoreSummary.Text = "Restoring matched windows...";
-            var results = await RunOnSta(() => service.Execute(approved, cancellation.Token));
+            RestoreSummary.Text = launchPlan is null ? "Restoring matched windows..." : "Restoring matched windows and eligible missing applications...";
+            var results = await RunOnSta(() =>
+            {
+                var existingResults = service.Execute(approved, cancellation.Token);
+                return launchPlan is null ? existingResults : launches.Execute(launchPlan, existingResults, cancellation.Token);
+            });
             if (_stopped) return;
             RestoreRows.ItemsSource = results.Select(i => new DetailRow(i.Label, $"{i.Status} · {i.Detail}")).ToArray();
             RestoreSummary.Text = $"{results.Count(i => i.Status == ExistingRestoreStatus.Restored)} restored · "
+                + $"{results.Count(i => i.Status == ExistingRestoreStatus.LaunchedAndRestored)} launched and restored · "
                 + $"{results.Count(i => i.Status == ExistingRestoreStatus.AlreadyPlaced)} already placed · "
-                + $"{results.Count(i => i.Status is not (ExistingRestoreStatus.Restored or ExistingRestoreStatus.AlreadyPlaced))} not completed";
+                + $"{results.Count(i => i.Status is not (ExistingRestoreStatus.Restored or ExistingRestoreStatus.AlreadyPlaced or ExistingRestoreStatus.LaunchedAndRestored))} not completed";
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
-            if (!_stopped) RestoreSummary.Text = "Cancelled before execution. No placement requests issued.";
+            if (!_stopped) RestoreSummary.Text = "Cancelled before execution. No placement or launch requests issued.";
         }
         catch (Exception ex)
         {

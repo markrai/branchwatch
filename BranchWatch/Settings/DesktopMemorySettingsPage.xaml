@@ -65,7 +65,7 @@
                     <Button x:Name="SaveButton" Content="Save snapshot" Style="{DynamicResource PrimaryButton}" Click="OnSave" Margin="0,0,8,6"/>
                     <Button x:Name="DiscardButton" Content="Discard capture" Click="OnDiscard" Margin="0,0,8,6"/>
                 </WrapPanel>
-                <TextBlock Text="Restore existing normal windows only. Missing applications will not be launched in this phase." Foreground="#617083" Margin="0,8,0,0"/>
+                <TextBlock Text="Restore matching normal windows. Optionally launch eligible missing applications without arguments." Foreground="#617083" Margin="0,8,0,0"/>
             </StackPanel>
         </Border>
         <Border x:Name="PlanCard" Visibility="Collapsed" Style="{DynamicResource SettingsCard}">
@@ -111,8 +111,11 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
                 <TextBlock x:Name="PlanWarnings" Foreground="#8C5918" TextWrapping="Wrap" Margin="0,12,0,0"/>
+                <CheckBox x:Name="LaunchMissingCheck" Content="Launch eligible missing applications" Margin="0,14,0,0"
+                          ToolTip="Launch a single missing normal window per absent executable. No arguments or application state are restored."/>
+                <TextBlock Text="Off by default. Applications may open their own startup windows or activate themselves." Foreground="#617083" TextWrapping="Wrap" Margin="0,4,0,0"/>
                 <WrapPanel Margin="0,14,0,0">
-                    <Button x:Name="RestoreButton" Content="Restore existing windows..." Style="{DynamicResource PrimaryButton}" Click="OnRestore" Margin="0,0,8,6"/>
+                    <Button x:Name="RestoreButton" Content="Restore desktop..." Style="{DynamicResource PrimaryButton}" Click="OnRestore" Margin="0,0,8,6"/>
                     <Button Content="Refresh preview" Click="OnPreview" Margin="0,0,0,6"/>
                 </WrapPanel>
                 <TextBlock x:Name="RestoreHint" Foreground="#617083" TextWrapping="Wrap" Margin="0,4,0,0"/>
@@ -122,7 +125,7 @@
             <StackPanel>
                 <TextBlock Text="Restore results" Style="{DynamicResource CardTitle}"/>
                 <TextBlock x:Name="RestoreSummary" Style="{DynamicResource Description}" AutomationProperties.LiveSetting="Polite"/>
-                <Button x:Name="CancelRestoreButton" Content="Cancel remaining moves" HorizontalAlignment="Left" Click="OnCancelRestore" Visibility="Collapsed" Margin="0,0,0,10"/>
+                <Button x:Name="CancelRestoreButton" Content="Cancel remaining operations" HorizontalAlignment="Left" Click="OnCancelRestore" Visibility="Collapsed" Margin="0,0,0,10"/>
                 <ItemsControl x:Name="RestoreRows">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>

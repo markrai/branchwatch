@@ -4,6 +4,10 @@
 
 ### Added
 
+- Desktop Memory optional generic launch of absent local applications, with explicit executable approval, conservative process/window correlation, session duplicate suppression and per-window launch results.
+
+### Added
+
 - Desktop Memory can reposition uniquely matched, already-running normal windows on the active saved desktop after explicit confirmation. Reports skipped, changed and failed windows separately; no launching or cross-desktop movement.
 
 ### Added
