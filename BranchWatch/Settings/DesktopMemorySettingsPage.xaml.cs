@@ -744,10 +744,10 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         CancelRestoreButton.Visibility = Visibility.Visible;
         CancelRestoreButton.IsEnabled = true;
         _busy = true;
-        Render();
-        RestoreResultsCard.BringIntoView();
         try
         {
+            Render();
+            RestoreResultsCard.BringIntoView();
             var preparation = await DesktopMemorySta.Run(session.Prepare);
             if (_stopped) return;
             session.ThrowIfCancelled();

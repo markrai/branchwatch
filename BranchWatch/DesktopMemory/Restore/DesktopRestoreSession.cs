@@ -79,7 +79,8 @@ internal sealed class DesktopRestoreSession : IDisposable
     internal IReadOnlyList<ExistingRestoreOutcome> ExecuteApproved(DesktopRestorePreparation approval,
         Action<ExistingRestoreOutcome>? observer = null)
     {
-        if (!ReferenceEquals(_prepared, approval)) throw new InvalidOperationException("Restore approval does not belong to this session.");
+        if (_prepared is null || !ReferenceEquals(_prepared, approval))
+            throw new InvalidOperationException("Restore approval does not belong to this session.");
         Transition(Stage.Prepared, Stage.Executing);
         try
         {
