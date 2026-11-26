@@ -19,6 +19,7 @@ public sealed class TrayService : IDisposable
     private readonly Forms.NotifyIcon _notifyIcon;
     private readonly Icon _trayIcon;
     private readonly Forms.Form _dialogOwner;
+    private readonly List<Image> _menuImages = [];
     private SettingsWindow? _settingsWindow;
     private Forms.ToolStripMenuItem? _desktopOverlayToggleItem;
     private Forms.ToolStripMenuItem? _modeItem;
@@ -138,6 +139,11 @@ public sealed class TrayService : IDisposable
         _notifyIcon.Visible = false;
         _notifyIcon.ContextMenuStrip?.Dispose();
         _notifyIcon.Dispose();
+        foreach (var image in _menuImages)
+        {
+            image.Dispose();
+        }
+        _menuImages.Clear();
         _trayIcon.Dispose();
         _dialogOwner.Dispose();
     }
@@ -156,14 +162,17 @@ public sealed class TrayService : IDisposable
         _statusItem = CreateDisabledItem(string.Empty);
         _statusItem.Visible = false;
 
-        menu.Items.Add(CreateDisabledItem("BranchWatch"));
+        var title = CreateDisabledItem("BranchWatch");
+        title.Image = _trayIcon.ToBitmap();
+        _menuImages.Add(title.Image);
+        menu.Items.Add(title);
         menu.Items.Add(_modeItem);
         menu.Items.Add(_activeRepositoryItem);
         menu.Items.Add(_branchItem);
         menu.Items.Add(_statusItem);
         menu.Items.Add(new Forms.ToolStripSeparator());
 
-        var git = new Forms.ToolStripMenuItem("Git Watcher");
+        var git = new Forms.ToolStripMenuItem("Git Watcher") { Image = MenuIcon(TrayMenuGlyph.Git) };
         _overlayToggleItem = CreateItem("Hide overlay", (_, _) => ToggleOverlay());
         _refreshItem = CreateItem("Refresh branch", (_, _) => RefreshBranch());
         _rescanWorkspaceItem = CreateItem("Rescan workspace", (_, _) => RescanWorkspace());
@@ -181,15 +190,19 @@ public sealed class TrayService : IDisposable
         git.DropDownItems.Add(new Forms.ToolStripSeparator());
         git.DropDownItems.Add(CreateItem("Preferences...", (_, _) => OpenSettings(SettingsSection.GitWatcher)));
 
-        var desktops = new Forms.ToolStripMenuItem("Virtual Desktops");
+        var desktops = new Forms.ToolStripMenuItem("Virtual Desktops") { Image = MenuIcon(TrayMenuGlyph.Desktops) };
         _desktopOverlayToggleItem = CreateItem("Hide overlay", (_, _) => ToggleDesktopOverlay());
         desktops.DropDownItems.Add(_desktopOverlayToggleItem);
         desktops.DropDownItems.Add(CreateItem("Preferences...", (_, _) => OpenSettings(SettingsSection.VirtualDesktops)));
 
+        var settings = CreateItem("Settings...", (_, _) => OpenSettings(SettingsSection.General));
+        settings.Image = MenuIcon(TrayMenuGlyph.Settings);
+        var about = CreateItem("About BranchWatch", (_, _) => OpenSettings(SettingsSection.About));
+        about.Image = MenuIcon(TrayMenuGlyph.About);
+        var exit = CreateItem("Exit", (_, _) => ExitApplication());
+        exit.Image = MenuIcon(TrayMenuGlyph.Exit);
         menu.Items.AddRange([git, desktops, BuildStickyNotesMenu(), new Forms.ToolStripSeparator(),
-            CreateItem("Settings...", (_, _) => OpenSettings(SettingsSection.General)),
-            CreateItem("About BranchWatch", (_, _) => OpenSettings(SettingsSection.About)),
-            new Forms.ToolStripSeparator(), CreateItem("Exit", (_, _) => ExitApplication())]);
+            settings, about, new Forms.ToolStripSeparator(), exit]);
 
         menu.Opening += (_, _) => RefreshContextMenu();
         RefreshContextMenu();
@@ -199,7 +212,7 @@ public sealed class TrayService : IDisposable
 
     private Forms.ToolStripMenuItem BuildStickyNotesMenu()
     {
-        var menu = new Forms.ToolStripMenuItem("Sticky Notes");
+        var menu = new Forms.ToolStripMenuItem("Sticky Notes") { Image = MenuIcon(TrayMenuGlyph.Notes) };
         menu.DropDownItems.Add(CreateItem("New note", (_, _) => RunAfterContextMenuClosed(_stickyNotes.CreateNote)));
         var reopen = new Forms.ToolStripMenuItem("Open on this desktop");
         menu.DropDownItems.Add(reopen);
@@ -253,18 +266,22 @@ public sealed class TrayService : IDisposable
         _activeRepositoryItem.Text = $"Repository: {CompactRepositoryLabel(status.RepositoryRoot)}";
         _activeRepositoryItem.ToolTipText = status.RepositoryRoot ?? "";
         _activeRepositoryItem.Visible = true;
-        _branchItem.Text = $"Branch: {status.BranchDisplay}";
+        var branch = status.BranchDisplay;
+        _branchItem.Text = $"Branch: {(branch.Length > 45 ? branch[..42] + "..." : branch)}";
+        _branchItem.ToolTipText = branch;
         _lastActivityItem.Text = $"Last activity: {FormatWorkspaceActivityReason(_sessionController.LastWorkspaceActivityReason)}";
         _lastActivityItem.Visible = isWorkspaceRepoMode && _sessionController.LastWorkspaceActivityReason.HasValue;
 
         if (!string.IsNullOrWhiteSpace(status.ErrorMessage))
         {
-            _statusItem.Text = $"Status: {status.ErrorMessage}";
+            _statusItem.Text = $"Status: {CompactStatus(status.ErrorMessage)}";
+            _statusItem.ToolTipText = status.ErrorMessage;
             _statusItem.Visible = true;
         }
         else if (!string.IsNullOrWhiteSpace(_sessionController.WorkspaceStatusText))
         {
-            _statusItem.Text = $"Status: {_sessionController.WorkspaceStatusText}";
+            _statusItem.Text = $"Status: {CompactStatus(_sessionController.WorkspaceStatusText)}";
+            _statusItem.ToolTipText = _sessionController.WorkspaceStatusText;
             _statusItem.Visible = true;
         }
         else
@@ -278,6 +295,13 @@ public sealed class TrayService : IDisposable
         _pinnedRepoModeItem.Checked = _settings.WatchMode == RepositoryWatchMode.PinnedRepo;
         _workspaceRepoModeItem.Checked = isWorkspaceRepoMode;
         _desktopOverlayToggleItem.Text = _settings.VirtualDesktopOverlayVisible ? "Hide overlay" : "Show overlay";
+    }
+
+    private Image MenuIcon(TrayMenuGlyph glyph)
+    {
+        var image = TrayMenuIcons.Create(glyph);
+        _menuImages.Add(image);
+        return image;
     }
 
     private static Forms.ToolStripMenuItem CreateDisabledItem(string text)
@@ -485,6 +509,8 @@ public sealed class TrayService : IDisposable
 
         _notifyIcon.Text = text.Length <= 63 ? text : text[..60] + "...";
     }
+
+    private static string CompactStatus(string value) => value.Length > 48 ? value[..45] + "..." : value;
 
     private static string CompactRepositoryLabel(string? root)
     {

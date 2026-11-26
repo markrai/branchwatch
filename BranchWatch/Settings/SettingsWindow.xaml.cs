@@ -72,8 +72,13 @@ public partial class SettingsWindow : Window
 
     internal void Navigate(SettingsSection section)
     {
+        if (Navigation.SelectedIndex == (int)section)
+        {
+            ShowSection(section);
+            return;
+        }
+
         Navigation.SelectedIndex = (int)section;
-        ShowSection(section);
     }
 
     private void OnNavigationChanged(object sender, SelectionChangedEventArgs e)
@@ -131,13 +136,19 @@ public partial class SettingsWindow : Window
         if (!_ready) return;
         RefreshRepositoryState();
         _desktopPage.LoadFromSettings();
-        RebuildDesktopColors();
+        if (DesktopsPage.Visibility == Visibility.Visible)
+        {
+            RebuildDesktopColors();
+        }
     }
 
     private void OnDesktopAppearanceChanged()
     {
         _desktops.RefreshSettings();
-        RebuildDesktopColors();
+        if (DesktopsPage.Visibility == Visibility.Visible)
+        {
+            RebuildDesktopColors();
+        }
     }
 
     private void OnDesktopStateChanged(object? sender, VirtualDesktopDisplayState state)

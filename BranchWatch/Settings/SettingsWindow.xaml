@@ -109,7 +109,7 @@
                     <TextBlock Text="SETTINGS" FontSize="10" Foreground="#617083" Margin="0,4,0,0"/>
                 </StackPanel>
                 <TextBlock x:Name="SidebarVersion" DockPanel.Dock="Bottom" Foreground="#617083" FontSize="11" Margin="8,12,0,0"/>
-                <ListBox x:Name="Navigation" SelectionChanged="OnNavigationChanged" Background="Transparent" BorderThickness="0" ItemContainerStyle="{StaticResource NavigationItem}">
+                <ListBox x:Name="Navigation" SelectionChanged="OnNavigationChanged" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ItemContainerStyle="{StaticResource NavigationItem}">
                     <ListBoxItem Tag="General"><StackPanel Orientation="Horizontal"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE713;" Width="25" FontSize="16"/><TextBlock Text="General"/></StackPanel></ListBoxItem>
                     <ListBoxItem Tag="GitWatcher"><StackPanel Orientation="Horizontal"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8B7;" Width="25" FontSize="16"/><TextBlock Text="Git Watcher"/></StackPanel></ListBoxItem>
                     <ListBoxItem Tag="VirtualDesktops"><StackPanel Orientation="Horizontal"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE7F4;" Width="25" FontSize="16"/><TextBlock Text="Virtual Desktops"/></StackPanel></ListBoxItem>

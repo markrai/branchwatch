@@ -4,7 +4,7 @@ namespace BranchWatch;
 
 public sealed class VirtualDesktopOverlayController : IDisposable
 {
-    private readonly SettingsService _settingsServiceForVisibility;
+    private readonly SettingsService _settingsService;
     private readonly AppSettings _settings;
     private readonly VirtualDesktopMonitor _monitor;
     private readonly VirtualDesktopOverlayWindow _overlayWindow;
@@ -12,7 +12,7 @@ public sealed class VirtualDesktopOverlayController : IDisposable
 
     public VirtualDesktopOverlayController(SettingsService settingsService, AppSettings settings)
     {
-        _settingsServiceForVisibility = settingsService;
+        _settingsService = settingsService;
         _settings = settings;
         _monitor = new VirtualDesktopMonitor();
         _overlayWindow = new VirtualDesktopOverlayWindow();
@@ -35,7 +35,7 @@ public sealed class VirtualDesktopOverlayController : IDisposable
         _settings.VirtualDesktopOverlayVisible = !previous;
         try
         {
-            _settingsServiceForVisibility.Save(_settings);
+            _settingsService.Save(_settings);
         }
         catch
         {

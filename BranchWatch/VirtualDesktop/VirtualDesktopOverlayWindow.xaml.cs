@@ -258,7 +258,6 @@ public partial class VirtualDesktopOverlayWindow : Window
             neighborPaddingV,
             neighborCorner,
             neighborMaxContent,
-            foreground,
             placeGapAfter: true);
 
         RebuildNeighborStrip(
@@ -272,7 +271,6 @@ public partial class VirtualDesktopOverlayWindow : Window
             neighborPaddingV,
             neighborCorner,
             neighborMaxContent,
-            foreground,
             placeGapAfter: false);
 
         RootBorder.Margin = new Thickness(layout.LeftActiveGap, 0, layout.ActiveRightGap, 0);
@@ -350,7 +348,6 @@ public partial class VirtualDesktopOverlayWindow : Window
         double paddingV,
         double cornerRadius,
         double maxContentWidth,
-        SolidColorBrush foreground,
         bool placeGapAfter)
     {
         strip.Children.Clear();

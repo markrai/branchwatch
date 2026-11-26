@@ -143,12 +143,14 @@
                         Padding="0"
                         BorderThickness="0"
                         Background="Transparent"
+                        ToolTip="Choose font color"
+                        AutomationProperties.Name="Choose font color"
                         VerticalAlignment="Center"
                         Cursor="Hand">
                     <Border x:Name="FontColorPreview"
                             Width="28"
                             Height="28"
-                            BorderBrush="Gray"
+                            BorderBrush="#CCD5E1"
                             BorderThickness="1"
                             CornerRadius="4"
                             Background="White" />
