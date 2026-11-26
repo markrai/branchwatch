@@ -10,6 +10,7 @@ internal sealed record SnapshotWindow(Guid Id, string? ProcessName, string? Exec
     uint? WindowDpi, int EnumerationIndex, IReadOnlyList<string> IntersectingMonitors)
 {
     public ApplicationFolderContext? FolderContext { get; init; }
+    public BrowserWindowContext? BrowserContext { get; init; }
 }
 
 internal sealed record DesktopSnapshot(Guid DesktopId, string DesktopName, DateTimeOffset CapturedUtc,

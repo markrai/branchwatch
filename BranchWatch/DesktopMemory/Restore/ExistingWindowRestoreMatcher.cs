@@ -20,6 +20,11 @@ internal static class ExistingWindowRestoreMatcher
             ExistingRestoreItem Item(ExistingRestoreStatus status, string detail, RestoreWindowToken? token = null) =>
                 new(saved.Id, label, placement, key, token, status, detail);
 
+            if (saved.BrowserContext is not null)
+            {
+                items.Add(Item(ExistingRestoreStatus.UnsupportedState, "Saved browser tabs require a profile-aware restoration adapter, not yet enabled."));
+                continue;
+            }
             if (placement.State != PlannedWindowState.Normal)
             {
                 items.Add(Item(ExistingRestoreStatus.UnsupportedState, "Saved minimized/maximized state is not qualified for restoration."));

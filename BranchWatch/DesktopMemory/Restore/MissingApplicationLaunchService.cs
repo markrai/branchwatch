@@ -21,7 +21,8 @@ internal sealed class MissingApplicationLaunchService(IExistingWindowRestoreEnvi
             var saved = existing.Snapshot.Windows.Single(w => w.Id == item.WindowId);
             var spec = path is null ? null : ApplicationRestoreAdapters.Build(saved);
             string? reason;
-            if (path is null) reason = "No saved executable identity.";
+            if (saved.BrowserContext is not null) reason = "Browser session restoration is not enabled yet. Generic empty-browser launch is blocked.";
+            else if (path is null) reason = "No saved executable identity.";
             else if (existing.Snapshot.Windows.Count(w => Paths.Equals(w.ExecutablePath, path)) != 1)
                 reason = "More than one saved window uses this executable. An application adapter is required.";
             else if (fresh.Single(i => i.WindowId == item.WindowId).Status != ExistingRestoreStatus.MissingWindow)

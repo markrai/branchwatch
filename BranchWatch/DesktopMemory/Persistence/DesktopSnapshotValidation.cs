@@ -31,7 +31,9 @@ internal static class DesktopSnapshotValidation
                 || string.IsNullOrWhiteSpace(window.MonitorSource) || !sources.Contains(window.MonitorSource)
                 || window.IntersectingMonitors is null || window.IntersectingMonitors.Any(m => !sources.Contains(m))
                 || window.EnumerationIndex < 0
-                || (window.FolderContext is not null && !ApplicationRestoreAdapters.IsValidContext(window, window.FolderContext)))
+                || (window.FolderContext is not null && !ApplicationRestoreAdapters.IsValidContext(window, window.FolderContext))
+                || (window.BrowserContext is { } browser && (!BrowserTabCapture.IsValid(browser)
+                    || BrowserTabCapture.BrowserFor(window.ExecutablePath, window.ClassName) != browser.Browser)))
                 throw new InvalidDataException("Invalid snapshot window.");
         }
 

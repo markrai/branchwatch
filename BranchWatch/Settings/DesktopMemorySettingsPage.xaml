@@ -78,6 +78,28 @@
                         <Button x:Name="ClearFolderButton" Content="Clear folder" Click="OnClearFolder" Margin="0,0,0,6"/>
                     </WrapPanel>
                 </StackPanel>
+                <StackPanel x:Name="BrowserEditor" Visibility="Collapsed" Margin="0,14,0,0">
+                    <TextBlock Text="Browser tabs (experimental capture)" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                    <TextBlock Text="Choose a captured normal Chrome or Edge window. Generate a code, open Companion in that same window, and send its tabs. Import, review and explicitly save. URLs may contain private tokens." Foreground="#617083" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                    <ComboBox x:Name="BrowserWindowPicker" DisplayMemberPath="Label" SelectedValuePath="Id" MinHeight="32" AutomationProperties.Name="Browser window to capture"/>
+                    <WrapPanel Margin="0,8,0,6">
+                        <Button x:Name="ArmBrowserButton" Content="Generate capture code" Click="OnArmBrowser" Margin="0,0,8,6"/>
+                        <Button x:Name="ImportBrowserButton" Content="Import received tabs" Click="OnImportBrowser" Margin="0,0,8,6"/>
+                        <Button x:Name="ClearBrowserButton" Content="Clear saved tabs from draft" Click="OnClearBrowser" Margin="0,0,0,6"/>
+                    </WrapPanel>
+                    <TextBox x:Name="BrowserTicketText" IsReadOnly="True" AutomationProperties.Name="One-time capture code" Margin="0,0,0,8"/>
+                    <ItemsControl x:Name="BrowserRows">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,4,0,8">
+                                    <TextBlock Text="{Binding Label}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" Foreground="#617083" FontSize="12"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="Browser tab restoration is not enabled yet." Foreground="#617083" TextWrapping="Wrap"/>
+                </StackPanel>
                 <TextBlock x:Name="WarningsText" Foreground="#8C5918" TextWrapping="Wrap" Margin="0,12,0,0"/>
                 <TextBlock Text="Restore matching normal windows. Optional folder adapters can reopen a chosen project or directory." Foreground="#617083" TextWrapping="Wrap" Margin="0,8,0,0"/>
             </StackPanel>

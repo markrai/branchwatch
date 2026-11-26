@@ -3,5 +3,5 @@
 <head><meta charset="utf-8"><title>BranchWatch Companion</title><style>
 body{font:13px system-ui;width:320px;margin:18px;color:#243041}button{padding:8px 12px;background:#315eae;color:white;border:0;border-radius:5px}p{line-height:1.5}#status{padding:10px;background:#eef2f7;border-radius:5px;overflow-wrap:anywhere}
 </style></head>
-<body><h2>BranchWatch Companion</h2><p>Check the local connection to BranchWatch. No URLs or tab contents are collected in this version.</p><button id="check">Check connection</button><p id="status" role="status">Not checked.</p><script src="popup.js"></script></body>
+<body><h2>BranchWatch Companion</h2><p>Check the local connection to BranchWatch. No background URL collection. Capture tabs only when explicitly requested.</p><button id="check">Check connection</button><p id="status" role="status">Not checked.</p><hr><label for="ticket">One-time capture code</label><input id="ticket" maxlength="32" autocomplete="off" spellcheck="false" style="width:100%;box-sizing:border-box;margin:8px 0"><button id="capture">Send this window’s tabs</button><p id="captureStatus" role="status">Generate a code in BranchWatch first. Only HTTP(S) URLs are sent. Query strings and fragments are retained.</p><script src="popup.js"></script></body>
 </html>
