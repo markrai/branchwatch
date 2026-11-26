@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Sticky notes open directly into text editing when created, Escape leaves editing and restores saved transparency, double-clicking the title renames it inline, and note bodies use a slim rounded vertical scrollbar.
+
 ### Fixed
 
 - Preserve legacy UTF-8 BOM snapshot compatibility when reading and migrating to protected storage.

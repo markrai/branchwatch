@@ -6,6 +6,17 @@ namespace BranchWatch.Tests;
 public sealed class StickyNoteTemporaryEditingTests
 {
     [TestMethod]
+    public void ExplicitEditorSession_StartsHeldWithoutPreviewDeadline()
+    {
+        var state = new StickyNoteTemporaryEditing();
+        state.BeginHeld();
+        Assert.IsTrue(state.IsHeld);
+        Assert.IsFalse(state.IsPreview);
+        Assert.IsTrue(state.End());
+        Assert.IsFalse(state.IsActive);
+    }
+
+    [TestMethod]
     public void Preview_CanBeHeldOnlyWithinFiveSeconds()
     {
         var state = new StickyNoteTemporaryEditing();

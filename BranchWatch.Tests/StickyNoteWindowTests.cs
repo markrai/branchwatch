@@ -222,6 +222,114 @@ public sealed class StickyNoteWindowTests
         if (failure is not null) throw failure;
     }
 
+    [TestMethod]
+    public void ExplicitEditingAndFinish_RestoreTransparencyWithoutDiscardingText()
+    {
+        WithWindow(new StickyNote { DesktopId = Guid.NewGuid(), TransparencyLevel = 8 }, (window, note) =>
+        {
+            window.BeginEditorSession();
+            Assert.AreEqual(1.0, window.NoteSurface.Opacity);
+            Assert.IsFalse(window.Editor.IsReadOnly);
+            window.ExpireTemporaryEditing();
+            Assert.AreEqual(1.0, window.NoteSurface.Opacity);
+            window.Editor.Text = "New note text";
+            window.FinishEditing();
+            Assert.AreEqual(0.55, window.NoteSurface.Opacity, 0.0001);
+            Assert.IsTrue(window.Editor.IsReadOnly);
+            Assert.AreEqual(8, note.TransparencyLevel);
+            Assert.AreEqual("New note text", note.Text);
+            window.ApplyTransparency(1);
+            window.BeginEditorSession();
+            window.FinishEditing();
+            Assert.IsFalse(window.Editor.IsReadOnly);
+            Assert.AreEqual(1.0, window.NoteSurface.Opacity);
+        });
+    }
+
+    [TestMethod]
+    public void Rename_CommitCancelAndResetDoNotChangeBodyOrDesktop()
+    {
+        WithWindow(new StickyNote { DesktopId = Guid.NewGuid(), Text = "Original body", TransparencyLevel = 8 }, (window, note) =>
+        {
+            var desktop = note.DesktopId;
+            var fallback = window.DesktopLabel.Text;
+            window.BeginEditorSession();
+            window.BeginRename();
+            Assert.AreEqual(Visibility.Visible, window.TitleEditor.Visibility);
+            Assert.AreEqual(Visibility.Collapsed, window.DesktopLabel.Visibility);
+            Assert.AreEqual(0.55, window.NoteSurface.Opacity, 0.0001);
+            Assert.AreEqual(fallback, window.TitleEditor.Text);
+            window.FinishRename(commit: true);
+            Assert.IsNull(note.CustomTitle);
+
+            window.BeginRename();
+            window.TitleEditor.Text = "  Reading list  ";
+            window.FinishRename(commit: true);
+            Assert.AreEqual("Reading list", note.CustomTitle);
+            Assert.AreEqual("Reading list", window.DesktopLabel.Text);
+            Assert.AreEqual(Visibility.Collapsed, window.TitleEditor.Visibility);
+
+            window.BeginRename();
+            window.TitleEditor.Text = "Discard this";
+            window.FinishRename(commit: false);
+            Assert.AreEqual("Reading list", note.CustomTitle);
+
+            window.BeginRename();
+            window.TitleEditor.Text = "";
+            window.FinishRename(commit: true);
+            Assert.IsNull(note.CustomTitle);
+            Assert.AreEqual(fallback, window.DesktopLabel.Text);
+            Assert.AreEqual(desktop, note.DesktopId);
+            Assert.AreEqual("Original body", note.Text);
+            Assert.AreEqual(8, note.TransparencyLevel);
+        });
+    }
+
+    [TestMethod]
+    public void Editor_UsesSlimVerticalScrollbarWithInteractiveTrack()
+    {
+        WithWindow(new StickyNote { DesktopId = Guid.NewGuid() }, (window, _) =>
+        {
+            var style = (Style)window.Editor.FindResource(typeof(System.Windows.Controls.Primitives.ScrollBar));
+            var bar = new System.Windows.Controls.Primitives.ScrollBar
+            {
+                Style = style,
+                Orientation = System.Windows.Controls.Orientation.Vertical
+            };
+            bar.ApplyTemplate();
+            Assert.AreEqual(8.0, bar.Width);
+            Assert.IsFalse(bar.Focusable);
+            var track = (System.Windows.Controls.Primitives.Track)bar.Template.FindName("PART_Track", bar);
+            Assert.IsNotNull(track);
+            Assert.IsTrue(track.IsDirectionReversed);
+            Assert.IsNotNull(track.Thumb);
+            Assert.AreEqual(System.Windows.Controls.Primitives.ScrollBar.PageUpCommand, track.DecreaseRepeatButton.Command);
+            Assert.AreEqual(System.Windows.Controls.Primitives.ScrollBar.PageDownCommand, track.IncreaseRepeatButton.Command);
+        });
+    }
+
+    private static void WithWindow(StickyNote note, Action<StickyNoteWindow, StickyNote> action)
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                using var monitor = new VirtualDesktopMonitor();
+                using var controller = new StickyNotesController(monitor,
+                    Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "notes.json"));
+                var window = new StickyNoteWindow(note, controller);
+                try { action(window, note); }
+                finally { window.Close(); }
+            }
+            catch (Exception ex) { failure = ex; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if (failure is not null) throw failure;
+    }
+
     private static void AssertSurfaceAlignment(StickyNoteWindow window)
     {
         foreach (var width in new[] { 220.0, 300.0, 460.0 })

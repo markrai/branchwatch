@@ -34,6 +34,8 @@ public partial class StickyNoteWindow : Window
     private readonly StickyNoteTemporaryEditing _temporaryEditing = new();
     private StickyNoteOutsideClickWatcher? _outsideClickWatcher;
     private bool _renaming;
+    private string? _renameOriginalText;
+    private System.Windows.Point? _titlePress;
 
     internal StickyNoteWindow(StickyNote note, StickyNotesController controller)
     {
@@ -164,9 +166,43 @@ public partial class StickyNoteWindow : Window
 
     private void TitleMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ClickCount != 2 || e.ChangedButton != MouseButton.Left) return;
+        if (e.ChangedButton != MouseButton.Left) return;
         e.Handled = true;
-        BeginRename();
+        if (e.ClickCount == 2)
+        {
+            ReleaseTitlePress();
+            BeginRename();
+            return;
+        }
+        _titlePress = e.GetPosition(DesktopLabel);
+        if (!DesktopLabel.CaptureMouse()) _titlePress = null;
+    }
+
+    private void TitleMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (_titlePress is not { } start || e.LeftButton != MouseButtonState.Pressed) return;
+        var position = e.GetPosition(DesktopLabel);
+        if (Math.Abs(position.X - start.X) < SystemParameters.MinimumHorizontalDragDistance
+            && Math.Abs(position.Y - start.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+        ReleaseTitlePress();
+        e.Handled = true;
+        if (Mouse.LeftButton == MouseButtonState.Pressed) DragMove();
+    }
+
+    private void TitleMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_titlePress is null) return;
+        ReleaseTitlePress();
+        e.Handled = true;
+        if (DesktopLabel.IsMouseOver) ToggleTemporaryEditing();
+    }
+
+    private void TitleLostMouseCapture(object sender, System.Windows.Input.MouseEventArgs e) => _titlePress = null;
+
+    private void ReleaseTitlePress()
+    {
+        _titlePress = null;
+        if (DesktopLabel.IsMouseCaptured) DesktopLabel.ReleaseMouseCapture();
     }
 
     internal void BeginRename()
@@ -174,7 +210,8 @@ public partial class StickyNoteWindow : Window
         if (_closing || _renaming) return;
         FinishEditing();
         _renaming = true;
-        TitleEditor.Text = _note.DisplayTitle(_controller.DesktopName(_note.DesktopId));
+        _renameOriginalText = _note.DisplayTitle(_controller.DesktopName(_note.DesktopId));
+        TitleEditor.Text = _renameOriginalText;
         DesktopLabel.Visibility = Visibility.Collapsed;
         TitleEditor.Visibility = Visibility.Visible;
         TitleEditor.Focus();
@@ -189,10 +226,10 @@ public partial class StickyNoteWindow : Window
         {
             var previous = _note.CustomTitle;
             var text = TitleEditor.Text;
-            if (previous is not null || text != _note.DisplayTitle(_controller.DesktopName(_note.DesktopId)))
-                _note.CustomTitle = text;
+            if (text != _renameOriginalText) _note.CustomTitle = text;
             if (previous != _note.CustomTitle) _controller.MarkDirty();
         }
+        _renameOriginalText = null;
         if (focusHeader && TitleEditor.IsKeyboardFocusWithin) FocusHeader();
         TitleEditor.Visibility = Visibility.Collapsed;
         DesktopLabel.Visibility = Visibility.Visible;
