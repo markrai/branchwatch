@@ -67,7 +67,7 @@ internal sealed class WorkspaceRepositoryMonitor : IDisposable
                     ScheduleFileActivity,
                     ScheduleWorkingTreeWatcherRecovery,
                     fileActivityEnabled);
-                state.MetadataWatchers.Rebuild(repository, status);
+                state.MetadataWatchers.Reconcile(repository, status);
                 _repositories.Add(repository.RootPath, state);
             }
         }
@@ -94,7 +94,7 @@ internal sealed class WorkspaceRepositoryMonitor : IDisposable
             var status = GitBranchReader.ReadStatus(state.Repository);
             var branchChanged = !string.Equals(state.Status.BranchDisplay, status.BranchDisplay, StringComparison.Ordinal);
             state.Status = status;
-            state.MetadataWatchers.Rebuild(state.Repository, status);
+            state.MetadataWatchers.Reconcile(state.Repository, status);
 
             if (branchChanged)
             {
@@ -142,7 +142,7 @@ internal sealed class WorkspaceRepositoryMonitor : IDisposable
 
             var status = GitBranchReader.ReadStatus(state.Repository);
             state.Status = status;
-            state.MetadataWatchers.Rebuild(state.Repository, status);
+            state.MetadataWatchers.Reconcile(state.Repository, status);
             changed = new WorkspaceRepositoryChangedEventArgs(
                 status,
                 WorkspaceActivityReason.RepoOpened,
@@ -166,7 +166,7 @@ internal sealed class WorkspaceRepositoryMonitor : IDisposable
 
             var status = GitBranchReader.ReadStatus(state.Repository);
             state.Status = status;
-            state.MetadataWatchers.Rebuild(state.Repository, status);
+            state.MetadataWatchers.Reconcile(state.Repository, status);
             changed = new WorkspaceRepositoryChangedEventArgs(
                 status,
                 WorkspaceActivityReason.IndexChanged,
@@ -190,7 +190,7 @@ internal sealed class WorkspaceRepositoryMonitor : IDisposable
 
             var status = GitBranchReader.ReadStatus(state.Repository);
             state.Status = status;
-            state.MetadataWatchers.Rebuild(state.Repository, status);
+            state.MetadataWatchers.Reconcile(state.Repository, status);
             changed = new WorkspaceRepositoryChangedEventArgs(
                 status,
                 WorkspaceActivityReason.FileChanged,
