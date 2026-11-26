@@ -19,6 +19,8 @@ internal sealed class StickyNoteTemporaryEditing
         _mode = Mode.Preview;
     }
 
+    internal void BeginHeld() => _mode = Mode.Held;
+
     internal bool TryHold(long timestamp)
     {
         if (!IsPreview || Stopwatch.GetElapsedTime(_started, timestamp) >= Duration) return false;

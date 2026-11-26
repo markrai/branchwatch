@@ -33,6 +33,7 @@ public partial class StickyNoteWindow : Window
     private readonly DispatcherTimer _editTimer;
     private readonly StickyNoteTemporaryEditing _temporaryEditing = new();
     private StickyNoteOutsideClickWatcher? _outsideClickWatcher;
+    private bool _renaming;
 
     internal StickyNoteWindow(StickyNote note, StickyNotesController controller)
     {
@@ -44,6 +45,9 @@ public partial class StickyNoteWindow : Window
         _expandedMinHeight = MinHeight;
 
         Editor.Text = note.Text;
+        TitleEditor.MaxLength = StickyNote.MaxTitleLength;
+        RefreshDesktopName();
+        PreviewKeyDown += NotePreviewKeyDown;
         ApplyColor();
         ApplyBounds();
         _expandedHeight = Height;
@@ -58,23 +62,34 @@ public partial class StickyNoteWindow : Window
         LocationChanged += (_, _) => { CaptureBounds(); AlignPassiveBody(); };
         SizeChanged += (_, _) => { CaptureBounds(); AlignPassiveBody(); };
         Editor.PreviewMouseDown += (_, _) => HoldTemporaryEditing();
+        Editor.GotKeyboardFocus += (_, _) => HoldTemporaryEditing();
         Deactivated += (_, _) =>
         {
+            FinishRename(commit: true, focusHeader: false);
             if (_temporaryEditing.IsHeld) EndTemporaryEditing();
         };
         StateChanged += (_, _) =>
         {
-            if (WindowState == WindowState.Minimized) EndTemporaryEditing();
+            if (WindowState == WindowState.Minimized)
+            {
+                FinishRename(commit: true, focusHeader: false);
+                EndTemporaryEditing();
+            }
             RefreshPassiveBody();
         };
         IsVisibleChanged += (_, _) =>
         {
-            if (!IsVisible) EndTemporaryEditing();
+            if (!IsVisible)
+            {
+                FinishRename(commit: true, focusHeader: false);
+                EndTemporaryEditing();
+            }
             RefreshPassiveBody();
         };
         Closing += (_, _) =>
         {
             _closing = true;
+            FinishRename(commit: true, focusHeader: false);
             EndTemporaryEditing();
             RemovePassiveBody();
         };
@@ -85,23 +100,107 @@ public partial class StickyNoteWindow : Window
 
     internal void RefreshDesktopName()
     {
-        DesktopLabel.Text = _controller.DesktopName(_note.DesktopId);
-        DesktopLabel.ToolTip = DesktopLabel.Text;
+        var desktop = _controller.DesktopName(_note.DesktopId);
+        DesktopLabel.Text = _note.DisplayTitle(desktop);
+        DesktopLabel.ToolTip = $"{DesktopLabel.Text}\nDouble-click to rename" + (_note.CustomTitle is null ? "" : $"\nDesktop: {desktop}");
         Title = $"Sticky note – {DesktopLabel.Text}";
     }
 
     internal void FocusEditor()
     {
+        if (_closing) return;
+        FinishRename(commit: true, focusHeader: false);
         Activate();
-        if (!_note.IsCollapsed && !WantsClickThrough)
-        {
-            Editor.Focus();
-        }
-        else
+        if (_note.IsCollapsed)
         {
             OptionsButton.Focus();
+            return;
+        }
+
+        BeginEditorSession();
+        if (!Editor.Focus())
+        {
+            EndTemporaryEditing();
+            return;
+        }
+        Editor.CaretIndex = Editor.Text.Length;
+    }
+
+    internal void BeginEditorSession()
+    {
+        if (_closing || _note.IsCollapsed || _note.TransparencyLevel == StickyNoteTransparency.MinLevel) return;
+        StopTemporaryEditing();
+        _temporaryEditing.BeginHeld();
+        RefreshTransparencyPresentation();
+        if (_temporaryEditing.IsHeld) WatchOutsideClicks();
+    }
+
+    internal void FinishEditing()
+    {
+        if (Editor.IsKeyboardFocusWithin) FocusHeader();
+        EndTemporaryEditing();
+    }
+
+    private void FocusHeader()
+    {
+        if (Header.Focus()) return;
+        Keyboard.ClearFocus();
+        FocusManager.SetFocusedElement(this, null);
+    }
+
+    private void NotePreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (_renaming && TitleEditor.IsKeyboardFocusWithin && e.Key is Key.Enter or Key.Escape)
+        {
+            e.Handled = true;
+            FinishRename(commit: e.Key == Key.Enter);
+        }
+        else if (e.Key == Key.Escape && (Editor.IsKeyboardFocusWithin || _temporaryEditing.IsActive))
+        {
+            e.Handled = true;
+            FinishEditing();
         }
     }
+
+    private void TitleMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount != 2 || e.ChangedButton != MouseButton.Left) return;
+        e.Handled = true;
+        BeginRename();
+    }
+
+    internal void BeginRename()
+    {
+        if (_closing || _renaming) return;
+        FinishEditing();
+        _renaming = true;
+        TitleEditor.Text = _note.DisplayTitle(_controller.DesktopName(_note.DesktopId));
+        DesktopLabel.Visibility = Visibility.Collapsed;
+        TitleEditor.Visibility = Visibility.Visible;
+        TitleEditor.Focus();
+        TitleEditor.SelectAll();
+    }
+
+    internal void FinishRename(bool commit, bool focusHeader = true)
+    {
+        if (!_renaming) return;
+        _renaming = false;
+        if (commit)
+        {
+            var previous = _note.CustomTitle;
+            var text = TitleEditor.Text;
+            if (previous is not null || text != _note.DisplayTitle(_controller.DesktopName(_note.DesktopId)))
+                _note.CustomTitle = text;
+            if (previous != _note.CustomTitle) _controller.MarkDirty();
+        }
+        if (focusHeader && TitleEditor.IsKeyboardFocusWithin) FocusHeader();
+        TitleEditor.Visibility = Visibility.Collapsed;
+        DesktopLabel.Visibility = Visibility.Visible;
+        RefreshDesktopName();
+    }
+
+    private void TitleEditorLostFocus(object sender, KeyboardFocusChangedEventArgs e) =>
+        FinishRename(commit: true, focusHeader: false);
 
     internal void BeginTrackingBounds()
     {
@@ -280,6 +379,13 @@ public partial class StickyNoteWindow : Window
         }
 
         _editTimer.Stop();
+        WatchOutsideClicks();
+    }
+
+    private void WatchOutsideClicks()
+    {
+        _outsideClickWatcher?.Dispose();
+        _outsideClickWatcher = null;
         if (Handle != IntPtr.Zero)
         {
             _outsideClickWatcher = StickyNoteOutsideClickWatcher.TryStart(Handle, Dispatcher, () =>
@@ -298,6 +404,7 @@ public partial class StickyNoteWindow : Window
     internal void EndTemporaryEditing()
     {
         if (!StopTemporaryEditing() || _closing) return;
+        if (Editor.IsKeyboardFocusWithin) FocusHeader();
         RefreshTransparencyPresentation();
     }
 
@@ -504,7 +611,7 @@ public partial class StickyNoteWindow : Window
 
     private void HeaderMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ButtonState != MouseButtonState.Pressed) return;
+        if (e.Handled || e.ButtonState != MouseButtonState.Pressed || (_renaming && TitleEditor.IsMouseOver)) return;
         var left = Left;
         var top = Top;
         var hasStart = GetCursorPos(out var start);

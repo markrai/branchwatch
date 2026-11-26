@@ -5,6 +5,25 @@ internal sealed class StickyNote
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid DesktopId { get; set; }
     public string Text { get; set; } = "";
+    private string? _customTitle;
+    public string? CustomTitle
+    {
+        get => _customTitle;
+        set => _customTitle = NormalizeTitle(value);
+    }
+
+    internal const int MaxTitleLength = 120;
+
+    private static string? NormalizeTitle(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var title = string.Join(" ", value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        title = string.Concat(title.Where(c => !char.IsControl(c)));
+        if (title.Length > MaxTitleLength) title = title[..MaxTitleLength].TrimEnd();
+        return string.IsNullOrWhiteSpace(title) ? null : title;
+    }
+
+    internal string DisplayTitle(string desktopName) => CustomTitle ?? desktopName;
     public string Color { get; set; } = "Yellow";
     private int _transparencyLevel = StickyNoteTransparency.DefaultLevel;
 

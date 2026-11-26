@@ -51,7 +51,7 @@
             </Grid.RowDefinitions>
             <Border x:Name="HeaderSurface" Grid.Row="0" Background="#F6DE87"
                     MouseLeftButtonDown="HeaderMouseDown" ToolTip="Click to temporarily edit; drag to move">
-                <Grid x:Name="Header" Margin="4,4,4,0">
+                <Grid x:Name="Header" Margin="4,4,4,0" Focusable="True" KeyboardNavigation.IsTabStop="False">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
@@ -63,7 +63,13 @@
                             ToolTip="New note" AutomationProperties.Name="New note"/>
                     <TextBlock x:Name="DesktopLabel" Grid.Column="1" VerticalAlignment="Center"
                                Margin="5,0" FontSize="12" Foreground="#554B39"
-                               TextTrimming="CharacterEllipsis"/>
+                               TextTrimming="CharacterEllipsis" MouseLeftButtonDown="TitleMouseDown"
+                               AutomationProperties.Name="Note title"/>
+                    <TextBox x:Name="TitleEditor" Grid.Column="1" Visibility="Collapsed" VerticalAlignment="Center"
+                             Margin="3,0" Padding="3,2" FontSize="12" Foreground="#332D24"
+                             Background="#40FFFFFF" BorderBrush="#66554A" BorderThickness="1"
+                             MaxLength="120" AcceptsReturn="False" AutomationProperties.Name="Rename note"
+                             LostKeyboardFocus="TitleEditorLostFocus"/>
                     <Button x:Name="CollapseButton" Grid.Column="2" Style="{StaticResource HeaderButton}"
                             Click="CollapseClick" ToolTip="Collapse note" AutomationProperties.Name="Collapse note">
                         <Path Width="14" Height="14" Data="M 2,11 L 12,11" Stroke="#332D24"
@@ -82,7 +88,11 @@
                          Background="Transparent" BorderThickness="0" Foreground="#29251F"
                          FontSize="16" AcceptsReturn="True" TextWrapping="Wrap"
                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                         SpellCheck.IsEnabled="False" AutomationProperties.Name="Note text"/>
+                         SpellCheck.IsEnabled="False" AutomationProperties.Name="Note text">
+                    <TextBox.Resources>
+                        <ResourceDictionary Source="StickyNoteScrollBar.xaml"/>
+                    </TextBox.Resources>
+                </TextBox>
                 <Thumb x:Name="ShrinkGrip" Width="18" Height="18" HorizontalAlignment="Left"
                        VerticalAlignment="Bottom" Cursor="SizeNESW" Focusable="False"
                        ToolTip="Drag inward to shrink or outward to restore the original size" AutomationProperties.Name="Resize note"

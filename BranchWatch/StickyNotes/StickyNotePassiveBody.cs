@@ -46,6 +46,10 @@ internal sealed class StickyNotePassiveBody
             VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled
         };
+        _text.Resources = new ResourceDictionary
+        {
+            Source = new Uri("pack://application:,,,/BranchWatch;component/StickyNotes/StickyNoteScrollBar.xaml")
+        };
         _surface = new WpfBorder { Child = _text };
         _surface.SizeChanged += (_, e) => _surface.Clip = StickyNoteResizeGeometry.PassiveBodyClip(e.NewSize.Width, e.NewSize.Height);
         _window = new Window
