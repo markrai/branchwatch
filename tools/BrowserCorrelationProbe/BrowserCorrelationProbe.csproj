@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>BrowserCorrelationProbe</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../BranchWatch/DesktopMemory/Qualification/ProbeNative.cs" Link="ProbeNative.cs"/>
+    <Compile Include="../../BranchWatch/DesktopMemory/Qualification/ProbeDesktopReader.cs" Link="ProbeDesktopReader.cs"/>
+    <Compile Include="../../BranchWatch/DesktopMemory/Qualification/ProbeModels.cs" Link="ProbeModels.cs"/>
+  </ItemGroup>
+</Project>
