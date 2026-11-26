@@ -19,6 +19,12 @@ internal static class Program
                 Capture(args, BrowserTabCapture.ParseRequest(bytes), deadline.Token);
                 return 0;
             }
+            if (doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty("command", out var restoreCommand)
+                && restoreCommand.GetString() == "restore")
+            {
+                Restore(args, BrowserRestoreProtocol.ParseRequest(bytes), deadline.Token);
+                return 0;
+            }
             var request = BrowserCompanionProtocol.ParseHello(bytes);
             CompanionReply reply;
             try { reply = BrowserCompanionProtocol.ConnectAsync(BrowserCompanionProtocol.PipeName, request, deadline.Token).GetAwaiter().GetResult(); }
@@ -64,6 +70,35 @@ internal static class Program
         }
         BrowserCompanionProtocol.WriteAsync(Console.OpenStandardOutput(),
             BrowserCompanionProtocol.Encode(new CompanionReply(1, status, request.ProfileId, request.Nonce)), cancellation).GetAwaiter().GetResult();
+    }
+
+    private static void Restore(string[] args, BrowserRestoreRequest request, CancellationToken cancellation)
+    {
+        BrowserRestoreReply Rejected() => new(1, "rejected", request.ProfileId, request.Nonce);
+        var reply = Rejected();
+        if (BrowserProbeProtocol.TryParent(args, out var parent))
+        {
+            var probeRequest = new BrowserProbeRequest(request.WindowId, request.Nonce, default);
+            var observation = NativeObservation.Inspect(probeRequest, parent);
+            if (observation.Status == "observed-not-authorized" && observation.Browser is { } browser
+                && observation.Membership?.DesktopId is { } desktop)
+            {
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+                timeout.CancelAfter(BrowserCompanionProtocol.Timeout);
+                using var pipe = new System.IO.Pipes.NamedPipeClientStream(".", BrowserCompanionProtocol.PipeName,
+                    System.IO.Pipes.PipeDirection.InOut, System.IO.Pipes.PipeOptions.Asynchronous | System.IO.Pipes.PipeOptions.CurrentUserOnly,
+                    System.Security.Principal.TokenImpersonationLevel.Anonymous);
+                pipe.ConnectAsync(timeout.Token).GetAwaiter().GetResult();
+                var envelope = new BrowserRestoreEnvelope(request, browser, desktop);
+                BrowserCompanionProtocol.WriteAsync(pipe, BrowserCompanionProtocol.Encode(envelope), timeout.Token).GetAwaiter().GetResult();
+                var bytes = BrowserCompanionProtocol.ReadAsync(pipe, timeout.Token, BrowserTabCapture.MaxFrame).GetAwaiter().GetResult();
+                reply = BrowserRestoreProtocol.ParseReply(bytes, request);
+                var after = NativeObservation.Inspect(probeRequest, parent);
+                if (after != observation) reply = Rejected();
+            }
+        }
+        BrowserCompanionProtocol.WriteAsync(Console.OpenStandardOutput(),
+            BrowserCompanionProtocol.Encode(reply), cancellation, BrowserTabCapture.MaxFrame).GetAwaiter().GetResult();
     }
 
     private static bool AllowedOrigin(string[] args)

@@ -8,4 +8,4 @@ Nothing changes in the live browser. Saving writes only checked URLs in original
 
 Manual checks: capture two windows (including repeated URLs and different profiles), deselect one duplicate, switch desktops and refresh, import a second window, select/clear all, save/reload, and verify exact selected URL order and metadata in the local snapshot. Discard and recapture to verify selection reset. Test a long URL and keyboard navigation in a narrow Settings window. Confirm zero-tab browser sessions are not restored by the ordinary window engine.
 
-No protocol version, native host or extension update is needed for this UI phase. Automatic capture and browser restore remain gated; live Windows qualification is outstanding.
+No protocol version, native host or extension update is needed for this UI phase. Automatic capture remains gated; live Windows qualification is outstanding. Phase 8E adds [explicit Companion reopening](desktop-memory-browser-restore.md).

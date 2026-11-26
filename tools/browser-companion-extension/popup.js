@@ -62,3 +62,51 @@ captureButton.addEventListener("click", async () => {
         captureButton.disabled = false;
     }
 });
+
+
+const restoreButton = document.getElementById("restore");
+const restoreOutput = document.getElementById("restoreStatus");
+function restoreMessage(result) {
+    switch (result?.status) {
+        case "opened": return "Opened " + result.count + " tabs in a new browser window. Native placement is not verified.";
+        case "partial": return "A window may have been created, but tab verification or configuration failed. Inspect it before retrying.";
+        case "uncertain": case "in-progress": return "Result uncertain or still in progress. Inspect the browser before retrying.";
+        case "busy": return "Another restore is running.";
+        case "rejected": return "Restore rejected. Check the selected profile, desktop, code and permission.";
+        default: return "Obtain a restore code in BranchWatch first.";
+    }
+}
+chrome.runtime.sendMessage({ command: "getRestoreStatus" }).then(result => {
+    if (result?.status !== "not-started") restoreOutput.textContent = restoreMessage(result);
+}).catch(() => {});
+restoreButton.addEventListener("click", async () => {
+    const ticket = document.getElementById("restoreTicket").value.trim();
+    if (!/^[0-9a-f]{32}$/.test(ticket)) { restoreOutput.textContent = "Enter the restore code from BranchWatch."; return; }
+    restoreButton.disabled = true;
+    captureButton.disabled = true;
+    restoreOutput.textContent = "Checking restore approval...";
+    try {
+        if (!await chrome.permissions.request({ permissions: ["tabs"] })) throw new Error("Tab permission denied.");
+        const source = await chrome.windows.getCurrent();
+        if (!eligibleWindow(source)) throw new Error("Use a focused, normal, non-private window.");
+        const profile = await chrome.runtime.sendMessage({ command: "getProfileId" });
+        if (!/^[0-9a-f]{32}$/.test(profile?.profileId ?? "")) throw new Error("Profile unavailable.");
+        const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, "0")).join("");
+        const reply = await chrome.runtime.sendNativeMessage("com.branchwatch.companion", {
+            version: 1, command: "restore", profileId: profile.profileId, nonce, ticket, windowId: source.id
+        });
+        const after = await chrome.windows.getCurrent();
+        if (!eligibleWindow(after) || after.id !== source.id || reply?.version !== 1 || reply.status !== "authorized"
+            || reply.profileId !== profile.profileId || reply.nonce !== nonce || !validRestoreTabs(reply.tabs))
+            throw new Error("Restore approval rejected or window changed.");
+        document.getElementById("restoreTicket").value = "";
+        restoreOutput.textContent = "Approved. Opening a new browser window...";
+        const result = await chrome.runtime.sendMessage({ command: "reopenApproved", reply, nonce, sourceWindowId: source.id });
+        restoreOutput.textContent = restoreMessage(result);
+    } catch {
+        restoreOutput.textContent = "Restore unavailable or uncertain. Check the code, profile, desktop and native host; inspect browser windows before retrying.";
+    } finally {
+        restoreButton.disabled = false;
+        captureButton.disabled = false;
+    }
+});

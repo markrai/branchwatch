@@ -10,6 +10,7 @@
     <Compile Include="../../BranchWatch/DesktopMemory/Browser/BrowserCompanionProtocol.cs" Link="BrowserCompanionProtocol.cs"/>
     <Compile Include="../../BranchWatch/Ipc/BranchWatchApplicationIdentity.cs" Link="BranchWatchApplicationIdentity.cs"/>
     <Compile Include="../../BranchWatch/DesktopMemory/Browser/BrowserTabCapture.cs" Link="BrowserTabCapture.cs"/>
+    <Compile Include="../../BranchWatch/DesktopMemory/Browser/BrowserRestoreProtocol.cs" Link="BrowserRestoreProtocol.cs"/>
     <Compile Include="../../BranchWatch/DesktopMemory/Qualification/ProbeNative.cs" Link="ProbeNative.cs"/>
     <Compile Include="../../BranchWatch/DesktopMemory/Qualification/ProbeDesktopReader.cs" Link="ProbeDesktopReader.cs"/>
     <Compile Include="../../BranchWatch/DesktopMemory/Qualification/ProbeModels.cs" Link="ProbeModels.cs"/>

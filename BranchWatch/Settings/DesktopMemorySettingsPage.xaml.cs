@@ -37,10 +37,11 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private PlanWindowChoice[] _planChoices = [];
     private Dictionary<Guid, BrowserNativeToken> _browserTokens = new();
     private BrowserCaptureTicket? _browserTicket;
+    private BrowserRestoreApproval? _browserRestore;
     private readonly BrowserTabReview _browserReview = new();
     private bool _renderingBrowserPicker;
     private BrowserReviewGroup[] _browserGroups = [];
-    private sealed record BrowserReviewGroup(Guid WindowId, string Label, string Detail, bool Editable, BrowserReviewRow[] Tabs);
+    private sealed record BrowserReviewGroup(Guid WindowId, string Label, string Detail, bool Editable, bool Restorable, string RestoreHint, BrowserReviewRow[] Tabs);
     private sealed class BrowserReviewRow(Guid windowId, int index, BrowserSavedTab tab, bool selected, bool editable)
     {
         internal Guid WindowId { get; } = windowId;
@@ -63,6 +64,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             {
                 _restoreCancellation?.Cancel();
                 CancelBrowserCapture();
+                CancelBrowserRestore();
             }
         };
         Reload();
@@ -72,6 +74,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     internal void Stop()
     {
         _stopped = true;
+        CancelBrowserRestore();
         CancelBrowserCapture();
         _restoreCancellation?.Cancel();
     }
@@ -121,6 +124,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     {
         if (_updating) return;
         CancelBrowserCapture();
+        CancelBrowserRestore();
         ClearResults();
         ClearPreview();
         Render();
@@ -129,6 +133,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private void OnRefresh(object sender, RoutedEventArgs e)
     {
         if (_busy) return;
+        CancelBrowserRestore();
         ClearPreview();
         Reload();
         if (_storageAvailable) StatusText.Text = "Snapshot list refreshed.";
@@ -140,6 +145,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         if (_busy || !_storageAvailable || SelectedId is not { } id || id != _active) return;
         if (_draft is not null && !Confirm("Discard the unsaved capture and take a new one?", "Capture layout")) return;
         ClearPreview();
+        CancelBrowserRestore();
         CancelBrowserCapture();
         _browserTokens.Clear();
         _browserReview.Clear();
@@ -257,6 +263,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             || !Confirm("Delete this desktop's saved snapshot? Your open applications will not be affected.", "Delete snapshot")) return;
         try
         {
+            CancelBrowserRestore();
             _store.Delete(saved.DesktopId, saved.CapturedUtc);
             ClearPreview();
             Reload();
@@ -325,6 +332,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
 
     private void RenderBrowserEditor(DesktopSnapshot? snapshot, DesktopSnapshot? draft)
     {
+        RefreshBrowserRestore(snapshot, draft);
         if (_browserTicket is { } ticket && (draft?.DesktopId != ticket.DesktopId || _active != ticket.DesktopId))
             CancelBrowserCapture();
         _browserReview.Synchronize(_draft);
@@ -351,7 +359,18 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             var label = w.Title ?? w.ProcessName ?? "Browser";
             var family = context.Browser == "chrome" ? "Chrome" : "Edge";
             var detail = $"{family} · {w.MonitorSource} · Profile {context.ProfileId[..8]}…";
-            return new BrowserReviewGroup(w.Id, label, detail, editable,
+            var source = snapshot!;
+            var key = new BrowserRestoreKey(source.DesktopId, source.CapturedUtc, w.Id);
+            var issued = BrowserRestoreQueue.Shared.WasIssued(key);
+            var restorable = !editable && draft is null && _draft is null && !_busy && _storageAvailable
+                && source.DesktopId == _active && !issued && !w.Minimized && !w.Maximized && BrowserRestoreProtocol.CanRestore(context);
+            var hint = issued ? "Request already issued in this BranchWatch session; check Companion before retrying."
+                : context.Tabs.Count == 0 ? "No selected URLs to reopen."
+                : !BrowserRestoreProtocol.CanRestore(context) ? "Saved tab order or payload is not eligible for reopening."
+                : w.Minimized || w.Maximized ? "Only saved normal browser windows are eligible."
+                : source.DesktopId != _active ? "Switch to this desktop first."
+                : "Reopen in the matching profile; placement and existing-session reconciliation are not yet enabled.";
+            return new BrowserReviewGroup(w.Id, label, detail, editable, restorable, draft is null ? hint : "",
                 context.Tabs.Select((tab, index) => new BrowserReviewRow(w.Id, index, tab,
                     draft is null || _browserReview.IsSelected(w.Id, index), editable)).ToArray());
         }).ToArray() ?? [];
@@ -359,6 +378,75 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         BrowserReviewSummary.Visibility = _browserGroups.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         BrowserEditor.Visibility = choices.Length > 0 || _browserGroups.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         UpdateBrowserReviewSummary(draft is not null);
+    }
+
+    private void CancelBrowserRestore()
+    {
+        BrowserRestoreQueue.Shared.Cancel(_browserRestore?.Code);
+        _browserRestore = null;
+        if (BrowserRestoreCode is not null) BrowserRestoreCode.Text = "";
+        if (BrowserRestoreStatus is not null) BrowserRestoreStatus.Text = "";
+    }
+
+    private void RefreshBrowserRestore(DesktopSnapshot? snapshot, DesktopSnapshot? draft)
+    {
+        BrowserRestoreControls.Visibility = draft is null && snapshot?.Windows.Any(w => w.BrowserContext is not null) == true
+            ? Visibility.Visible : Visibility.Collapsed;
+        if (_browserRestore is not { } approval) return;
+        if (_busy || _draft is not null || snapshot is null || snapshot.DesktopId != approval.Key.DesktopId
+            || snapshot.CapturedUtc != approval.Key.CapturedUtc || _active != approval.Key.DesktopId)
+        {
+            CancelBrowserRestore();
+            return;
+        }
+        if (BrowserRestoreQueue.Shared.WasIssued(approval.Key))
+        {
+            BrowserRestoreCode.Text = "";
+            BrowserRestoreStatus.Text = "Request issued. Check Companion for the browser-side result; native placement is not verified.";
+        }
+        else if (System.Diagnostics.Stopwatch.GetElapsedTime(approval.Started) >= TimeSpan.FromMinutes(2))
+        {
+            CancelBrowserRestore();
+            BrowserRestoreStatus.Text = "Restore code expired. Generate a new code if needed.";
+        }
+    }
+
+    private void OnCancelBrowserRestore(object sender, RoutedEventArgs e)
+    {
+        CancelBrowserRestore();
+        Render();
+    }
+
+    private void OnArmBrowserRestore(object sender, RoutedEventArgs e)
+    {
+        if (_busy || _stopped || !_storageAvailable || _draft is not null || SelectedSaved is not { } saved
+            || saved.DesktopId != _active || sender is not System.Windows.Controls.Button { DataContext: BrowserReviewGroup group }
+            || !group.Restorable || !_browserGroups.Contains(group)) return;
+        var window = saved.Windows.SingleOrDefault(w => w.Id == group.WindowId);
+        if (window is null || window.BrowserContext is not { } context || window.Minimized || window.Maximized
+            || !BrowserRestoreProtocol.CanRestore(context)) return;
+        var key = new BrowserRestoreKey(saved.DesktopId, saved.CapturedUtc, window.Id);
+        if (!Confirm($"Reopen {context.Tabs.Count} saved tabs in a NEW {context.Browser} window for profile {context.ProfileId[..8]}…? Existing windows and tabs will not be reused or closed. If the browser already restored them, this may create duplicates. The new window's native placement is not verified.", "Reopen browser session")) return;
+        try
+        {
+            bool StillCurrent()
+            {
+                if (VirtualDesktopRegistryReader.TryGetVerifiedDisplayState()?.ActiveDesktop.Id != key.DesktopId) return false;
+                var current = _store.Load().SingleOrDefault(s => s.DesktopId == key.DesktopId);
+                var live = current?.Windows.SingleOrDefault(w => w.Id == key.WindowId);
+                return current?.CapturedUtc == key.CapturedUtc && live is { Minimized: false, Maximized: false }
+                    && live.BrowserContext is { } savedContext && savedContext.Browser == context.Browser
+                    && savedContext.ProfileId == context.ProfileId && savedContext.Tabs.SequenceEqual(context.Tabs);
+            }
+            if (!StillCurrent()) throw new InvalidOperationException("Saved browser session or active desktop changed.");
+            CancelBrowserRestore();
+            _browserRestore = BrowserRestoreQueue.Shared.Arm(key, context, StillCurrent);
+            BrowserRestoreCode.Text = _browserRestore.Code;
+            BrowserRestoreCode.Focus();
+            BrowserRestoreCode.SelectAll();
+            BrowserRestoreStatus.Text = "Paste this two-minute code into Companion in the matching browser profile on this desktop. The request can be redeemed once.";
+        }
+        catch (Exception ex) { BrowserRestoreStatus.Text = $"Restore request unavailable: {ex.GetType().Name}."; }
     }
 
     private void UpdateBrowserReviewSummary(bool isDraft)

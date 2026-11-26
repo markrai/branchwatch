@@ -57,6 +57,9 @@ jobs:
           node --check tools/browser-companion-extension/popup.js
           if ($LASTEXITCODE -ne 0) { throw 'Popup syntax check failed.' }
 
+      - name: Test browser reopening behavior
+        run: node --test tools/browser-companion-tests/restore.test.cjs
+
       - name: Test Desktop Memory evidence checks
         run: ./scripts/desktop-memory-qualification.ps1 -Action SelfTest
 

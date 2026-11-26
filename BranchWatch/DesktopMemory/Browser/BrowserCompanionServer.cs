@@ -32,19 +32,24 @@ internal sealed class BrowserCompanionServer(string pipeName) : IDisposable
                 {
                     var bytes = await BrowserCompanionProtocol.ReadAsync(pipe, deadline.Token, BrowserTabCapture.MaxFrame).ConfigureAwait(false);
                     using var doc = System.Text.Json.JsonDocument.Parse(bytes);
-                    CompanionReply response;
-                    if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object && doc.RootElement.TryGetProperty("request", out _))
+                    byte[] response;
+                    if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object && doc.RootElement.TryGetProperty("restoreRequest", out _))
+                    {
+                        var envelope = BrowserRestoreProtocol.ParseEnvelope(bytes);
+                        response = BrowserCompanionProtocol.Encode(BrowserRestoreQueue.Shared.Redeem(envelope));
+                    }
+                    else if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object && doc.RootElement.TryGetProperty("request", out _))
                     {
                         var envelope = BrowserTabCapture.ParseEnvelope(bytes);
                         var accepted = BrowserCaptureInbox.Shared.TryReceive(envelope);
-                        response = new(1, accepted ? "received" : "rejected", envelope.Request.ProfileId, envelope.Request.Nonce);
+                        response = BrowserCompanionProtocol.Encode(new CompanionReply(1, accepted ? "received" : "rejected", envelope.Request.ProfileId, envelope.Request.Nonce));
                     }
                     else
                     {
                         var request = BrowserCompanionProtocol.ParseHello(bytes);
-                        response = new(1, "connected", request.ProfileId, request.Nonce);
+                        response = BrowserCompanionProtocol.Encode(new CompanionReply(1, "connected", request.ProfileId, request.Nonce));
                     }
-                    await BrowserCompanionProtocol.WriteAsync(pipe, BrowserCompanionProtocol.Encode(response), deadline.Token)
+                    await BrowserCompanionProtocol.WriteAsync(pipe, response, deadline.Token, BrowserTabCapture.MaxFrame)
                         .ConfigureAwait(false);
                 }
                 catch (Exception ex) when (ex is IOException or InvalidDataException or System.Text.Json.JsonException

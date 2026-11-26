@@ -25,3 +25,5 @@ Browser windows with saved tab context are excluded from the normal restore engi
 Test Chrome and Edge on two desktops with multiple windows and profiles. Verify correct window capture and ordered URLs, pinned/active flags, duplicate URLs, wrong-window rejection, expired/used code, denied permission, private/unsupported URLs, moving between desktops, closing the browser before import, discarding a draft, saving/reloading, and backup privacy. Test mixed DPI and portrait displays. Record any parent-window mapping failures. No successful physical run is claimed by this PR.
 
 Phase 8D adds per-window tab review and selection. See [browser tab review](desktop-memory-browser-review.md). Next: profile-aware restoration (8E), reconciliation/duplicate prevention (8F). Automatic all-window capture still requires a qualified background mapping strategy.
+
+Phase 8E adds [explicit Companion reopening](desktop-memory-browser-restore.md) for saved, nonempty browser sessions. Ordinary native window restoration remains blocked for these sessions.
