@@ -11,6 +11,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
 {
     private sealed record DesktopChoice(Guid Id, string Label);
     private sealed record DetailRow(string Label, string Detail);
+    private sealed record FolderWindowChoice(Guid Id, string Label);
     private readonly DesktopMemoryStore _store;
     private IReadOnlyList<DesktopSnapshot> _saved = [];
     private DesktopSnapshot? _draft;
@@ -210,6 +211,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         MonitorCanvas.Children.Clear();
         if (snapshot is null)
         {
+            RenderFolderEditor(null);
             MonitorRows.ItemsSource = null;
             WindowRows.ItemsSource = null;
             return;
@@ -218,13 +220,71 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         SnapshotHeading.Text = draft is null ? "Saved snapshot" : "Unsaved capture";
         SnapshotSummary.Text = $"{snapshot.CapturedUtc.ToLocalTime():g} · {snapshot.Monitors.Count} monitors · {snapshot.Windows.Count} windows";
         WarningsText.Text = string.Join(Environment.NewLine, snapshot.Warnings);
+        RenderFolderEditor(draft);
         MonitorRows.ItemsSource = snapshot.Monitors.Select((m, i) => new DetailRow(
             $"Monitor {i + 1}{(m.Primary ? " · Primary" : "")}",
             $"{m.Bounds.Width} × {m.Bounds.Height} px · Rotation {m.RotationDegrees?.ToString() ?? "unknown"}° · Scale {m.ScalePercent?.ToString() ?? "unknown"}% · {m.SourceName}")).ToArray();
         WindowRows.ItemsSource = snapshot.Windows.OrderBy(w => w.EnumerationIndex).Select(w => new DetailRow(
             w.Title ?? w.ProcessName ?? "Unknown application",
-            $"{w.ProcessName ?? "Unknown process"} · {w.MonitorSource} · {(w.Minimized ? "Minimized" : w.Maximized ? "Maximized" : "Normal")} · {w.NormalPlacementBounds.Width} × {w.NormalPlacementBounds.Height}")).ToArray();
+            $"{w.ProcessName ?? "Unknown process"} · {w.MonitorSource} · {(w.Minimized ? "Minimized" : w.Maximized ? "Maximized" : "Normal")} · {w.NormalPlacementBounds.Width} × {w.NormalPlacementBounds.Height}" + (w.FolderContext is { } context ? $"{Environment.NewLine}Folder: {context.Folder}" : ""))).ToArray();
         DrawLayout(snapshot);
+    }
+
+    private void RenderFolderEditor(DesktopSnapshot? draft)
+    {
+        var selected = FolderWindowPicker.SelectedValue;
+        var choices = draft?.Windows.Where(w => ApplicationRestoreAdapters.Detect(w).HasValue)
+            .Select(w => new FolderWindowChoice(w.Id, w.Title ?? w.ProcessName ?? "Application")).ToArray() ?? [];
+        FolderEditor.Visibility = choices.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        FolderWindowPicker.ItemsSource = choices;
+        FolderWindowPicker.SelectedValue = selected is Guid id && choices.Any(c => c.Id == id) ? id : choices.FirstOrDefault()?.Id;
+        UpdateFolderControls();
+    }
+
+    private SnapshotWindow? SelectedFolderWindow =>
+        FolderWindowPicker.SelectedValue is Guid id && _draft?.DesktopId == SelectedId
+            ? _draft.Windows.SingleOrDefault(w => w.Id == id) : null;
+
+    private void OnFolderWindowSelected(object sender, SelectionChangedEventArgs e)
+    {
+        if (FolderContextText is not null) UpdateFolderControls();
+    }
+
+    private void UpdateFolderControls()
+    {
+        var window = SelectedFolderWindow;
+        FolderContextText.Text = window?.FolderContext?.Folder ?? "No folder assigned.";
+        ChooseFolderButton.IsEnabled = !_busy && window is not null;
+        ClearFolderButton.IsEnabled = !_busy && window?.FolderContext is not null;
+    }
+
+    private void OnChooseFolder(object sender, RoutedEventArgs e)
+    {
+        if (_busy || SelectedFolderWindow is not { } window
+            || ApplicationRestoreAdapters.Detect(window) is not { } kind) return;
+        var dialog = new Microsoft.Win32.OpenFolderDialog { Title = "Choose the folder to reopen" };
+        if (window.FolderContext is { } previous) dialog.InitialDirectory = previous.Folder;
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+        var context = new ApplicationFolderContext(kind, dialog.FolderName);
+        if (!ApplicationRestoreAdapters.IsValidContext(window, context)
+            || ApplicationRestoreAdapters.CheckFolder(ApplicationRestoreAdapters.Build(window with { FolderContext = context })) is { })
+        {
+            StatusText.Text = "Choose an existing local folder supported by the application adapter.";
+            return;
+        }
+        SetFolder(window.Id, context);
+    }
+
+    private void OnClearFolder(object sender, RoutedEventArgs e)
+    {
+        if (!_busy && SelectedFolderWindow is { } window) SetFolder(window.Id, null);
+    }
+
+    private void SetFolder(Guid windowId, ApplicationFolderContext? context)
+    {
+        if (_draft is not { } draft || draft.DesktopId != SelectedId) return;
+        _draft = draft with { Windows = draft.Windows.Select(w => w.Id == windowId ? w with { FolderContext = context } : w).ToArray() };
+        Render();
     }
 
     private void OnPreview(object sender, RoutedEventArgs e)
@@ -372,11 +432,11 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
                 ?? Array.Empty<MissingApplicationLaunchItem>();
             RestoreSummary.Text = $"{ready.Length} matched · {launchReady.Length} eligible launches · {approved.Items.Count - ready.Length - launchReady.Length} not eligible";
             if (ready.Length == 0 && launchReady.Length == 0) return;
-            var launchNames = string.Join(Environment.NewLine, launchReady.Select(i => i.ExecutablePath));
+            var launchNames = string.Join(Environment.NewLine, launchReady.Select(i => i.Spec?.Description ?? i.ExecutablePath));
             var names = string.Join(Environment.NewLine, ready.Take(8).Select(i => $"• {i.Label}"));
             if (ready.Length > 8) names += $"{Environment.NewLine}… and {ready.Length - 8} more";
             var launchDescription = launchReady.Length == 0 ? "No applications will be launched."
-                : $"Launch these {launchReady.Length} executables without arguments:{Environment.NewLine}{launchNames}{Environment.NewLine}Apps may activate themselves. Launches cannot be undone automatically.";
+                : $"Launch these {launchReady.Length} approved applications and folder requests:{Environment.NewLine}{launchNames}{Environment.NewLine}Apps may activate themselves. Launches cannot be undone automatically.";
             if (!Confirm($"Reposition {ready.Length} matching running windows on this desktop?{Environment.NewLine}{names}{Environment.NewLine}{Environment.NewLine}{launchDescription}{Environment.NewLine}{Environment.NewLine}Geometry changes may be partial and are not automatically undone.", "Restore desktop"))
             {
                 RestoreSummary.Text = "Restore cancelled. No placement or launch requests issued.";

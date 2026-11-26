@@ -7,7 +7,10 @@ internal sealed record SnapshotMonitor(string SourceName, ProbeRect Bounds, Prob
 internal sealed record SnapshotWindow(Guid Id, string? ProcessName, string? ExecutablePath, string? Title,
     string? ClassName, ProbeRect ScreenBounds, ProbeRect? VisibleFrameBounds, ProbeRect NormalPlacementBounds,
     bool Minimized, bool Maximized, uint ShowCommand, uint? PlacementFlags, string MonitorSource,
-    uint? WindowDpi, int EnumerationIndex, IReadOnlyList<string> IntersectingMonitors);
+    uint? WindowDpi, int EnumerationIndex, IReadOnlyList<string> IntersectingMonitors)
+{
+    public ApplicationFolderContext? FolderContext { get; init; }
+}
 
 internal sealed record DesktopSnapshot(Guid DesktopId, string DesktopName, DateTimeOffset CapturedUtc,
     IReadOnlyList<SnapshotMonitor> Monitors, IReadOnlyList<SnapshotWindow> Windows,

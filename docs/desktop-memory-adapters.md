@@ -1,0 +1,15 @@
+# Desktop Memory: Phase 5
+
+During an unsaved capture, choose a supported window in Application folders and select the local directory you want to reopen. Save the snapshot. Old snapshots remain readable without migration; recapture to add folder assignments. Assignments are explicit launch intent, not proof of a running editor's project or shell working directory.
+
+- Cursor and VS Code: direct executable with fixed --new-window and one absolute folder argument. The existing conservative process/window correlation remains mandatory; startup may be delegated or a saved title may differ, in which case placement is unverified.
+- File Explorer: request opening the selected folder through the Windows Explorer executable. Shell delegation may reuse an existing window or tab; do not infer a causal window identity or automatically reposition it.
+- Windows Terminal: request a new window with the default profile and chosen starting directory. Terminal may delegate or use packaged aliases; unsupported executable paths remain blocked. No arbitrary shell commands, profiles, tabs or panes are restored.
+- Only normal windows and existing fixed local folders are eligible. The directory is a separate argument, not concatenated into a command line. Terminal folders containing semicolons are rejected to avoid interpreting command separators. No arbitrary flags, process command lines or environment variables are captured.
+- The Phase 4 one-window-per-executable, running-app and session-attempt safeguards remain, with the Explorer shell process exception limited to the canonical system Explorer executable. Brokered requests are explicitly unverified and stop subsequent launches. No automatic retries or unrelated movement.
+
+Folder assignments are stored locally in the snapshot JSON and its recovery backup; they are sensitive data. The launch approval shows executable and folder. If a folder is missing, skip rather than fall back to an empty startup. Application state, existing-window identity and placement still follow Phase 3/4 rules. In particular the folder assignment is not proof of the content of a matching existing window.
+
+References: [VS Code CLI](https://code.visualstudio.com/docs/configure/command-line), [Cursor new-window behavior](https://forum.cursor.com/t/cli-launch-always-opens-agent-panel-instead-of-ide/166537/7), [Windows Terminal arguments](https://learn.microsoft.com/en-us/windows/terminal/command-line-arguments).
+
+Physical tests: capture, choose a project/folder containing spaces, save, restart BranchWatch, and confirm folder persisted. Review exact target on restore, test missing directory, multiple windows, application already running, changed title, cancellation, and brokered startup. Verify only correlated direct windows are repositioned and a folder request is never displayed as restored.

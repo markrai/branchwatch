@@ -8,8 +8,12 @@ internal sealed class NativeMissingApplicationLaunchEnvironment : IMissingApplic
     private static readonly object Gate = new();
     private static readonly HashSet<string> Attempted = new(StringComparer.OrdinalIgnoreCase);
 
-    public string? CheckLaunchBlock(string path)
+    public string? CheckLaunchBlock(string path) => CheckLaunchBlock(new ApplicationLaunchSpec(path, null, [], false));
+
+    public string? CheckLaunchBlock(ApplicationLaunchSpec spec)
     {
+        var path = spec.ExecutablePath;
+        if (ApplicationRestoreAdapters.CheckFolder(spec) is { } folderError) return folderError;
         lock (Gate)
         {
             if (Attempted.Contains(path))
@@ -35,6 +39,9 @@ internal sealed class NativeMissingApplicationLaunchEnvironment : IMissingApplic
             var name = Path.GetFileNameWithoutExtension(path);
             if (string.Equals(name, "BranchWatch", StringComparison.OrdinalIgnoreCase))
                 return "BranchWatch itself is excluded.";
+            if (spec.Context is { Kind: ApplicationFolderKind.Explorer } && spec.OpenOnly
+                && string.Equals(path, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"), StringComparison.OrdinalIgnoreCase))
+                return null;
             var processes = Process.GetProcessesByName(name);
             try
             {
@@ -54,30 +61,60 @@ internal sealed class NativeMissingApplicationLaunchEnvironment : IMissingApplic
     }
 
     public LaunchedProcessIdentity Launch(string path, Guid desktopId, CurrentDisplayTopology topology,
+        CancellationToken cancellation) => Launch(new ApplicationLaunchSpec(path, null, [], false), desktopId, topology, cancellation);
+
+    public LaunchedProcessIdentity Launch(ApplicationLaunchSpec spec, Guid desktopId, CurrentDisplayTopology topology,
         CancellationToken cancellation)
     {
+        if (spec.OpenOnly) throw new InvalidOperationException("Brokered launch requires the open-only path.");
+        var path = spec.ExecutablePath;
         lock (Gate)
         {
             cancellation.ThrowIfCancellationRequested();
             if (VirtualDesktopRegistryReader.TryGetVerifiedDisplayState()?.ActiveDesktop.Id != desktopId
                 || !ExistingWindowRestoreService.SameDisplays(topology, DesktopMemoryProbe.CaptureDisplays()))
                 throw new InvalidOperationException("Desktop or monitor configuration changed before launch.");
-            if (CheckLaunchBlock(path) is { } reason)
+            if (CheckLaunchBlock(spec) is { } reason)
                 throw new InvalidOperationException(reason);
             cancellation.ThrowIfCancellationRequested();
             if (VirtualDesktopRegistryReader.TryGetVerifiedDisplayState()?.ActiveDesktop.Id != desktopId)
                 throw new InvalidOperationException("Active desktop changed before launch.");
             Attempted.Add(path);
-            using var process = Process.Start(new ProcessStartInfo
-            {
-                FileName = path,
-                WorkingDirectory = Path.GetDirectoryName(path)!,
-                UseShellExecute = false
-            }) ?? throw new InvalidOperationException("Windows did not return a process.");
+            using var process = Process.Start(CreateStartInfo(spec)) ?? throw new InvalidOperationException("Windows did not return a process.");
             if (!ProbeNative.GetProcessTimes(process.Handle, out var creation, out _, out _, out _) || creation <= 0)
                 throw new InvalidOperationException("The started process identity could not be verified.");
             return new((uint)process.Id, creation);
         }
+    }
+
+    public void OpenFolder(ApplicationLaunchSpec spec, Guid desktopId, CurrentDisplayTopology topology, CancellationToken cancellation)
+    {
+        if (!spec.OpenOnly || spec.Context is null) throw new InvalidOperationException("Open-only folder specification required.");
+        lock (Gate)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            if (VirtualDesktopRegistryReader.TryGetVerifiedDisplayState()?.ActiveDesktop.Id != desktopId
+                || !ExistingWindowRestoreService.SameDisplays(topology, DesktopMemoryProbe.CaptureDisplays()))
+                throw new InvalidOperationException("Desktop or monitor configuration changed before folder opening.");
+            if (CheckLaunchBlock(spec) is { } reason) throw new InvalidOperationException(reason);
+            cancellation.ThrowIfCancellationRequested();
+            if (VirtualDesktopRegistryReader.TryGetVerifiedDisplayState()?.ActiveDesktop.Id != desktopId)
+                throw new InvalidOperationException("Active desktop changed before folder opening.");
+            Attempted.Add(spec.ExecutablePath);
+            using var process = Process.Start(CreateStartInfo(spec));
+        }
+    }
+
+    internal static ProcessStartInfo CreateStartInfo(ApplicationLaunchSpec spec)
+    {
+        var info = new ProcessStartInfo
+        {
+            FileName = spec.ExecutablePath,
+            WorkingDirectory = spec.Context?.Folder ?? Path.GetDirectoryName(spec.ExecutablePath)!,
+            UseShellExecute = false
+        };
+        foreach (var argument in spec.Arguments) info.ArgumentList.Add(argument);
+        return info;
     }
 
     public bool IsRunning(LaunchedProcessIdentity identity)

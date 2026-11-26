@@ -4,6 +4,10 @@
 
 ### Added
 
+- Desktop Memory optional application folder adapters for Cursor, VS Code, File Explorer and Windows Terminal. Explicit folder assignments generate typed launch arguments; brokered folder openings are not reported as verified window restoration.
+
+### Added
+
 - Desktop Memory optional generic launch of absent local applications, with explicit executable approval, conservative process/window correlation, session duplicate suppression and per-window launch results.
 
 ### Added
