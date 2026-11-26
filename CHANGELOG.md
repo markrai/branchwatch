@@ -4,6 +4,10 @@
 
 ### Changed
 
+- Create settings pages only when visited, defer Desktop Memory snapshot loading, preserve unsaved drafts during navigation, and release instantiated page content when Settings closes.
+
+### Changed
+
 - Allocate Git and virtual desktop overlay windows only when needed and close them when disabled, releasing native surfaces and stopping the hidden taskbar timer.
 
 ### Fixed

@@ -95,4 +95,93 @@ public sealed class SettingsWindowTests
             }
         });
     }
+
+    [TestMethod]
+    public void GeneralAndExternalRefresh_DoNotConstructUnvisitedPages()
+    {
+        StaTest.WithTemporaryDirectory(directory =>
+        {
+            var settings = new AppSettings();
+            var service = new SettingsService(Path.Combine(directory, "settings.json"));
+            using var desktops = new VirtualDesktopOverlayController(service, settings);
+            using var notes = new StickyNotesController(desktops.Monitor, Path.Combine(directory, "notes.json"), settings);
+            var window = new SettingsWindow(service, settings, notes, desktops, () => { }, () => { },
+                () => { }, () => { }, () => { }, () => { });
+            try
+            {
+                window.RefreshRepositoryState();
+                window.RefreshExternalSettings();
+                window.Navigate(SettingsSection.About);
+                window.Navigate(SettingsSection.General);
+                Assert.IsNull(window.GitOverlayHost.Content);
+                Assert.IsNull(window.DesktopOverlayHost.Content);
+                Assert.IsNull(window.MemoryHost.Content);
+                Assert.IsNull(window.NotesHost.Content);
+
+                settings.OverlayScale = 0.75;
+                window.Navigate(SettingsSection.GitWatcher);
+                var git = (GitOverlaySettingsPage)window.GitOverlayHost.Content;
+                Assert.AreEqual(0.75, git.SizeSlider.Value);
+                Assert.IsNull(window.DesktopOverlayHost.Content);
+                Assert.IsNull(window.MemoryHost.Content);
+                Assert.IsNull(window.NotesHost.Content);
+
+                settings.VirtualDesktopOverlayVisible = false;
+                window.RefreshExternalSettings();
+                Assert.IsNull(window.DesktopOverlayHost.Content);
+                window.Navigate(SettingsSection.VirtualDesktops);
+                var desktop = (DesktopOverlaySettingsPage)window.DesktopOverlayHost.Content;
+                Assert.AreNotEqual(true, desktop.ShowOverlayCheckBox.IsChecked);
+                settings.VirtualDesktopOverlayVisible = true;
+                window.RefreshExternalSettings();
+                Assert.IsTrue(desktop.ShowOverlayCheckBox.IsChecked ?? false);
+                window.Navigate(SettingsSection.GitWatcher);
+                Assert.AreSame(git, window.GitOverlayHost.Content);
+                window.Navigate(SettingsSection.VirtualDesktops);
+                Assert.AreSame(desktop, window.DesktopOverlayHost.Content);
+                Assert.IsNull(window.MemoryHost.Content);
+                Assert.IsNull(window.NotesHost.Content);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void Close_StopsMemoryPageAndReleasesAllVisitedContent()
+    {
+        StaTest.WithTemporaryDirectory(directory =>
+        {
+            var settings = new AppSettings();
+            var service = new SettingsService(Path.Combine(directory, "settings.json"));
+            using var desktops = new VirtualDesktopOverlayController(service, settings);
+            using var notes = new StickyNotesController(desktops.Monitor, Path.Combine(directory, "notes.json"), settings);
+            var window = new SettingsWindow(service, settings, notes, desktops, () => { }, () => { },
+                () => { }, () => { }, () => { }, () => { });
+            try
+            {
+                window.Navigate(SettingsSection.DesktopMemory);
+                var memory = (DesktopMemorySettingsPage)window.MemoryHost.Content;
+                window.Navigate(SettingsSection.General);
+                window.Navigate(SettingsSection.DesktopMemory);
+                Assert.AreSame(memory, window.MemoryHost.Content);
+                window.Navigate(SettingsSection.GitWatcher);
+                window.Navigate(SettingsSection.VirtualDesktops);
+                window.Navigate(SettingsSection.StickyNotes);
+                var items = memory.DesktopPicker.ItemsSource;
+                window.Close();
+
+                Assert.IsNull(window.MemoryHost.Content);
+                Assert.IsNull(window.GitOverlayHost.Content);
+                Assert.IsNull(window.DesktopOverlayHost.Content);
+                Assert.IsNull(window.NotesHost.Content);
+                Assert.AreEqual(0, window.DesktopColorRows.Children.Count);
+                memory.RefreshDesktops();
+                Assert.AreSame(items, memory.DesktopPicker.ItemsSource);
+                window.Navigate(SettingsSection.DesktopMemory);
+                window.RefreshExternalSettings();
+                Assert.IsNull(window.MemoryHost.Content);
+            }
+            finally { if (window.IsLoaded) window.Close(); }
+        });
+    }
 }
