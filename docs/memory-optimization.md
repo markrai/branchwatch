@@ -73,8 +73,8 @@ Self-tests cover statistics, CPU normalization, comparison deltas, JSON round tr
 | --- | --- | --- |
 | M.0 | Repeatable profiling, baseline and comparison | Merged; Windows CI passed; interactive baseline pending |
 | M.1 | Lazy overlay window creation and resource release | Merged; Windows CI passed; physical measurements pending |
-| M.2 | Lazy settings pages and snapshot loading | Implemented; Windows CI and physical measurements pending |
-| M.3 | Demand-driven timers and background activity | Planned |
+| M.2 | Lazy settings pages and snapshot loading | Merged; Windows CI passed; physical measurements pending |
+| M.3 | Demand-driven timers and background activity | Implemented; Windows CI and physical measurements pending |
 | M.4 | Filesystem watcher consolidation and reuse | Planned |
 | M.5 | Sticky-note rendering and shared resources | Planned |
 | M.6 | Controlled runtime/GC experiments only if evidence warrants | Planned |
@@ -101,3 +101,13 @@ Visited pages remain attached until the window closes, preserving sticky-note ap
 Two additional Windows STA tests cover unvisited-page allocation, current settings on first visit, external refresh, page reuse, and shutdown detachment with stopped Desktop Memory refresh. Existing navigation and draft preservation tests remain in place. M.1 merged with passing Windows CI; M.2 CI and physical profiling are pending.
 
 Compare equivalent General-only, individual section, all-sections-visited and settings-closed workloads with M.0/M.1 using the profiling harness. M.2 principally reduces the incremental cost of opening Settings without visiting every section; it is not expected to significantly reduce fresh tray-only memory. A first visit may take longer because construction is deferred. No numeric savings claimed before matched measurements. M.3 will address timers and background activity.
+
+## M.3: demand-driven maintenance
+
+StickyNotesController now schedules its one-second maintenance timer only when at least one note window exists, a non-triggered alarm is pending (including closed notes), a desktop restore is pending, or dirty changes need persistence. It stops after the last obligation clears and resumes when new work arrives. Empty desktop switches no longer schedule a redundant restore tick. Failed saves keep retrying, and failed restore attempts retain the existing three-attempt limit. Alarm deadlines remain UTC and the existing one-second cadence remains while an alarm is pending; this intentionally preserves prompt detection after resume and wall-clock changes. Open notes continue periodic native affinity verification and passive body maintenance. Desktop monitoring remains at its existing 300 ms cadence, independently of overlay visibility, for restoration and affinity-sensitive features.
+
+The virtual desktop taskbar overlay reuses its active 400 ms z-order timer across visual refreshes, rather than stopping and recreating it. Switching away from taskbar positioning or closing the overlay stops that timer. No storage schema, version, dependencies, permissions, runtime configuration, alarm or affinity-policy changes.
+
+Four STA regression tests cover idle startup, dirty wakeup, closed-note alarm latch/reschedule/dismissal, save retry, restore retry exhaustion, open-window maintenance, and final close. The existing taskbar lifecycle test also checks position changes. M.2 merged with passing CI; M.3 Windows CI and physical profiling remain pending.
+
+Use equivalent idle-long workloads with no notes, closed notes without pending alarms, closed notes with pending alarms, and open notes. The primary expected improvement is reduced idle wakeups and allocation churn, not a guaranteed private-byte reduction. Verify alarm firing after sleep/resume, save retries, and desktop restoration manually. M.4 targets filesystem watcher consolidation and reuse.
