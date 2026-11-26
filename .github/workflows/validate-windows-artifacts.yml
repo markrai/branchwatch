@@ -67,6 +67,9 @@ jobs:
       - name: Test browser reopening behavior
         run: node --test tools/browser-companion-tests/restore.test.cjs
 
+      - name: Test Firefox Companion diagnostic behavior
+        run: node --test tools/browser-companion-tests/firefox.test.cjs
+
       - name: Test Desktop Memory evidence checks
         run: ./scripts/desktop-memory-qualification.ps1 -Action SelfTest
 

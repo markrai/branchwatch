@@ -166,3 +166,5 @@ The [browser session review](docs/desktop-memory-browser-review.md) supports per
 The [experimental browser reopening workflow](docs/desktop-memory-browser-restore.md) reopens selected saved tabs in the matching already-running browser profile. Native placement and existing-session reconciliation are pending.
 
 The [Phase 8F duplicate check](docs/desktop-memory-browser-reconciliation.md) prevents reopening when existing profile windows contain saved URLs or the inventory is unverified.
+
+The [Firefox Companion diagnostic](docs/desktop-memory-firefox-qualification.md) provides local connection and native foreground observations without collecting URLs. Firefox session capture and restoration remain disabled until a verified Firefox window association is available.

@@ -4,6 +4,10 @@
 
 ### Added
 
+- Experimental Firefox Companion connectivity and read-only foreground-window correlation diagnostic with Firefox-specific host registration. Firefox tab capture and restoration remain gated on verified window correlation.
+
+### Added
+
 - Companion checks a stable normal-window inventory in the matching profile before reopening saved tabs. Exact source matches are reported as already present; overlapping or unverifiable sessions block new-window creation without changing existing tabs. Restore protocol v2 requires the updated Companion and native host.
 
 ### Added
