@@ -67,6 +67,13 @@ function Assert-Artifact($Manifest, [string]$Root) {
     if ((Hash (Join-Path $Root 'app\BranchWatch.exe')) -ne $Manifest.ExeSha256) { throw 'Application hash mismatch.' }
 }
 
+function Assert-QualificationRevision($Manifest, [string]$Root, [string]$CurrentCaseFile, [string]$Commit) {
+    if ($Manifest.Commit -cne $Commit) { throw 'Qualification run belongs to a different commit. Use its exact checkout or initialize a new run.' }
+    if ((Hash $CurrentCaseFile) -ne (Hash (Join-Path $Root 'cases.json'))) {
+        throw 'Qualification run uses a different case matrix. Initialize a new run.'
+    }
+}
+
 function Assert-RunningBuild([string]$Exe) {
     $running = @(Get-Process -Name BranchWatch -ErrorAction SilentlyContinue)
     if ($running.Count -ne 1 -or $running[0].Path -ne $Exe) {
@@ -207,6 +214,11 @@ if ($Action -eq 'Init') {
 
 $manifest = Read-Json $manifestPath
 Assert-Artifact $manifest $root
+$commit = (& git -C $repo rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0 -or $commit -notmatch '^[0-9a-f]{40}$') { throw 'Git revision unavailable.' }
+$dirty = @(& git -C $repo status --porcelain)
+if ($LASTEXITCODE -ne 0 -or $dirty.Count -ne 0) { throw 'Use a clean checkout of the qualification revision.' }
+Assert-QualificationRevision $manifest $root $caseFile $commit
 $cases = @(Read-Json (Join-Path $root 'cases.json'))
 
 if ($Action -eq 'Evaluate') {
@@ -247,7 +259,7 @@ if ($Action -eq 'Evaluate') {
     $passed = @($results | Where-Object Result -eq 'Pass').Count
     Write-Host "$passed of $($cases.Count) cases passed for commit $($manifest.Commit)."
     if ($passed -ne $cases.Count) { Write-Host 'HARDWARE GATE: NOT PASSED'; exit 1 }
-    Write-Host 'HARDWARE GATE: RECORDED PASS (manual assertions plus evidence checks; review before release)'
+    Write-Host 'HARDWARE GATE: RECORDED PASS (manual assertions plus evidence checks; review before release; no live Firefox authorization)'
     return
 }
 

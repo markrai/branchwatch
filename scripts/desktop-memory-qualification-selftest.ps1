@@ -77,6 +77,15 @@ try {
     $loaded = Read-Capture $folder 'before' $manifest
     if ($loaded.Report.SchemaVersion -ne 1) { throw 'Capture did not round trip.' }
     Expect-Rejection { Write-Json $probe $first } 'Evidence already exists'
+    $currentMatrix = Join-Path $temp 'current-cases.json'
+    $runMatrix = Join-Path $temp 'cases.json'
+    Write-Json $currentMatrix @([pscustomobject]@{id='sample'})
+    Copy-Item -LiteralPath $currentMatrix -Destination $runMatrix
+    $revision = [pscustomobject]@{Commit=('a' * 40)}
+    Assert-QualificationRevision $revision $temp $currentMatrix ('a' * 40)
+    Expect-Rejection { Assert-QualificationRevision $revision $temp $currentMatrix ('b' * 40) } 'different commit'
+    Add-Content -LiteralPath $currentMatrix -Value ' '
+    Expect-Rejection { Assert-QualificationRevision $revision $temp $currentMatrix ('a' * 40) } 'different case matrix'
     Add-Content -LiteralPath $probe -Value ' '
     Expect-Rejection { Read-Capture $folder 'before' $manifest } 'modified'
 } finally {

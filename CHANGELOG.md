@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve legacy UTF-8 BOM snapshot compatibility when reading and migrating to protected storage.
+
+### Added
+
+- Extend Desktop Memory hardware qualification to browser capture/reopening, duplicate prevention, protected recovery, account isolation and Companion lifecycle; reject stale qualification revisions and matrices.
+
 ### Security
 
 - Protect complete Desktop Memory snapshots and recovery backups using Windows current-user DPAPI. Read legacy files without modifying them; explicitly migrate existing files or migrate on save/delete. Reject unreadable protected files without plaintext fallback.

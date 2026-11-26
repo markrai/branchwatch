@@ -178,3 +178,5 @@ The [Firefox physical qualification procedure](docs/desktop-memory-firefox-physi
 See the [browser security review and outstanding release gates](docs/desktop-memory-browser-security-review.md) before qualifying browser restoration for daily use.
 
 [Desktop Memory snapshot protection](docs/desktop-memory-snapshot-protection.md) encrypts saved layouts and their recovery backup for the current Windows user. Legacy files remain readable until explicitly migrated or changed.
+
+[Desktop Memory release qualification](docs/desktop-memory-release-qualification.md) consolidates the physical checks for the guarded browser and snapshot workflows. A passing CI run is not a physical qualification result.

@@ -22,3 +22,5 @@ DPAPI protects file contents at rest, not against malware or other code already 
 ## Validation
 
 Test fresh writes, repeated saves, deletion, explicit legacy migration, migration on save, backup-only migration, encryption failure before replacement, unavailable decryption and corrupt backup. Verify both files have only schema, protection identifier and encrypted payload in plaintext. Verify same-user reads and that tampered ciphertext is rejected without fallback or overwrite. On Windows, additionally test restart, a different user account, migration interruption and restore from protected recovery backup. Never test account recovery with irreplaceable data. Firefox live operations remain locked and browser placement qualification remains outstanding.
+
+Phase 8H.3 also tests UTF-8 BOM legacy compatibility, resuming a mixed-generation migration, manual recovery by copying the previous protected generation, and tampered ciphertext rejection. See [release qualification](desktop-memory-release-qualification.md) for disposable-account and physical checks.

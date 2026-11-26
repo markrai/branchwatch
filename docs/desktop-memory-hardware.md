@@ -32,7 +32,7 @@ Multiple Default instances produce intentionally ambiguous titles. Close all fix
 
 ## Record a case
 
-The machine-readable [case matrix](../scripts/desktop-memory-cases.json) contains fourteen required cases. Read each case's required observations. For a passing attempt, capture before and after from the qualification build, perform the manual steps, and record factual notes describing what you observed. Captures must be made while desktop/display configuration is stationary. The script requires the exact qualification executable to be the running tray instance.
+The machine-readable [case matrix](../scripts/desktop-memory-cases.json) contains 21 required cases, including the Phase 8H.3 browser, recovery and lifecycle checks. Read each case's required observations. For a passing attempt, capture before and after from the qualification build, perform the manual steps, and record factual notes describing what you observed. Captures must be made while desktop/display configuration is stationary. The script requires the exact qualification executable to be the running tray instance.
 
 For exact reuse, save the fixture's normal layout and capture the original bounds:
 
@@ -73,3 +73,5 @@ The physical release gate also requires review of the notes and CI success for t
 Evidence stays local and is excluded by repository ignore rules. The probe also writes its original report to `%APPDATA%\BranchWatch\desktop-memory`. Even without -IncludeIdentities, monitor identifiers, process names, geometry and desktop GUIDs can identify your setup. With that switch, window titles and executable paths are included. Never upload raw reports or real snapshots to GitHub; share only redacted summaries or carefully inspected excerpts. No automatic upload is performed. Remove evidence and original probe files manually when no longer required.
 
 CI builds the fixture and runs simulated evaluator self-tests. It does not run physical display changes, reboot, or manipulate windows.
+
+Phase 8H.3 requires a clean checkout of the exact recorded commit and the current case matrix for every capture, record and evaluation. Older 14-case runs do not qualify the expanded matrix. The additional browser and protection cases use stable before/after probes plus factual manual assertions, not automated verification of browser behavior or account identity. See [release qualification](desktop-memory-release-qualification.md). Firefox remains diagnostic-only.
