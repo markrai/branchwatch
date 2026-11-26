@@ -141,8 +141,9 @@ public sealed class TrayService : IDisposable
 
     private TrayNoteChoice[] ReadNoteChoices()
     {
-        var names = _stickyNotes.Desktops.ToDictionary(d => d.Id, d => d.DisplayName);
-        return TrayMenuState.Notes(_stickyNotes.Notes, id => names.GetValueOrDefault(id, "Unavailable desktop"));
+        var desktops = _stickyNotes.Desktops;
+        return TrayMenuState.Notes(_stickyNotes.Notes,
+            id => desktops.FirstOrDefault(d => d.Id == id)?.DisplayName ?? "Unavailable desktop");
     }
 
     private void ReopenNote(Guid id) => RunAfterContextMenuClosed(() =>

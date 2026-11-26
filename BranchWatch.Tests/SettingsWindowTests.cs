@@ -8,6 +8,57 @@ namespace BranchWatch.Tests;
 public sealed class SettingsWindowTests
 {
     [TestMethod]
+    public void Host_ReusesWindowPreservesDraftAndCannotReopenAfterDisposal()
+    {
+        Exception? failure = null;
+        var directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var settings = new AppSettings();
+                var service = new SettingsService(Path.Combine(directory, "settings.json"));
+                using var desktops = new VirtualDesktopOverlayController(service, settings);
+                using var notes = new StickyNotesController(desktops.Monitor, Path.Combine(directory, "notes.json"), settings);
+                var created = new List<SettingsWindow>();
+                using var host = new SettingsWindowHost(() =>
+                {
+                    var window = new SettingsWindow(service, settings, notes, desktops, () => { }, () => { },
+                        () => { }, () => { }, () => { }, () => { });
+                    created.Add(window);
+                    return window;
+                });
+                host.Open(SettingsSection.StickyNotes);
+                var first = created.Single();
+                var page = (StickyNoteSettingsPage)first.NotesHost.Content;
+                page.TransparencySlider.Value = 8;
+                first.WindowState = WindowState.Minimized;
+                host.Open(SettingsSection.General);
+                Assert.AreEqual(WindowState.Normal, first.WindowState);
+                host.Open(SettingsSection.StickyNotes);
+                Assert.HasCount(1, created);
+                Assert.AreEqual(8.0, page.TransparencySlider.Value);
+                first.Close();
+                host.Open(SettingsSection.DesktopMemory);
+                Assert.HasCount(2, created);
+                Assert.AreEqual(Visibility.Visible, created[1].MemoryPage.Visibility);
+                host.Dispose();
+                host.Open(SettingsSection.General);
+                host.RefreshRepositoryState();
+                host.RefreshExternalSettings();
+                Assert.HasCount(2, created);
+                Assert.IsFalse(created[1].IsVisible);
+            }
+            catch (Exception ex) { failure = ex; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        try { if (failure is not null) throw failure; }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    [TestMethod]
     public void Navigate_SelectsExactlyOnePageAndPreservesStickyNoteDraft()
     {
         Exception? failure = null;

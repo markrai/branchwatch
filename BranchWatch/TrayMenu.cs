@@ -28,6 +28,7 @@ internal sealed class TrayMenu : IDisposable
     private readonly Forms.ToolStripMenuItem _overlayToggleItem;
     private readonly Forms.ToolStripMenuItem _pinnedRepoModeItem;
     private readonly Forms.ToolStripMenuItem _workspaceRepoModeItem;
+    private readonly Forms.ToolStripMenuItem _reopen = new("Open on this desktop");
     private bool _disposed;
     internal Forms.ContextMenuStrip Menu { get; }
 
@@ -101,27 +102,29 @@ internal sealed class TrayMenu : IDisposable
     {
         var menu = new Forms.ToolStripMenuItem("Sticky Notes") { Image = MenuIcon(TrayMenuGlyph.Notes) };
         menu.DropDownItems.Add(CreateItem("New note", (_, _) => _dispatch(TrayCommand.NewNote)));
-        var reopen = new Forms.ToolStripMenuItem("Open on this desktop");
-        menu.DropDownItems.Add(reopen);
+        menu.DropDownItems.Add(_reopen);
         menu.DropDownItems.Add(new Forms.ToolStripSeparator());
         menu.DropDownItems.Add(CreateItem("Preferences...", (_, _) => _dispatch(TrayCommand.NoteSettings)));
-        menu.DropDownOpening += (_, _) =>
-        {
-            while (reopen.DropDownItems.Count > 0)
-            {
-                var item = reopen.DropDownItems[0];
-                reopen.DropDownItems.RemoveAt(0);
-                item.Dispose();
-            }
-
-            foreach (var note in _notes())
-                reopen.DropDownItems.Add(CreateItem(TrayMenuState.Literal(note.Label), (_, _) => _reopenNote(note.Id)));
-
-            reopen.Enabled = reopen.DropDownItems.Count > 0;
-        };
+        menu.DropDownOpening += (_, _) => RefreshNotes();
         return menu;
     }
 
+    internal void RefreshNotes()
+    {
+        if (_disposed) return;
+        var choices = _notes();
+        while (_reopen.DropDownItems.Count > 0)
+        {
+            var item = _reopen.DropDownItems[0];
+            _reopen.DropDownItems.RemoveAt(0);
+            item.Dispose();
+        }
+
+        foreach (var note in choices)
+            _reopen.DropDownItems.Add(CreateItem(TrayMenuState.Literal(note.Label), (_, _) => _reopenNote(note.Id)));
+
+        _reopen.Enabled = _reopen.DropDownItems.Count > 0;
+    }
 
     internal void Apply(TrayMenuState state)
     {
