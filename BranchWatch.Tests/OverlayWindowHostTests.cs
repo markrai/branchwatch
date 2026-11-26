@@ -124,6 +124,13 @@ public sealed class OverlayWindowHostTests
             Assert.IsTrue(first.IsTaskbarTimerRunning);
             controller.RefreshSettings();
             Assert.AreSame(first, controller.CurrentOverlay);
+            settings.VirtualDesktopOverlayPositionPreset = "top-left";
+            controller.RefreshSettings();
+            Assert.IsFalse(first.IsTaskbarTimerRunning);
+            settings.VirtualDesktopOverlayPositionPreset = "show-on-taskbar";
+            controller.RefreshSettings();
+            Assert.IsTrue(first.IsTaskbarTimerRunning);
+            Assert.AreSame(first, controller.CurrentOverlay);
 
             Assert.IsFalse(controller.ToggleVisibility());
             Assert.IsNull(controller.CurrentOverlay);

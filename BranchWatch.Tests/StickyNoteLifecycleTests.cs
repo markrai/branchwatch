@@ -95,6 +95,114 @@ public sealed class StickyNoteLifecycleTests
         });
     }
 
+    [TestMethod]
+    public void Maintenance_EmptyAndClosedNotesWithoutAlarmsRemainIdle()
+    {
+        StaTest.WithTemporaryDirectory(directory =>
+        {
+            var path = Path.Combine(directory, "notes.json");
+            using var monitor = new VirtualDesktopMonitor();
+            using var controller = new StickyNotesController(monitor, path);
+            controller.Start();
+            Assert.IsFalse(controller.IsMaintenanceScheduled);
+            controller.ScheduleRestore(Guid.NewGuid());
+            Assert.IsFalse(controller.IsMaintenanceScheduled);
+            controller.MarkDirty();
+            Assert.IsTrue(controller.IsMaintenanceScheduled);
+            controller.RunMaintenance(DateTimeOffset.UtcNow);
+            Assert.IsFalse(controller.IsMaintenanceScheduled);
+            controller.Dispose();
+            controller.MarkDirty();
+            Assert.IsFalse(controller.IsMaintenanceScheduled);
+        });
+    }
+
+    [TestMethod]
+    public void Maintenance_ClosedAlarmFiresPersistsAndStopsUntilRescheduled()
+    {
+        StaTest.WithTemporaryDirectory(directory =>
+        {
+            var path = Path.Combine(directory, "notes.json");
+            var store = new StickyNoteStore(path);
+            var now = DateTimeOffset.UtcNow;
+            var due = now.AddDays(1);
+            store.Save([new StickyNote { DesktopId = Guid.NewGuid(), IsOpen = false, AlarmDueUtc = due }]);
+            using var monitor = new VirtualDesktopMonitor();
+            using var controller = new StickyNotesController(monitor, path);
+            controller.Start();
+            var note = controller.Notes.Single();
+            Assert.IsTrue(controller.IsMaintenanceScheduled);
+            controller.RunMaintenance(due.AddSeconds(-1));
+            Assert.IsFalse(note.IsAlarmRinging);
+            Assert.IsTrue(controller.IsMaintenanceScheduled);
+            controller.RunMaintenance(due);
+            Assert.IsTrue(note.IsAlarmRinging);
+            Assert.IsTrue(store.Load().Single().IsAlarmRinging);
+            Assert.IsFalse(controller.IsMaintenanceScheduled);
+            Assert.IsTrue(note.SetAlarm(due.AddDays(1), due));
+            controller.AlarmChanged();
+            Assert.IsTrue(controller.IsMaintenanceScheduled);
+            Assert.IsTrue(note.ClearAlarm());
+            controller.AlarmChanged();
+            Assert.IsFalse(controller.IsMaintenanceScheduled);
+        });
+    }
+
+    [TestMethod]
+    public void Maintenance_UnsavedChangesRetryUntilPersistenceSucceeds()
+    {
+        StaTest.WithTemporaryDirectory(directory =>
+        {
+            var path = Path.Combine(directory, "notes.json");
+            Directory.CreateDirectory(directory);
+            using var monitor = new VirtualDesktopMonitor();
+            using var controller = new StickyNotesController(monitor, path);
+            controller.Start();
+            Directory.CreateDirectory(path);
+            try
+            {
+                controller.AlarmChanged();
+                Assert.IsTrue(controller.IsMaintenanceScheduled);
+                controller.RunMaintenance(DateTimeOffset.UtcNow);
+                Assert.IsTrue(controller.IsMaintenanceScheduled);
+            }
+            finally { Directory.Delete(path); }
+            controller.RunMaintenance(DateTimeOffset.UtcNow);
+            Assert.IsTrue(File.Exists(path));
+            Assert.IsFalse(controller.IsMaintenanceScheduled);
+        });
+    }
+
+    [TestMethod]
+    public void Maintenance_RestoreRetriesAndOpenWindowKeepTimerAlive()
+    {
+        WithController((controller, store, desktop) =>
+        {
+            var note = controller.Notes.Single(n => n.IsOpen);
+            note.ClearAlarm();
+            controller.AlarmChanged();
+            Assert.IsFalse(controller.IsMaintenanceScheduled);
+            desktop.RejectWindows = true;
+            controller.ScheduleRestore(desktop.Id);
+            Assert.IsTrue(controller.IsMaintenanceScheduled);
+            controller.RunMaintenance(DateTimeOffset.UtcNow);
+            Assert.IsTrue(controller.IsMaintenanceScheduled);
+            controller.RunMaintenance(DateTimeOffset.UtcNow);
+            Assert.IsTrue(controller.IsMaintenanceScheduled);
+            controller.RunMaintenance(DateTimeOffset.UtcNow);
+            Assert.IsFalse(controller.IsMaintenanceScheduled);
+            Assert.IsTrue(note.IsOpen);
+
+            desktop.RejectWindows = false;
+            controller.ScheduleRestore(desktop.Id);
+            controller.RunMaintenance(DateTimeOffset.UtcNow);
+            Assert.IsTrue(controller.IsMaintenanceScheduled);
+            desktop.Window.Close();
+            Assert.IsFalse(controller.IsMaintenanceScheduled);
+            Assert.IsFalse(store.Load().Single(n => n.Id == note.Id).IsOpen);
+        });
+    }
+
     private static void WithController(Action<StickyNotesController, StickyNoteStore, TestDesktopManager> action)
     {
         StaTest.WithTemporaryDirectory(directory =>
@@ -118,11 +226,12 @@ public sealed class StickyNoteLifecycleTests
     {
         internal Guid Id { get; } = Guid.NewGuid();
         internal bool Disposed { get; private set; }
+        internal bool RejectWindows { get; set; }
         internal StickyNoteWindow Window { get; private set; } = null!;
 
         public Guid? GetDesktop(IntPtr window)
         {
-            if (window == IntPtr.Zero || Disposed) return null;
+            if (window == IntPtr.Zero || Disposed || RejectWindows) return null;
             if (HwndSource.FromHwnd(window)?.RootVisual is StickyNoteWindow note) Window = note;
             return Id;
         }

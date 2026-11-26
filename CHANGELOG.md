@@ -4,6 +4,10 @@
 
 ### Changed
 
+- Suspend sticky-note maintenance when no windows, alarms, restore attempts or unsaved changes require it; reuse the taskbar z-order timer across overlay refreshes.
+
+### Changed
+
 - Create settings pages only when visited, defer Desktop Memory snapshot loading, preserve unsaved drafts during navigation, and release instantiated page content when Settings closes.
 
 ### Changed

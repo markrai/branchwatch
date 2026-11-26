@@ -104,8 +104,6 @@ public partial class VirtualDesktopOverlayWindow : Window
 
     private void ApplyTopmostPolicy(AppSettings settings)
     {
-        StopTaskbarZOrderTimer();
-
         if (IsTaskbarPosition(settings.VirtualDesktopOverlayPositionPreset))
         {
             EnsureAboveTaskbar();
@@ -113,6 +111,7 @@ public partial class VirtualDesktopOverlayWindow : Window
             return;
         }
 
+        StopTaskbarZOrderTimer();
         if (settings.VirtualDesktopOverlayShowOnlyOnDesktop)
         {
             Topmost = false;
@@ -154,6 +153,7 @@ public partial class VirtualDesktopOverlayWindow : Window
 
     private void StartTaskbarZOrderTimer()
     {
+        if (_taskbarZOrderTimer is not null) return;
         _taskbarZOrderTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
             Interval = TimeSpan.FromMilliseconds(400)

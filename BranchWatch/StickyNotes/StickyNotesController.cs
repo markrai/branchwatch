@@ -34,6 +34,7 @@ public sealed class StickyNotesController : IDisposable
 
     internal IReadOnlyList<StickyNote> Notes => _notes;
     internal bool IsAvailable => _available && !_disposed;
+    internal bool IsMaintenanceScheduled => _timer.IsEnabled;
     internal StickyNoteAppearance DefaultAppearance => StickyNoteAppearance.FromSettings(_settings);
 
     internal StickyNote CreateDefaultNote()
@@ -105,11 +106,11 @@ public sealed class StickyNotesController : IDisposable
         AdvanceAlarms(DateTimeOffset.UtcNow);
         Save();
         _monitor.StateChanged += OnDesktopChanged;
-        _timer.Start();
         if (_monitor.CurrentState is { } state)
         {
             ScheduleRestore(state.ActiveDesktop.Id);
         }
+        UpdateMaintenanceSchedule();
     }
 
     internal void CreateNote()
@@ -216,6 +217,7 @@ public sealed class StickyNotesController : IDisposable
         if (_available)
         {
             _dirty = true;
+            UpdateMaintenanceSchedule();
         }
     }
 
@@ -272,10 +274,13 @@ public sealed class StickyNotesController : IDisposable
         return true;
     }
 
-    private void ScheduleRestore(Guid desktopId)
+    internal void ScheduleRestore(Guid desktopId)
     {
-        _restoreDesktop = desktopId;
-        _restoreAttempts = 3;
+        if (!IsAvailable) return;
+        _restoreDesktop = StickyNote.ForDesktop(_notes, desktopId).Any(note => !_windows.ContainsKey(note.Id))
+            ? desktopId : null;
+        _restoreAttempts = _restoreDesktop.HasValue ? 3 : 0;
+        UpdateMaintenanceSchedule();
     }
 
     private void RestorePending()
@@ -352,10 +357,21 @@ public sealed class StickyNotesController : IDisposable
             if (note.AdvanceAlarm(now)) MarkDirty();
     }
 
-    private void OnTimerTick(object? sender, EventArgs e)
+    private void UpdateMaintenanceSchedule()
+    {
+        var needed = IsAvailable && (_dirty || _windows.Count != 0 || _restoreDesktop.HasValue
+            || _notes.Any(note => note.AlarmDueUtc.HasValue && !note.AlarmTriggered));
+        if (needed == _timer.IsEnabled) return;
+        if (needed) _timer.Start();
+        else _timer.Stop();
+    }
+
+    private void OnTimerTick(object? sender, EventArgs e) => RunMaintenance(DateTimeOffset.UtcNow);
+
+    internal void RunMaintenance(DateTimeOffset now)
     {
         if (!IsAvailable) return;
-        AdvanceAlarms(DateTimeOffset.UtcNow);
+        AdvanceAlarms(now);
         SynchronizeAssignments();
         RestorePending();
         foreach (var window in _windows.Values)
@@ -368,18 +384,10 @@ public sealed class StickyNotesController : IDisposable
 
     private bool Save()
     {
-        if (!_available)
-        {
-            return false;
-        }
-
-        if (!_dirty)
-        {
-            return true;
-        }
-
         try
         {
+            if (!_available) return false;
+            if (!_dirty) return true;
             _store.Save(_notes);
             _dirty = false;
             _saveErrorReported = false;
@@ -394,6 +402,10 @@ public sealed class StickyNotesController : IDisposable
             }
 
             return false;
+        }
+        finally
+        {
+            UpdateMaintenanceSchedule();
         }
     }
 
