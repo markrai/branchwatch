@@ -75,6 +75,9 @@ jobs:
       - name: Test Desktop Memory evidence checks
         run: ./scripts/desktop-memory-qualification.ps1 -Action SelfTest
 
+      - name: Test memory profiling harness
+        run: ./scripts/memory-profile.ps1 -Action SelfTest
+
   package:
     name: Package ${{ matrix.rid }}
     runs-on: windows-latest
