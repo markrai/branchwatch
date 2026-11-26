@@ -38,9 +38,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private DesktopRestoreSession? _restoreSession;
     private Guid? _resultDesktop;
     private PlanWindowChoice[] _planChoices = [];
-    private BrowserCaptureTicket? _browserTicket;
-    private long _browserCaptureRevision;
-    private BrowserRestoreApproval? _browserRestore;
+    private readonly BrowserAuthorizationSession _browserAuthorization;
     private bool _renderingBrowserPicker;
     private BrowserReviewGroup[] _browserGroups = [];
     private sealed record BrowserReviewGroup(Guid WindowId, string Label, string Detail, bool Editable, bool Restorable, string RestoreHint, BrowserReviewRow[] Tabs);
@@ -58,6 +56,8 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     internal DesktopMemorySettingsPage(DesktopMemoryStore store)
     {
         _store = store;
+        _browserAuthorization = new(_captureDraft, BrowserCaptureInbox.Shared, BrowserRestoreQueue.Shared,
+            () => VirtualDesktopRegistryReader.TryGetVerifiedDisplayState()?.ActiveDesktop.Id, store.Load);
         InitializeComponent();
         IsVisibleChanged += (_, _) =>
         {
@@ -309,9 +309,12 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
 
     private void CancelBrowserCapture()
     {
-        _browserCaptureRevision++;
-        BrowserCaptureInbox.Shared.Cancel(_browserTicket?.Code);
-        _browserTicket = null;
+        _browserAuthorization.CancelCapture();
+        ClearBrowserCaptureControls();
+    }
+
+    private void ClearBrowserCaptureControls()
+    {
         if (BrowserTicketText is not null) BrowserTicketText.Text = "";
         if (ImportBrowserButton is not null) ImportBrowserButton.IsEnabled = false;
     }
@@ -319,7 +322,8 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private void RenderBrowserEditor(DesktopSnapshot? snapshot, DesktopSnapshot? draft)
     {
         RefreshBrowserRestore(snapshot, draft);
-        if (_browserTicket is { } ticket && (draft?.DesktopId != ticket.DesktopId || _active != ticket.DesktopId))
+        if (_browserAuthorization.CaptureTicket is { } ticket
+            && !_browserAuthorization.CaptureMatches(draft, _active, ticket.WindowId))
             CancelBrowserCapture();
         var previous = BrowserWindowPicker.SelectedValue;
         var choices = draft?.Windows.Where(w => _captureDraft.HasBrowserToken(w.Id))
@@ -331,12 +335,12 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             BrowserWindowPicker.SelectedValue = previous is Guid id && choices.Any(c => c.Id == id) ? id : choices.FirstOrDefault()?.Id;
         }
         finally { _renderingBrowserPicker = false; }
-        if (_browserTicket is { } pending && !Equals(BrowserWindowPicker.SelectedValue, pending.WindowId))
+        if (_browserAuthorization.CaptureTicket is { } pending && !Equals(BrowserWindowPicker.SelectedValue, pending.WindowId))
             CancelBrowserCapture();
         BrowserCaptureControls.Visibility = choices.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         BrowserWindowPicker.IsEnabled = !_busy && draft is not null;
         ArmBrowserButton.IsEnabled = !_busy && draft is not null && draft.DesktopId == _active && choices.Length > 0;
-        ImportBrowserButton.IsEnabled = !_busy && _browserTicket is not null;
+        ImportBrowserButton.IsEnabled = !_busy && _browserAuthorization.CaptureTicket is not null;
         var editable = !_busy && draft is not null;
         _browserGroups = snapshot?.Windows.Where(w => w.BrowserContext is not null).OrderBy(w => w.EnumerationIndex).Select(w =>
         {
@@ -346,9 +350,9 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             var detail = $"{family} · {w.MonitorSource} · Profile {context.ProfileId[..8]}…";
             var source = snapshot!;
             var key = new BrowserRestoreKey(source.DesktopId, source.CapturedUtc, w.Id);
-            var issued = BrowserRestoreQueue.Shared.WasIssued(key);
+            var issued = _browserAuthorization.WasIssued(key);
             var restorable = !editable && draft is null && _draft is null && !_busy && _storageAvailable
-                && source.DesktopId == _active && !issued && !w.Minimized && !w.Maximized && BrowserRestoreProtocol.CanRestore(context);
+                && source.DesktopId == _active && !issued && BrowserAuthorizationPolicy.CanRestoreWindow(w);
             var hint = issued ? "Request already issued in this BranchWatch session; check Companion before retrying."
                 : context.Tabs.Count == 0 ? "No selected URLs to reopen."
                 : !BrowserTabCapture.SupportsLiveSession(context.Browser) ? "Firefox session reopening is locked pending physical correlation qualification."
@@ -368,8 +372,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
 
     private void CancelBrowserRestore()
     {
-        BrowserRestoreQueue.Shared.Cancel(_browserRestore?.Code);
-        _browserRestore = null;
+        _browserAuthorization.CancelRestore();
         if (BrowserRestoreCode is not null) BrowserRestoreCode.Text = "";
         if (BrowserRestoreStatus is not null) BrowserRestoreStatus.Text = "";
     }
@@ -378,22 +381,19 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     {
         BrowserRestoreControls.Visibility = draft is null && snapshot?.Windows.Any(w => w.BrowserContext is not null) == true
             ? Visibility.Visible : Visibility.Collapsed;
-        if (_browserRestore is not { } approval) return;
-        if (_busy || _draft is not null || snapshot is null || snapshot.DesktopId != approval.Key.DesktopId
-            || snapshot.CapturedUtc != approval.Key.CapturedUtc || _active != approval.Key.DesktopId)
+        switch (_browserAuthorization.GetRestoreState(snapshot, _active, _busy))
         {
-            CancelBrowserRestore();
-            return;
-        }
-        if (BrowserRestoreQueue.Shared.WasIssued(approval.Key))
-        {
-            BrowserRestoreCode.Text = "";
-            BrowserRestoreStatus.Text = "Request issued. Check Companion for the browser-side result; native placement is not verified.";
-        }
-        else if (System.Diagnostics.Stopwatch.GetElapsedTime(approval.Started) >= TimeSpan.FromMinutes(2))
-        {
-            CancelBrowserRestore();
-            BrowserRestoreStatus.Text = "Restore code expired. Generate a new code if needed.";
+            case BrowserRestoreRequestState.Stale:
+                CancelBrowserRestore();
+                break;
+            case BrowserRestoreRequestState.Issued:
+                BrowserRestoreCode.Text = "";
+                BrowserRestoreStatus.Text = "Request issued. Check Companion for the browser-side result; native placement is not verified.";
+                break;
+            case BrowserRestoreRequestState.Expired:
+                CancelBrowserRestore();
+                BrowserRestoreStatus.Text = "Restore code expired. Generate a new code if needed.";
+                break;
         }
     }
 
@@ -409,25 +409,15 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             || saved.DesktopId != _active || sender is not System.Windows.Controls.Button { DataContext: BrowserReviewGroup group }
             || !group.Restorable || !_browserGroups.Contains(group)) return;
         var window = saved.Windows.SingleOrDefault(w => w.Id == group.WindowId);
-        if (window is null || window.BrowserContext is not { } context || window.Minimized || window.Maximized
-            || !BrowserRestoreProtocol.CanRestore(context)) return;
-        var key = new BrowserRestoreKey(saved.DesktopId, saved.CapturedUtc, window.Id);
+        if (!BrowserAuthorizationPolicy.CanRestoreWindow(window) || window?.BrowserContext is not { } context) return;
+        var revision = _browserAuthorization.RestoreRevision;
         if (!Confirm($"Check and reopen {context.Tabs.Count} saved tabs in {context.Browser} profile {context.ProfileId[..8]}…? Companion will check existing normal windows in that profile. Matching or overlapping tabs prevent a new window. No existing tab is modified or closed. Native placement is not verified.", "Reopen browser session")) return;
         try
         {
-            bool StillCurrent()
-            {
-                if (VirtualDesktopRegistryReader.TryGetVerifiedDisplayState()?.ActiveDesktop.Id != key.DesktopId) return false;
-                var current = _store.Load().SingleOrDefault(s => s.DesktopId == key.DesktopId);
-                var live = current?.Windows.SingleOrDefault(w => w.Id == key.WindowId);
-                return current?.CapturedUtc == key.CapturedUtc && live is { Minimized: false, Maximized: false }
-                    && live.BrowserContext is { } savedContext && savedContext.Browser == context.Browser
-                    && savedContext.ProfileId == context.ProfileId && savedContext.Tabs.SequenceEqual(context.Tabs);
-            }
-            if (!StillCurrent()) throw new InvalidOperationException("Saved browser session or active desktop changed.");
-            CancelBrowserRestore();
-            _browserRestore = BrowserRestoreQueue.Shared.Arm(key, context, StillCurrent);
-            BrowserRestoreCode.Text = _browserRestore.Code;
+            if (_stopped || _busy || !IsVisible || !_storageAvailable || SelectedId != saved.DesktopId
+                || !ReferenceEquals(SelectedSaved, saved) || _draft is not null) return;
+            var approval = _browserAuthorization.ArmRestore(saved, group.WindowId, revision);
+            BrowserRestoreCode.Text = approval.Code;
             BrowserRestoreCode.Focus();
             BrowserRestoreCode.SelectAll();
             BrowserRestoreStatus.Text = "Paste this two-minute code into Companion in the matching browser profile on this desktop. The request can be redeemed once.";
@@ -446,7 +436,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
 
     private void OnBrowserWindowSelected(object sender, SelectionChangedEventArgs e)
     {
-        if (!_renderingBrowserPicker && _browserTicket is { } pending
+        if (!_renderingBrowserPicker && _browserAuthorization.CaptureTicket is { } pending
             && !Equals(BrowserWindowPicker.SelectedValue, pending.WindowId)) CancelBrowserCapture();
     }
 
@@ -472,45 +462,44 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
 
     private void OnArmBrowser(object sender, RoutedEventArgs e)
     {
-        if (_busy || _draft is not { } draft || draft.DesktopId != SelectedId || draft.DesktopId != _active
-            || BrowserWindowPicker.SelectedValue is not Guid id || !_captureDraft.TryGetBrowserToken(id, out var token)) return;
-        var window = draft.Windows.Single(w => w.Id == id);
-        if (BrowserTabCapture.BrowserFor(window.ExecutablePath, window.ClassName) is not { } browser) return;
+        if (_busy || _stopped || !IsVisible || _draft is not { } draft || draft.DesktopId != SelectedId
+            || draft.DesktopId != _active || BrowserWindowPicker.SelectedValue is not Guid id) return;
         CancelBrowserCapture();
-        _browserTicket = BrowserCaptureInbox.Shared.Arm(draft.DesktopId, id, browser, token);
-        BrowserTicketText.Text = _browserTicket.Code;
-        BrowserTicketText.Focus();
-        BrowserTicketText.SelectAll();
-        ImportBrowserButton.IsEnabled = true;
-        StatusText.Text = "Copy the code into the Companion popup in the selected browser window. It expires in two minutes.";
+        try
+        {
+            var ticket = _browserAuthorization.ArmCapture(draft.DesktopId, id);
+            BrowserTicketText.Text = ticket.Code;
+            BrowserTicketText.Focus();
+            BrowserTicketText.SelectAll();
+            ImportBrowserButton.IsEnabled = true;
+            StatusText.Text = "Copy the code into the Companion popup in the selected browser window. It expires in two minutes.";
+        }
+        catch (Exception ex) { StatusText.Text = $"Browser capture unavailable: {ex.GetType().Name}."; }
     }
 
     private async void OnImportBrowser(object sender, RoutedEventArgs e)
     {
-        if (_busy || _browserTicket is not { } ticket || _draft is not { } draft || draft.DesktopId != SelectedId
-            || draft.DesktopId != _active || ticket.DesktopId != draft.DesktopId) return;
-        var received = BrowserCaptureInbox.Shared.Take(ticket.Code);
-        if (received is null)
+        if (_busy || _stopped || !IsVisible || _draft?.DesktopId != SelectedId || SelectedId != _active) return;
+        var import = _browserAuthorization.TakeCapture(SelectedId, BrowserWindowPicker.SelectedValue is Guid id ? id : null);
+        if (import is null)
         {
+            if (_browserAuthorization.CaptureTicket is null) ClearBrowserCaptureControls();
             StatusText.Text = "No valid tabs received. Check the popup or start a new capture if the code expired.";
             return;
         }
-        CancelBrowserCapture();
-        var revision = _browserCaptureRevision;
+        ClearBrowserCaptureControls();
         _busy = true;
         Render();
         try
         {
-            var verified = await DesktopMemorySta.Run(() => _captureService.ReverifyBrowser(draft.DesktopId, ticket));
-            if (_stopped || !IsVisible || revision != _browserCaptureRevision || SelectedId != draft.DesktopId
-                || !ReferenceEquals(_draft, draft) || VirtualDesktopRegistryReader.TryGetVerifiedDisplayState()?.ActiveDesktop.Id != draft.DesktopId) return;
+            var verified = await DesktopMemorySta.Run(() => _captureService.ReverifyBrowser(import.Draft.DesktopId, import.Ticket));
+            if (_stopped || !IsVisible || !_browserAuthorization.ImportCurrent(import, SelectedId)) return;
             if (!verified) throw new InvalidOperationException("Browser window could not be reverified.");
-            var request = received.Request;
-            var context = new BrowserWindowContext(received.Browser, request.ProfileId, request.Tabs);
+            var request = import.Envelope.Request;
+            var context = import.Context;
             if (!Confirm($"Attach {context.Tabs.Count} HTTP(S) tabs to the selected browser window? {request.Omitted} tabs were omitted. URLs may contain private query parameters and will be stored locally only if you save the snapshot. Review the URLs before saving.", "Import browser tabs")) return;
-            if (_stopped || !IsVisible || revision != _browserCaptureRevision || SelectedId != draft.DesktopId
-                || !ReferenceEquals(_draft, draft) || VirtualDesktopRegistryReader.TryGetVerifiedDisplayState()?.ActiveDesktop.Id != draft.DesktopId) return;
-            if (!_captureDraft.TryAttachBrowser(draft, ticket, context))
+            if (_stopped || !IsVisible || !_browserAuthorization.ImportCurrent(import, SelectedId)) return;
+            if (!_browserAuthorization.AttachCapture(import, SelectedId))
                 throw new InvalidOperationException("Browser capture no longer belongs to this draft.");
             StatusText.Text = "Browser tabs added to the unsaved capture. Review the URLs, then save or discard.";
         }
@@ -520,6 +509,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         }
         finally
         {
+            CancelBrowserCapture();
             _busy = false;
             if (!_stopped) RefreshDesktops();
         }
