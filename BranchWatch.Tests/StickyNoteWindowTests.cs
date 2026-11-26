@@ -122,26 +122,23 @@ public sealed class StickyNoteWindowTests
                     Assert.IsTrue(window.Topmost);
 
                     window.SetCollapsed(true);
-                    window.Close();
-                    var restored = new StickyNoteWindow(note, controller);
-                    try
-                    {
-                        Assert.AreEqual(38.0, restored.Height);
-                        restored.SetCollapsed(false);
-                        Assert.AreEqual(190.0, restored.Height);
-                        Assert.AreEqual("Keep this", restored.Editor.Text);
-                    }
-                    finally
-                    {
-                        restored.Close();
-                    }
                 }
                 finally
                 {
-                    if (!note.IsCollapsed && window.IsLoaded)
-                    {
-                        window.Close();
-                    }
+                    window.Close();
+                }
+
+                var restored = new StickyNoteWindow(note, controller);
+                try
+                {
+                    Assert.AreEqual(38.0, restored.Height);
+                    restored.SetCollapsed(false);
+                    Assert.AreEqual(190.0, restored.Height);
+                    Assert.AreEqual("Keep this", restored.Editor.Text);
+                }
+                finally
+                {
+                    restored.Close();
                 }
             }
             catch (Exception ex)
