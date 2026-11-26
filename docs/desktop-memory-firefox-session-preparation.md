@@ -13,3 +13,5 @@ Run the two-marker qualification from the Firefox guide on real Windows with mul
 Next: physical correlation qualification, then live Firefox capture and explicit save, then profile-aware reopening with duplicate prevention and verified default-store handling. Automatic capture and native placement remain outstanding. No version or wire-protocol bump in this preparatory slice.
 
 References: [Firefox tab metadata](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/tabs/Tab), [contextual identities](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Work_with_contextual_identities).
+
+Phase 8G.3B provides [physical qualification tooling](desktop-memory-firefox-physical.md); live operations remain locked until the actual matrix is reviewed.

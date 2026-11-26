@@ -4,6 +4,10 @@
 
 ### Added
 
+- Firefox correlation qualification transcripts, unique diagnostic labels and independent before/after probe evidence verification. No live Firefox operations are enabled.
+
+### Added
+
 - Prepare Firefox session snapshot validation and offline tab planning, with explicit live-operation rejection pending physical correlation qualification. Container tabs are not converted to default-store tabs.
 
 ### Added
