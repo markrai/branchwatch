@@ -74,7 +74,7 @@ internal static class Program
 
     private static void Restore(string[] args, BrowserRestoreRequest request, CancellationToken cancellation)
     {
-        BrowserRestoreReply Rejected() => new(1, "rejected", request.ProfileId, request.Nonce);
+        BrowserRestoreReply Rejected() => new(BrowserRestoreProtocol.Version, "rejected", request.ProfileId, request.Nonce);
         var reply = Rejected();
         if (BrowserProbeProtocol.TryParent(args, out var parent))
         {

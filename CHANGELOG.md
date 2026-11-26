@@ -4,6 +4,10 @@
 
 ### Added
 
+- Companion checks a stable normal-window inventory in the matching profile before reopening saved tabs. Exact source matches are reported as already present; overlapping or unverifiable sessions block new-window creation without changing existing tabs. Restore protocol v2 requires the updated Companion and native host.
+
+### Added
+
 - Experimental profile-aware Chrome/Edge browser session reopening through an explicit one-time Companion code. Recreates selected URLs, tab order, pinned and active state in a new browser window. Native placement and existing-session reconciliation are not yet enabled.
 
 ### Added

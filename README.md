@@ -164,3 +164,5 @@ See [experimental browser tab capture](docs/desktop-memory-browser-capture.md) f
 The [browser session review](docs/desktop-memory-browser-review.md) supports per-window and per-tab selection before saving. Only checked URLs are written to the new snapshot.
 
 The [experimental browser reopening workflow](docs/desktop-memory-browser-restore.md) reopens selected saved tabs in the matching already-running browser profile. Native placement and existing-session reconciliation are pending.
+
+The [Phase 8F duplicate check](docs/desktop-memory-browser-reconciliation.md) prevents reopening when existing profile windows contain saved URLs or the inventory is unverified.

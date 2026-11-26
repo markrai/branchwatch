@@ -12,7 +12,7 @@ public sealed class BrowserRestoreTests
     private static BrowserWindowContext Context => new("chrome", Profile, Tabs);
     private static BrowserRestoreKey Key() => new(Guid.NewGuid(), DateTimeOffset.UtcNow, Guid.NewGuid());
     private static BrowserRestoreEnvelope Envelope(BrowserRestoreApproval approval) =>
-        new(new(1, "restore", Profile, Other, approval.Code, 7), "chrome", approval.Key.DesktopId);
+        new(new(2, "restore", Profile, Other, approval.Code, 7), "chrome", approval.Key.DesktopId);
 
     [TestMethod]
     public void Queue_RejectsWrongProfileFamilyDesktopOrCodeAndConsumesOnce()
@@ -84,14 +84,17 @@ public sealed class BrowserRestoreTests
     [TestMethod]
     public void Protocol_RequiresExactRequestAndBoundReplyIdentity()
     {
-        var request = new BrowserRestoreRequest(1, "restore", Profile, Other, Profile, 7);
+        var request = new BrowserRestoreRequest(2, "restore", Profile, Other, Profile, 7);
         var envelope = new BrowserRestoreEnvelope(request, "chrome", Guid.NewGuid());
         Assert.AreEqual(request, BrowserRestoreProtocol.ParseRequest(BrowserCompanionProtocol.Encode(request)));
+        Assert.ThrowsExactly<InvalidDataException>(() => BrowserRestoreProtocol.ParseRequest(BrowserCompanionProtocol.Encode(request with { Version = 1 })));
+        Assert.ThrowsExactly<InvalidDataException>(() => BrowserRestoreProtocol.ParseEnvelope(BrowserCompanionProtocol.Encode(envelope with { RestoreRequest = request with { Version = 1 } })));
         Assert.AreEqual(envelope, BrowserRestoreProtocol.ParseEnvelope(BrowserCompanionProtocol.Encode(envelope)));
         var text = System.Text.Encoding.UTF8.GetString(BrowserCompanionProtocol.Encode(request));
         Assert.ThrowsExactly<InvalidDataException>(() => BrowserRestoreProtocol.ParseRequest(
-            System.Text.Encoding.UTF8.GetBytes(text.Replace("\"version\":1", "\"version\":1,\"version\":1"))));
-        var reply = new BrowserRestoreReply(1, "authorized", Profile, Other, Tabs);
+            System.Text.Encoding.UTF8.GetBytes(text.Replace("\"version\":2", "\"version\":2,\"version\":2"))));
+        var reply = new BrowserRestoreReply(2, "authorized", Profile, Other, Tabs);
+        Assert.ThrowsExactly<InvalidDataException>(() => BrowserRestoreProtocol.ParseReply(BrowserCompanionProtocol.Encode(reply with { Version = 1 }), request));
         CollectionAssert.AreEqual(Tabs, BrowserRestoreProtocol.ParseReply(BrowserCompanionProtocol.Encode(reply), request).Tabs!.ToArray());
         Assert.ThrowsExactly<InvalidDataException>(() => BrowserRestoreProtocol.ParseReply(
             BrowserCompanionProtocol.Encode(reply with { Nonce = Profile }), request));

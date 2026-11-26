@@ -69,6 +69,9 @@ const restoreOutput = document.getElementById("restoreStatus");
 function restoreMessage(result) {
     switch (result?.status) {
         case "opened": return "Opened " + result.count + " tabs in a new browser window. Native placement is not verified.";
+        case "already-present": return "All " + result.count + " saved tabs already match this window, including order, pinned and active state. Nothing opened.";
+        case "overlap": return "Saved URLs already occur in " + result.windows + " window(s) in this profile. No new window opened. Inspect existing tabs; their desktop membership is not verified.";
+        case "inventory-unverified": return "Could not verify a stable profile inventory. No new window opened. Inspect existing tabs and check the BranchWatch request status.";
         case "partial": return "A window may have been created, but tab verification or configuration failed. Inspect it before retrying.";
         case "uncertain": case "in-progress": return "Result uncertain or still in progress. Inspect the browser before retrying.";
         case "busy": return "Another restore is running.";
@@ -93,14 +96,14 @@ restoreButton.addEventListener("click", async () => {
         if (!/^[0-9a-f]{32}$/.test(profile?.profileId ?? "")) throw new Error("Profile unavailable.");
         const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, "0")).join("");
         const reply = await chrome.runtime.sendNativeMessage("com.branchwatch.companion", {
-            version: 1, command: "restore", profileId: profile.profileId, nonce, ticket, windowId: source.id
+            version: 2, command: "restore", profileId: profile.profileId, nonce, ticket, windowId: source.id
         });
         const after = await chrome.windows.getCurrent();
-        if (!eligibleWindow(after) || after.id !== source.id || reply?.version !== 1 || reply.status !== "authorized"
+        if (!eligibleWindow(after) || after.id !== source.id || reply?.version !== 2 || reply.status !== "authorized"
             || reply.profileId !== profile.profileId || reply.nonce !== nonce || !validRestoreTabs(reply.tabs))
             throw new Error("Restore approval rejected or window changed.");
         document.getElementById("restoreTicket").value = "";
-        restoreOutput.textContent = "Approved. Opening a new browser window...";
+        restoreOutput.textContent = "Approved. Checking existing browser sessions...";
         const result = await chrome.runtime.sendMessage({ command: "reopenApproved", reply, nonce, sourceWindowId: source.id });
         restoreOutput.textContent = restoreMessage(result);
     } catch {
