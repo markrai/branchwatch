@@ -4,6 +4,10 @@
 
 ### Changed
 
+- Coalesce repository-driven tray refreshes while preserving immediate user-command updates; share STA test execution and temporary-directory cleanup.
+
+### Changed
+
 - Separate tray menu rendering, menu state projection and settings-window lifetime from application command coordination; guard deferred commands and share Git overlay visibility persistence.
 
 ### Changed
