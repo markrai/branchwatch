@@ -246,11 +246,9 @@ public partial class SettingsWindow : Window
     private void OnGitOverlayClick(object sender, RoutedEventArgs e)
     {
         var previous = _settings.OverlayVisible;
-        _settings.OverlayVisible = GitOverlayCheck.IsChecked == true;
-        try { _service.Save(_settings); }
+        try { GitOverlayVisibility.Set(_settings, GitOverlayCheck.IsChecked == true, _service.Save); }
         catch (Exception ex)
         {
-            _settings.OverlayVisible = previous;
             GitOverlayCheck.IsChecked = previous;
             System.Windows.MessageBox.Show(this, ex.Message, "Could not save overlay setting", MessageBoxButton.OK, MessageBoxImage.Error);
             return;
