@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Allocate Git and virtual desktop overlay windows only when needed and close them when disabled, releasing native surfaces and stopping the hidden taskbar timer.
+
 ### Fixed
 
 - Reject stale Desktop Memory confirmations after page lifecycle or selection changes; consolidate confirmation revalidation and document final maintainability qualification gates.
