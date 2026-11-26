@@ -44,7 +44,7 @@ public sealed class GitRepositoryWatcher : IDisposable
             _repository = repository;
             status = GitBranchReader.ReadStatus(repository);
             _currentStatus = status;
-            _metadataWatchers.Rebuild(repository, status);
+            _metadataWatchers.Reconcile(repository, status);
         }
 
         OnStatusChanged(status);
@@ -85,7 +85,7 @@ public sealed class GitRepositoryWatcher : IDisposable
 
             status = GitBranchReader.ReadStatus(_repository);
             _currentStatus = status;
-            _metadataWatchers.Rebuild(_repository, status);
+            _metadataWatchers.Reconcile(_repository, status);
         }
 
         OnStatusChanged(status);
