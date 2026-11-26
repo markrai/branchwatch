@@ -247,7 +247,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
 
     private void OnFolderWindowSelected(object sender, SelectionChangedEventArgs e)
     {
-        if (FolderContextText is not null) UpdateFolderControls();
+        if (FolderContextText is not null && ChooseFolderButton is not null && ClearFolderButton is not null) UpdateFolderControls();
     }
 
     private void UpdateFolderControls()

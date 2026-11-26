@@ -15,9 +15,10 @@ internal interface IMissingApplicationLaunchEnvironment
 {
     string? CheckLaunchBlock(string path);
     LaunchedProcessIdentity Launch(string path, Guid desktopId, CurrentDisplayTopology topology, CancellationToken cancellation);
-    string? CheckLaunchBlock(ApplicationLaunchSpec spec) => CheckLaunchBlock(spec.ExecutablePath);
+    string? CheckLaunchBlock(ApplicationLaunchSpec spec) => spec.Context is null ? CheckLaunchBlock(spec.ExecutablePath) : "Application folder launch is not supported by this environment.";
     LaunchedProcessIdentity Launch(ApplicationLaunchSpec spec, Guid desktopId, CurrentDisplayTopology topology, CancellationToken cancellation) =>
-        Launch(spec.ExecutablePath, desktopId, topology, cancellation);
+        spec.Context is null ? Launch(spec.ExecutablePath, desktopId, topology, cancellation)
+            : throw new NotSupportedException("Application folder launch is not supported.");
     void OpenFolder(ApplicationLaunchSpec spec, Guid desktopId, CurrentDisplayTopology topology, CancellationToken cancellation) =>
         throw new NotSupportedException("Brokered folder opening is not supported.");
     bool IsRunning(LaunchedProcessIdentity process);

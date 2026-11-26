@@ -26,7 +26,7 @@ internal static class ApplicationRestoreAdapters
         if (string.IsNullOrWhiteSpace(window.ExecutablePath) || string.IsNullOrWhiteSpace(window.ClassName))
             return null;
 
-        var name = Path.GetFileName(window.ExecutablePath);
+        var name = Path.GetFileName(window.ExecutablePath) ?? string.Empty;
         if (window.ClassName == "Chrome_WidgetWin_1")
         {
             if (name.Equals("Cursor.exe", StringComparison.OrdinalIgnoreCase)) return ApplicationFolderKind.Cursor;
@@ -43,7 +43,8 @@ internal static class ApplicationRestoreAdapters
 
     internal static bool IsValidContext(SnapshotWindow window, ApplicationFolderContext context) =>
         Detect(window) == context.Kind && IsCanonicalFolder(context.Folder)
-        && (context.Kind != ApplicationFolderKind.WindowsTerminal || !context.Folder.Contains(';'));
+        && (context.Kind != ApplicationFolderKind.WindowsTerminal || !context.Folder.Contains(';'))
+        && (context.Kind != ApplicationFolderKind.Explorer || !context.Folder.Contains(','));
 
     internal static bool IsCanonicalFolder(string? path)
     {
@@ -83,6 +84,11 @@ internal static class ApplicationRestoreAdapters
                 || new DriveInfo(Path.GetPathRoot(context.Folder)!).DriveType != DriveType.Fixed
                 || !Directory.Exists(context.Folder))
                 return "Saved folder is unavailable or not on a fixed local drive.";
+            for (DirectoryInfo? directory = new DirectoryInfo(context.Folder); directory is not null; directory = directory.Parent)
+            {
+                if ((directory.Attributes & FileAttributes.ReparsePoint) != 0)
+                    return "Saved folder is a reparse point or beneath one.";
+            }
             return null;
         }
         catch (Exception ex) { return $"Saved folder could not be verified: {ex.GetType().Name}."; }

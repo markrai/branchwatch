@@ -39,9 +39,9 @@ internal sealed class NativeMissingApplicationLaunchEnvironment : IMissingApplic
             var name = Path.GetFileNameWithoutExtension(path);
             if (string.Equals(name, "BranchWatch", StringComparison.OrdinalIgnoreCase))
                 return "BranchWatch itself is excluded.";
-            if (spec.Context is { Kind: ApplicationFolderKind.Explorer } && spec.OpenOnly
-                && string.Equals(path, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"), StringComparison.OrdinalIgnoreCase))
-                return null;
+            if (spec.Context is { Kind: ApplicationFolderKind.Explorer })
+                return spec.OpenOnly && string.Equals(path, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"), StringComparison.OrdinalIgnoreCase)
+                    ? null : "Only the system Explorer executable supports folder opening.";
             var processes = Process.GetProcessesByName(name);
             try
             {
@@ -110,7 +110,7 @@ internal sealed class NativeMissingApplicationLaunchEnvironment : IMissingApplic
         var info = new ProcessStartInfo
         {
             FileName = spec.ExecutablePath,
-            WorkingDirectory = spec.Context?.Folder ?? Path.GetDirectoryName(spec.ExecutablePath)!,
+            WorkingDirectory = Path.GetDirectoryName(spec.ExecutablePath)!,
             UseShellExecute = false
         };
         foreach (var argument in spec.Arguments) info.ArgumentList.Add(argument);
