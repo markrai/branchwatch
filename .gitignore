@@ -40,3 +40,8 @@ Desktop.ini
 
 # Draft documentation (published docs under docs/ remain tracked)
 docs/draft/
+
+# Private application data
+sticky-notes.json
+sticky-notes.json.*
+settings.json
