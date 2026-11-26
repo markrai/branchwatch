@@ -79,6 +79,8 @@ internal static class Program
         Reject(truncated);
         Require(NativeObservation.Compare(request.Bounds, request.Bounds, null, 96) == "exact-window-rect");
         Require(NativeObservation.Compare(request.Bounds, request.Bounds, null, 144) == "scaled-coordinate-space-unqualified");
+        Require(NativeObservation.Compare(request.Bounds, new ProbeRect(-508, 0, -92, 308), request.Bounds, 96) == "exact-visible-frame");
+        Require(NativeObservation.Compare(request.Bounds, new ProbeRect(0, 0, 500, 400), null, 96) == "bounds-differ");
         using var response = new MemoryStream();
         BrowserProbeProtocol.Write(response, new(1, 7, request.Nonce, "observed-not-authorized"));
         var data = response.ToArray();

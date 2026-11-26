@@ -7,7 +7,7 @@ namespace BranchWatch;
 internal sealed record BrowserProbeRequest(int WindowId, string Nonce, ProbeRect Bounds);
 internal sealed record BrowserProbeResponse(int Version, int WindowId, string Nonce, string Status,
     string? Browser = null, string? Handle = null, uint? ProcessId = null, uint? ThreadId = null,
-    long? ProcessCreation = null, ProbeDesktopMembership? Membership = null, uint? Dpi = null,
+    string? ProcessCreation = null, ProbeDesktopMembership? Membership = null, uint? Dpi = null,
     ProbeRect? ScreenBounds = null, ProbeRect? FrameBounds = null, string? Geometry = null);
 
 internal static partial class BrowserProbeProtocol

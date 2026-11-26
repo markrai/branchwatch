@@ -23,7 +23,7 @@ internal static class NativeObservation
             if (first != second) return Reject("parent-changed");
             var geometry = Compare(request.Bounds, first.Bounds, first.Frame, first.Dpi);
             return new(1, request.WindowId, request.Nonce, "observed-not-authorized", first.Browser,
-                $"0x{parent.ToInt64():X}", first.ProcessId, first.ThreadId, first.ProcessCreation,
+                $"0x{parent.ToInt64():X}", first.ProcessId, first.ThreadId, first.ProcessCreation.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 first.Membership, first.Dpi, first.Bounds, first.Frame, geometry);
         }
         finally { SetThreadDpiAwarenessContext(previous); }
@@ -52,7 +52,7 @@ internal static class NativeObservation
             var length = (uint)path.Capacity;
             if (!QueryFullProcessImageName(process, 0, path, ref length)
                 || !GetProcessTimes(process, out var creation, out _, out _, out _) || creation <= 0) return null;
-            var browser = Path.GetFileName(path.ToString()).ToLowerInvariant() switch
+            var browser = (Path.GetFileName(path.ToString()) ?? string.Empty).ToLowerInvariant() switch
             {
                 "chrome.exe" => "chrome",
                 "msedge.exe" => "edge",
