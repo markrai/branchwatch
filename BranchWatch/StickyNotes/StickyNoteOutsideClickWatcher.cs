@@ -26,7 +26,9 @@ internal sealed class StickyNoteOutsideClickWatcher : IDisposable
     {
         var watcher = new StickyNoteOutsideClickWatcher(owner, dispatcher, outside);
         watcher._hook = SetWindowsHookEx(WhMouseLl, watcher._callback, GetModuleHandle(null), 0);
-        return watcher._hook == IntPtr.Zero ? null : watcher;
+        if (watcher._hook != IntPtr.Zero) return watcher;
+        System.Diagnostics.Trace.TraceWarning("Sticky note outside click observation unavailable (Win32 {0}). Using window deactivation.", Marshal.GetLastPInvokeError());
+        return null;
     }
 
     private IntPtr OnMouse(int code, IntPtr message, IntPtr data)
@@ -72,12 +74,13 @@ internal sealed class StickyNoteOutsideClickWatcher : IDisposable
         internal int Y;
     }
 
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)]
     private delegate IntPtr HookProc(int code, IntPtr message, IntPtr data);
 
-    [DllImport("user32.dll", EntryPoint = "SetWindowsHookExW", SetLastError = true)]
+    [DllImport("user32.dll", EntryPoint = "SetWindowsHookExW", ExactSpelling = true, SetLastError = true)]
     private static extern IntPtr SetWindowsHookEx(int id, HookProc callback, IntPtr module, uint threadId);
 
-    [DllImport("kernel32.dll", EntryPoint = "GetModuleHandleW", CharSet = CharSet.Unicode)]
+    [DllImport("kernel32.dll", EntryPoint = "GetModuleHandleW", ExactSpelling = true, CharSet = CharSet.Unicode)]
     private static extern IntPtr GetModuleHandle(string? name);
 
     [DllImport("user32.dll")]

@@ -38,7 +38,7 @@ public partial class StickyNoteWindow : Window
     {
         _note = note;
         _controller = controller;
-        _editTimer = new DispatcherTimer(DispatcherPriority.Input, Dispatcher) { Interval = TimeSpan.FromSeconds(5) };
+        _editTimer = new DispatcherTimer(DispatcherPriority.Input, Dispatcher) { Interval = StickyNoteTemporaryEditing.Duration };
         _editTimer.Tick += (_, _) => ExpireTemporaryEditing();
         InitializeComponent();
         _expandedMinHeight = MinHeight;
@@ -267,7 +267,7 @@ public partial class StickyNoteWindow : Window
 
         _temporaryEditing.Begin(Stopwatch.GetTimestamp());
         RefreshTransparencyPresentation();
-        _editTimer.Start();
+        if (_temporaryEditing.IsPreview) _editTimer.Start();
     }
 
     internal void HoldTemporaryEditing()
