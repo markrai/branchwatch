@@ -9,7 +9,6 @@ public partial class App : System.Windows.Application
     private StartupService? _startupService;
     private GitRepositoryWatcher? _repositoryWatcher;
     private RepositorySessionController? _sessionController;
-    private OverlayWindow? _overlayWindow;
     private VirtualDesktopOverlayController? _virtualDesktopOverlayController;
     private TrayService? _trayService;
     private StickyNotesController? _stickyNotes;
@@ -41,7 +40,6 @@ public partial class App : System.Windows.Application
         _ipcServer.Start();
         _browserCompanion = new BrowserCompanionServer(BrowserCompanionProtocol.PipeName);
         _browserCompanion.Start();
-        _overlayWindow = new OverlayWindow();
         _virtualDesktopOverlayController = new VirtualDesktopOverlayController(_settingsService, settings);
         _stickyNotes = new StickyNotesController(_virtualDesktopOverlayController.Monitor,
             System.IO.Path.Combine(System.IO.Path.GetDirectoryName(_settingsService.SettingsPath)!, "sticky-notes.json"), settings);
@@ -51,7 +49,6 @@ public partial class App : System.Windows.Application
             _startupService,
             _sessionController,
             _repositoryWatcher,
-            _overlayWindow,
             _virtualDesktopOverlayController,
             _stickyNotes);
         _trayService.Start();
@@ -90,7 +87,6 @@ public partial class App : System.Windows.Application
         _virtualDesktopOverlayController?.Dispose();
         _sessionController?.Dispose();
         _repositoryWatcher?.Dispose();
-        _overlayWindow?.Close();
         _singleInstance.Dispose();
         base.OnExit(e);
     }
