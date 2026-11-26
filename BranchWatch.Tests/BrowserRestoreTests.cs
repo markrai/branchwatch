@@ -71,6 +71,84 @@ public sealed class BrowserRestoreTests
     }
 
     [TestMethod]
+    public void Queue_CancellationDuringVerificationCannotIssueUrls()
+    {
+        var queue = new BrowserRestoreQueue();
+        var key = Key();
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var approval = queue.Arm(key, Context, () =>
+        {
+            entered.Set();
+            return release.Wait(TimeSpan.FromSeconds(10));
+        });
+        var redeem = Task.Run(() => queue.Redeem(Envelope(approval)));
+        try
+        {
+            Assert.IsTrue(entered.Wait(TimeSpan.FromSeconds(5)));
+            var cancel = Task.Run(() => queue.Cancel(approval.Code));
+            Assert.IsTrue(cancel.Wait(TimeSpan.FromSeconds(5)), "Cancellation must not wait for saved-session verification.");
+        }
+        finally
+        {
+            release.Set();
+            redeem.GetAwaiter().GetResult();
+            queue.Cancel(approval.Code);
+        }
+        Assert.AreEqual("rejected", redeem.Result.Status);
+        Assert.IsNull(redeem.Result.Tabs);
+        Assert.IsFalse(queue.WasIssued(key));
+    }
+
+    [TestMethod]
+    public void Queue_ReplacedApprovalDuringVerificationSurvivesOldRedemption()
+    {
+        var queue = new BrowserRestoreQueue();
+        var key = Key();
+        BrowserRestoreApproval? replacement = null;
+        var old = queue.Arm(key, Context, () =>
+        {
+            replacement = queue.Arm(key, Context, () => true);
+            return true;
+        });
+        try
+        {
+            Assert.AreEqual("rejected", queue.Redeem(Envelope(old)).Status);
+            Assert.IsFalse(queue.WasIssued(key));
+            Assert.IsNotNull(replacement);
+            Assert.AreEqual("authorized", queue.Redeem(Envelope(replacement!)).Status);
+            Assert.IsTrue(queue.WasIssued(key));
+        }
+        finally
+        {
+            queue.Cancel(old.Code);
+            queue.Cancel(replacement?.Code);
+        }
+    }
+
+    [TestMethod]
+    public void Queue_ExpiryDuringVerificationAndVerificationExceptionFailClosed()
+    {
+        var now = Stopwatch.GetTimestamp();
+        var queue = new BrowserRestoreQueue(() => now);
+        var key = Key();
+        var expired = queue.Arm(key, Context, () =>
+        {
+            now += Stopwatch.Frequency * 120;
+            return true;
+        });
+        Assert.AreEqual("rejected", queue.Redeem(Envelope(expired)).Status);
+        Assert.IsFalse(queue.WasIssued(key));
+        var failed = queue.Arm(key, Context, () => throw new InvalidOperationException("Synthetic failure"));
+        try
+        {
+            Assert.AreEqual("rejected", queue.Redeem(Envelope(failed)).Status);
+            Assert.IsFalse(queue.WasIssued(key));
+        }
+        finally { queue.Cancel(failed.Code); }
+    }
+
+    [TestMethod]
     public void Protocol_BlocksEmptyUnsafeAndImpossiblePinnedOrder()
     {
         Assert.IsTrue(BrowserRestoreProtocol.CanRestore(Context));

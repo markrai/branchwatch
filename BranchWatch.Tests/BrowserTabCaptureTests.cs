@@ -86,6 +86,27 @@ public sealed class BrowserTabCaptureTests
     }
 
     [TestMethod]
+    public void Inbox_MonotonicDeadlineRejectsExpiredAndBackwardsClock()
+    {
+        var now = System.Diagnostics.Stopwatch.GetTimestamp();
+        var inbox = new BrowserCaptureInbox(() => now);
+        var desktop = Guid.NewGuid();
+        var ticket = inbox.Arm(desktop, Guid.NewGuid(), "chrome", Token);
+        var envelope = new BrowserCaptureEnvelope(new(1, "capture", Profile, Nonce, ticket.Code, 7, Tabs, 0), "chrome", Token, desktop);
+        try
+        {
+            now = ticket.Started - 1;
+            Assert.IsFalse(inbox.TryReceive(envelope));
+            now = ticket.Started + System.Diagnostics.Stopwatch.Frequency * 119;
+            Assert.IsTrue(inbox.TryReceive(envelope));
+            now = ticket.Started + System.Diagnostics.Stopwatch.Frequency * 120;
+            Assert.IsNull(inbox.Take(ticket.Code));
+            Assert.IsFalse(inbox.TryReceive(envelope));
+        }
+        finally { inbox.Cancel(ticket.Code); }
+    }
+
+    [TestMethod]
     public void Snapshot_RoundTripsTabContextAndReadsOldWindows()
     {
         var bounds = new ProbeRect(10, 10, 800, 600);

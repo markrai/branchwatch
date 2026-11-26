@@ -489,9 +489,9 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         }
         ClearBrowserCaptureControls();
         _busy = true;
-        Render();
         try
         {
+            Render();
             var verified = await DesktopMemorySta.Run(() => _captureService.ReverifyBrowser(import.Draft.DesktopId, import.Ticket));
             if (_stopped || !IsVisible || !_browserAuthorization.ImportCurrent(import, SelectedId)) return;
             if (!verified) throw new InvalidOperationException("Browser window could not be reverified.");

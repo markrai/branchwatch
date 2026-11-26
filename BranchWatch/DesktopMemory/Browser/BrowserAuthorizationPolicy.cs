@@ -18,7 +18,7 @@ internal static class BrowserAuthorizationPolicy
             || window.Classification != "candidate" || window.CloakFlags != 0 || !window.Visible
             || window.Owned || window.ToolWindow || window.Minimized || window.Maximized
             || BrowserTabCapture.BrowserFor(window.ExecutablePath, window.ClassName) != browser
-            || live.Token is not { } token || token.Handle == IntPtr.Zero || token.ProcessId != window.ProcessId
+            || live.Token is not { } token || token.Handle.ToInt64() <= 0 || token.ProcessId != window.ProcessId
             || token.ProcessId == 0 || token.CreatedFileTime <= 0
             || window.Handle != $"0x{token.Handle.ToInt64():X}") return null;
         return new(window.Handle, token.ProcessId, token.CreatedFileTime.ToString(System.Globalization.CultureInfo.InvariantCulture));
