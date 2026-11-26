@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('Sample', 'Compare', 'SelfTest')]
+    [ValidateSet('Sample', 'Compare', 'CompareRuns', 'SelfTest')]
     [string]$Action = 'Sample',
     [ValidateRange(0, 2147483647)]
     [int]$ProcessId = 0,
@@ -12,7 +12,10 @@ param(
     [int]$IntervalSeconds = 2,
     [string]$OutputPath,
     [string]$BaselinePath,
-    [string]$CandidatePath
+    [string]$CandidatePath,
+    [string[]]$BaselinePaths,
+    [string[]]$CandidatePaths,
+    [switch]$RequireSameExecutable
 )
 
 Set-StrictMode -Version Latest
@@ -143,6 +146,60 @@ function Get-Comparison {
     }
 }
 
+function Get-RunComparison {
+    param([object[]]$Baseline, [object[]]$Candidate, [bool]$SameExecutable)
+    if ($Baseline.Count -lt 3 -or $Candidate.Count -lt 3) {
+        throw 'Collect at least three independent runs per group.'
+    }
+    $all = @($Baseline) + @($Candidate)
+    $identities = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $reference = $Baseline[0]
+    foreach ($profile in $all) {
+        $null = @(Get-Comparison $reference $profile)
+        if ($profile.executableSha256 -notmatch '^[0-9a-fA-F]{64}$' -or
+            $profile.processId -le 0 -or [string]::IsNullOrWhiteSpace($profile.processStartedUtc)) {
+            throw 'Missing executable hash or process identity.'
+        }
+        $started = [DateTimeOffset]$profile.processStartedUtc
+        if (-not $identities.Add("$($profile.processId):$($started.UtcTicks)")) {
+            throw 'Profiles must come from distinct process launches.'
+        }
+    }
+    foreach ($group in @(@{ Runs = $Baseline }, @{ Runs = $Candidate })) {
+        if (@($group.Runs | ForEach-Object { $_.executableSha256.ToUpperInvariant() } | Sort-Object -Unique).Count -ne 1) {
+            throw 'Executable hashes differ within a comparison group.'
+        }
+    }
+    if ($SameExecutable -and $Baseline[0].executableSha256 -ine $Candidate[0].executableSha256) {
+        throw 'Runtime experiments must use the identical executable.'
+    }
+
+    $before = @($Baseline | ForEach-Object { Get-Summary $_.samples })
+    $after = @($Candidate | ForEach-Object { Get-Summary $_.samples })
+    foreach ($metric in @('privateBytes', 'workingSetBytes', 'handles', 'threads', 'gdiObjects', 'userObjects', 'cpuPercentOfOneLogicalCore')) {
+        $scale = if ($metric.EndsWith('Bytes')) { 1MB } else { 1 }
+        $unit = if ($scale -eq 1MB) { 'MiB' } elseif ($metric -eq 'cpuPercentOfOneLogicalCore') { '% of one logical core' } else { 'count' }
+        $old = Get-Statistics -Values @($before | ForEach-Object {
+            if ($metric -eq 'cpuPercentOfOneLogicalCore') { $_.$metric } else { $_.$metric.median }
+        })
+        $new = Get-Statistics -Values @($after | ForEach-Object {
+            if ($metric -eq 'cpuPercentOfOneLogicalCore') { $_.$metric } else { $_.$metric.median }
+        })
+        $separation = if ($new.max -lt $old.min) { 'Lower' } elseif ($new.min -gt $old.max) { 'Higher' } else { 'Overlap' }
+        [pscustomobject]@{
+            Metric = "$metric ($unit)"
+            BaselineMedian = [math]::Round($old.median / $scale, 3)
+            BaselineMin = [math]::Round($old.min / $scale, 3)
+            BaselineMax = [math]::Round($old.max / $scale, 3)
+            CandidateMedian = [math]::Round($new.median / $scale, 3)
+            CandidateMin = [math]::Round($new.min / $scale, 3)
+            CandidateMax = [math]::Round($new.max / $scale, 3)
+            Delta = [math]::Round(($new.median - $old.median) / $scale, 3)
+            RunRanges = $separation
+        }
+    }
+}
+
 function Assert-ProfileTest {
     param([bool]$Condition, [string]$Message)
     if (-not $Condition) { throw "Self-test failed: $Message" }
@@ -197,6 +254,42 @@ if ($Action -eq 'SelfTest') {
     try { $null = @(Get-Comparison $fixture $candidate) }
     catch { $rejected = $true }
     Assert-ProfileTest $rejected 'incomplete profile'
+    $baselineRuns = @(for ($i = 1; $i -le 3; $i++) {
+        $run = New-TestProfile -Offset ($i * 1MB)
+        $run | Add-Member -NotePropertyName executableSha256 -NotePropertyValue ('A' * 64)
+        $run | Add-Member -NotePropertyName processId -NotePropertyValue $i
+        $run | Add-Member -NotePropertyName processStartedUtc -NotePropertyValue '2026-01-01T00:00:00Z'
+        $run
+    })
+    $candidateRuns = @(for ($i = 4; $i -le 6; $i++) {
+        $run = New-TestProfile -Offset (($i - 15) * 1MB)
+        $run | Add-Member -NotePropertyName executableSha256 -NotePropertyValue ('A' * 64)
+        $run | Add-Member -NotePropertyName processId -NotePropertyValue $i
+        $run | Add-Member -NotePropertyName processStartedUtc -NotePropertyValue '2026-01-01T00:00:00Z'
+        $run
+    })
+    $runs = @(Get-RunComparison $baselineRuns $candidateRuns $true)
+    Assert-ProfileTest ($runs[0].Delta -eq -12 -and $runs[0].RunRanges -eq 'Lower') 'independent run median and separation'
+    Assert-ProfileTest ($runs[-1].RunRanges -eq 'Overlap') 'overlapping run ranges'
+    $rejected = $false
+    try { $null = @(Get-RunComparison $baselineRuns $baselineRuns $true) }
+    catch { $rejected = $true }
+    Assert-ProfileTest $rejected 'duplicate process launches'
+    $rejected = $false
+    try { $null = @(Get-RunComparison @($baselineRuns[0]) $candidateRuns $true) }
+    catch { $rejected = $true }
+    Assert-ProfileTest $rejected 'insufficient independent runs'
+    $candidateRuns[0].executableSha256 = 'B' * 64
+    $rejected = $false
+    try { $null = @(Get-RunComparison $baselineRuns $candidateRuns $false) }
+    catch { $rejected = $true }
+    Assert-ProfileTest $rejected 'mixed executable hashes in group'
+    foreach ($run in $candidateRuns) { $run.executableSha256 = 'B' * 64 }
+    $rejected = $false
+    try { $null = @(Get-RunComparison $baselineRuns $candidateRuns $true) }
+    catch { $rejected = $true }
+    Assert-ProfileTest $rejected 'different executable in runtime experiment'
+    Assert-ProfileTest (@(Get-RunComparison $baselineRuns $candidateRuns $false)[0].Delta -eq -12) 'different builds allowed for release comparison'
     if ($IsWindows) {
         $self = Get-Process -Id $PID
         try {
@@ -206,6 +299,14 @@ if ($Action -eq 'SelfTest') {
         } finally { $self.Dispose() }
     }
     Write-Host 'Memory profile self-tests passed.'
+    return
+}
+
+if ($Action -eq 'CompareRuns') {
+    if (-not $BaselinePaths -or -not $CandidatePaths) { throw 'Specify -BaselinePaths and -CandidatePaths.' }
+    $baseline = @($BaselinePaths | ForEach-Object { Get-Content -LiteralPath $_ -Raw | ConvertFrom-Json })
+    $candidate = @($CandidatePaths | ForEach-Object { Get-Content -LiteralPath $_ -Raw | ConvertFrom-Json })
+    Get-RunComparison $baseline $candidate ([bool]$RequireSameExecutable) | Format-Table -AutoSize
     return
 }
 
