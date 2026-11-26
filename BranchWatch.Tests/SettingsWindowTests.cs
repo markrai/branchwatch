@@ -4,6 +4,7 @@ using System.Windows;
 namespace BranchWatch.Tests;
 
 [TestClass]
+[DoNotParallelize]
 public sealed class SettingsWindowTests
 {
     [TestMethod]
