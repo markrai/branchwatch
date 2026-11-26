@@ -23,6 +23,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private readonly DesktopMemoryStore _store;
     private IReadOnlyList<DesktopSnapshot> _saved = [];
     private readonly DesktopMemoryDraft _captureDraft = new();
+    private readonly DesktopMemoryConfirmation _confirmation = new();
     private DesktopSnapshot? _draft => _captureDraft.Snapshot;
     private readonly DesktopMemoryCaptureService _captureService = DesktopMemoryCaptureService.CreateNative();
     private Guid? _active;
@@ -63,6 +64,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         {
             if (!IsVisible)
             {
+                _confirmation.Invalidate();
                 _restoreSession?.Cancel();
                 CancelBrowserCapture();
                 CancelBrowserRestore();
@@ -75,6 +77,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     internal void Stop()
     {
         _stopped = true;
+        _confirmation.Invalidate();
         CancelBrowserRestore();
         CancelBrowserCapture();
         _captureDraft.Clear();
@@ -101,6 +104,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
                 : choices.FirstOrDefault()?.Id;
         }
         finally { _updating = false; }
+        if (SelectedId != selected) _confirmation.Invalidate();
         Render();
     }
 
@@ -109,6 +113,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
 
     private void Reload()
     {
+        _confirmation.Invalidate();
         try
         {
             _saved = _store.Load();
@@ -127,7 +132,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
 
     private void OnProtectSnapshots(object sender, RoutedEventArgs e)
     {
-        if (_busy || !_storageAvailable || _draft is not null || _storageState != DesktopSnapshotStorageState.Legacy) return;
+        if (_stopped || !IsVisible || _busy || !_storageAvailable || _draft is not null || _storageState != DesktopSnapshotStorageState.Legacy) return;
         if (!Confirm("Protect existing snapshots and their recovery backup using your Windows account? Older BranchWatch versions cannot read the protected format. Keep your Windows account recovery credentials available.", "Protect snapshots")) return;
         CancelBrowserCapture();
         CancelBrowserRestore();
@@ -150,6 +155,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private void OnDesktopSelected(object sender, SelectionChangedEventArgs e)
     {
         if (_updating) return;
+        _confirmation.Invalidate();
         _restoreSession?.Cancel();
         CancelBrowserCapture();
         CancelBrowserRestore();
@@ -170,8 +176,9 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
 
     private async void OnCapture(object sender, RoutedEventArgs e)
     {
-        if (_busy || !_storageAvailable || SelectedId is not { } id || id != _active) return;
+        if (_stopped || !IsVisible || _busy || !_storageAvailable || SelectedId is not { } id || id != _active) return;
         if (_draft is not null && !Confirm("Discard the unsaved capture and take a new one?", "Capture layout")) return;
+        if (_stopped || !IsVisible || _busy || !_storageAvailable || SelectedId != id || _active != id) return;
         ClearPreview();
         CancelBrowserRestore();
         CancelBrowserCapture();
@@ -202,12 +209,13 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
 
     private void OnSave(object sender, RoutedEventArgs e)
     {
-        if (_busy || !_storageAvailable || _draft is not { } draft || draft.DesktopId != SelectedId
+        if (_stopped || !IsVisible || _busy || !_storageAvailable || _draft is not { } draft || draft.DesktopId != SelectedId
             || draft.Windows.Count == 0) return;
         var existing = SelectedSaved;
         if (existing is not null && !Confirm("Replace this desktop's saved snapshot with the new capture?", "Replace snapshot")) return;
         if (!ConfirmLegacyMigration()) return;
-        if (_stopped || _busy || SelectedId != draft.DesktopId || !ReferenceEquals(_draft, draft)) return;
+        if (_stopped || !IsVisible || _busy || !_storageAvailable || SelectedId != draft.DesktopId
+            || !ReferenceEquals(_draft, draft) || !ReferenceEquals(SelectedSaved, existing)) return;
         try
         {
             CancelBrowserCapture();
@@ -231,9 +239,11 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
 
     private void OnDelete(object sender, RoutedEventArgs e)
     {
-        if (_busy || !_storageAvailable || SelectedSaved is not { } saved
+        if (_stopped || !IsVisible || _busy || !_storageAvailable || SelectedSaved is not { } saved
             || !Confirm("Delete this desktop's saved snapshot? Your open applications will not be affected.", "Delete snapshot")) return;
         if (!ConfirmLegacyMigration()) return;
+        if (_stopped || !IsVisible || _busy || !_storageAvailable || SelectedId != saved.DesktopId
+            || !ReferenceEquals(SelectedSaved, saved)) return;
         try
         {
             CancelBrowserRestore();
@@ -249,8 +259,21 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
     private bool ConfirmLegacyMigration() => _storageState != DesktopSnapshotStorageState.Legacy
         || Confirm("This operation also protects the existing snapshot and recovery files for your Windows user. Older BranchWatch versions cannot read the protected format. Continue?", "Protect existing snapshots");
 
-    private bool Confirm(string text, string title) => System.Windows.MessageBox.Show(
-        Window.GetWindow(this), text, title, MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes;
+    private bool Confirm(string text, string title)
+    {
+        var selected = SelectedId;
+        var active = _active;
+        var draft = _draft;
+        var saved = SelectedSaved;
+        var busy = _busy;
+        var storageState = _storageState;
+        return _confirmation.Confirm(
+            () => !_stopped && IsVisible && _storageAvailable && SelectedId == selected && _active == active
+                && ReferenceEquals(_draft, draft) && ReferenceEquals(SelectedSaved, saved)
+                && _busy == busy && _storageState == storageState,
+            () => System.Windows.MessageBox.Show(Window.GetWindow(this), text, title, MessageBoxButton.YesNo,
+                MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes);
+    }
 
     private void Render()
     {
@@ -760,7 +783,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
                 : $"Launch these {launchReady.Length} approved applications and folder requests:{Environment.NewLine}{launchNames}{Environment.NewLine}Apps may activate themselves. Launches cannot be undone automatically.";
             if (!Confirm($"Reposition {ready.Length} matching running windows on this desktop?{Environment.NewLine}{names}{Environment.NewLine}{Environment.NewLine}{launchDescription}{Environment.NewLine}{Environment.NewLine}Geometry changes may be partial and are not automatically undone.", "Restore desktop"))
             {
-                RestoreSummary.Text = "Restore cancelled. No placement or launch requests issued.";
+                if (!_stopped) RestoreSummary.Text = "Restore cancelled. No placement or launch requests issued.";
                 return;
             }
 
