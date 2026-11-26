@@ -127,7 +127,7 @@
                                         <TextBlock Text="{Binding RestoreHint}" Foreground="#617083" TextWrapping="Wrap" Margin="0,4,0,4"/>
                                         <Button Content="Reopen saved tabs" Click="OnArmBrowserRestore" HorizontalAlignment="Left" Margin="0,0,0,6">
                                             <Button.Style>
-                                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style TargetType="Button">
                                                     <Setter Property="Visibility" Value="Collapsed"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding Restorable}" Value="True">

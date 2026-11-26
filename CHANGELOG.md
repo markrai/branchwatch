@@ -4,6 +4,10 @@
 
 ### Added
 
+- Experimental profile-aware Chrome/Edge browser session reopening through an explicit one-time Companion code. Recreates selected URLs, tab order, pinned and active state in a new browser window. Native placement and existing-session reconciliation are not yet enabled.
+
+### Added
+
 - Review browser sessions by window and profile, select individual tabs or whole windows, and save only selected URLs. Empty selections retain an explicit browser session without URLs.
 
 ### Added

@@ -50,9 +50,10 @@ async function executeApprovedRestore(message) {
     restoring = true;
     try {
         if (reply.profileId !== await getProfileId()) return { status: "rejected" };
-        const { restoreStatus } = await chrome.storage.session.get("restoreStatus");
-        if (restoreStatus?.nonce === nonce) return { status: "rejected" };
-        await chrome.storage.session.set({ restoreStatus: { status: "in-progress", nonce } });
+        const { restoreStatus, issuedRestoreNonces = [] } = await chrome.storage.session.get(["restoreStatus", "issuedRestoreNonces"]);
+        if (restoreStatus?.status === "in-progress" || issuedRestoreNonces.includes(nonce)) return { status: "rejected" };
+        if (issuedRestoreNonces.length >= 2048) return { status: "rejected" };
+        await chrome.storage.session.set({ restoreStatus: { status: "in-progress", nonce }, issuedRestoreNonces: [...issuedRestoreNonces, nonce] });
         const result = await reopenSavedTabs(chrome, sourceWindowId, reply.tabs);
         await chrome.storage.session.set({ restoreStatus: { ...result, nonce } });
         return result;

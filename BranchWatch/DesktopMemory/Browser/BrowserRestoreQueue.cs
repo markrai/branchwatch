@@ -6,8 +6,9 @@ namespace BranchWatch;
 internal sealed record BrowserRestoreKey(Guid DesktopId, DateTimeOffset CapturedUtc, Guid WindowId);
 internal sealed record BrowserRestoreApproval(string Code, BrowserRestoreKey Key, BrowserWindowContext Context, long Started);
 
-internal sealed class BrowserRestoreQueue
+internal sealed class BrowserRestoreQueue(Func<long>? clock = null)
 {
+    private readonly Func<long> _clock = clock ?? Stopwatch.GetTimestamp;
     internal static BrowserRestoreQueue Shared { get; } = new();
     private static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(2);
     private readonly object _gate = new();
@@ -30,7 +31,7 @@ internal sealed class BrowserRestoreQueue
             if (_attempted.Contains(key)) throw new InvalidOperationException("This browser window was already issued a restore request in this BranchWatch session.");
             Clear();
             var approval = new BrowserRestoreApproval(Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant(),
-                key, context with { Tabs = context.Tabs.ToArray() }, Stopwatch.GetTimestamp());
+                key, context with { Tabs = context.Tabs.ToArray() }, _clock());
             _pending = approval;
             _stillCurrent = stillCurrent;
             _expiry = new System.Threading.Timer(_ => Cancel(approval.Code), null, Lifetime, System.Threading.Timeout.InfiniteTimeSpan);
@@ -44,14 +45,14 @@ internal sealed class BrowserRestoreQueue
         BrowserRestoreReply Rejected() => new(1, "rejected", request.ProfileId, request.Nonce);
         lock (_gate)
         {
-            if (_pending is not { } pending || Stopwatch.GetElapsedTime(pending.Started) >= Lifetime
+            if (_pending is not { } pending || Stopwatch.GetElapsedTime(pending.Started, _clock()) >= Lifetime
                 || request.Ticket != pending.Code || envelope.DesktopId != pending.Key.DesktopId
                 || envelope.Browser != pending.Context.Browser || request.ProfileId != pending.Context.ProfileId
                 || _attempted.Contains(pending.Key)) return Rejected();
             bool current;
             try { current = _stillCurrent?.Invoke() == true; }
             catch (Exception) { current = false; }
-            if (!current || Stopwatch.GetElapsedTime(pending.Started) >= Lifetime)
+            if (!current || Stopwatch.GetElapsedTime(pending.Started, _clock()) >= Lifetime)
             {
                 Clear();
                 return Rejected();

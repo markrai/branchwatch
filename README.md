@@ -162,3 +162,5 @@ The [BranchWatch Companion development extension](docs/desktop-memory-browser-co
 See [experimental browser tab capture](docs/desktop-memory-browser-capture.md) for the explicit per-window Companion capture workflow. Automatic browser inventory and tab restoration are not yet enabled.
 
 The [browser session review](docs/desktop-memory-browser-review.md) supports per-window and per-tab selection before saving. Only checked URLs are written to the new snapshot.
+
+The [experimental browser reopening workflow](docs/desktop-memory-browser-restore.md) reopens selected saved tabs in the matching already-running browser profile. Native placement and existing-session reconciliation are pending.

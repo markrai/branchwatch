@@ -58,6 +58,7 @@ internal static class BrowserRestoreProtocol
         }
         else
         {
+            if (root.GetProperty("tabs").ValueKind != JsonValueKind.Array) throw new InvalidDataException("Expected authorized tab list.");
             foreach (var tab in root.GetProperty("tabs").EnumerateArray()) Exact(tab, ["url", "pinned", "active"]);
             if (!CanRestore(new("chrome", reply.ProfileId, reply.Tabs!))) throw new InvalidDataException("Invalid authorized tabs.");
         }
@@ -66,7 +67,7 @@ internal static class BrowserRestoreProtocol
 
     internal static bool CanRestore(BrowserWindowContext? context)
     {
-        if (!BrowserTabCapture.IsValid(context) || context!.Tabs.Count == 0) return false;
+        if (context is null || !BrowserTabCapture.IsValid(context) || context.Tabs.Count == 0) return false;
         var unpinned = false;
         foreach (var tab in context.Tabs)
         {

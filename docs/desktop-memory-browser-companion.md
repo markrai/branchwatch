@@ -30,3 +30,5 @@ The protocol rejects unknown fields, duplicated fields, unsupported versions and
 Phase 8A physical correlation remains outstanding. Phase 8C must not attach URLs to desktop snapshots until the browser-to-native mapping is qualified. No browser session restoration is enabled by this handshake.
 
 Phase 8C adds [explicit experimental per-window capture](desktop-memory-browser-capture.md). The hello operation remains unchanged; tab access requires a separate optional permission and a one-time capture code.
+
+Phase 8E adds an explicit restore operation. See [browser reopening](desktop-memory-browser-restore.md); it requires an updated native host and extension.

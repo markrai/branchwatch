@@ -359,14 +359,16 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             var label = w.Title ?? w.ProcessName ?? "Browser";
             var family = context.Browser == "chrome" ? "Chrome" : "Edge";
             var detail = $"{family} · {w.MonitorSource} · Profile {context.ProfileId[..8]}…";
-            var key = new BrowserRestoreKey(snapshot!.DesktopId, snapshot.CapturedUtc, w.Id);
+            var source = snapshot!;
+            var key = new BrowserRestoreKey(source.DesktopId, source.CapturedUtc, w.Id);
             var issued = BrowserRestoreQueue.Shared.WasIssued(key);
             var restorable = !editable && draft is null && _draft is null && !_busy && _storageAvailable
-                && snapshot.DesktopId == _active && !issued && !w.Minimized && !w.Maximized && BrowserRestoreProtocol.CanRestore(context);
+                && source.DesktopId == _active && !issued && !w.Minimized && !w.Maximized && BrowserRestoreProtocol.CanRestore(context);
             var hint = issued ? "Request already issued in this BranchWatch session; check Companion before retrying."
                 : context.Tabs.Count == 0 ? "No selected URLs to reopen."
                 : !BrowserRestoreProtocol.CanRestore(context) ? "Saved tab order or payload is not eligible for reopening."
-                : snapshot.DesktopId != _active ? "Switch to this desktop first."
+                : w.Minimized || w.Maximized ? "Only saved normal browser windows are eligible."
+                : source.DesktopId != _active ? "Switch to this desktop first."
                 : "Reopen in the matching profile; placement and existing-session reconciliation are not yet enabled.";
             return new BrowserReviewGroup(w.Id, label, detail, editable, restorable, draft is null ? hint : "",
                 context.Tabs.Select((tab, index) => new BrowserReviewRow(w.Id, index, tab,
@@ -391,7 +393,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
         BrowserRestoreControls.Visibility = draft is null && snapshot?.Windows.Any(w => w.BrowserContext is not null) == true
             ? Visibility.Visible : Visibility.Collapsed;
         if (_browserRestore is not { } approval) return;
-        if (_draft is not null || snapshot?.DesktopId != approval.Key.DesktopId
+        if (_busy || _draft is not null || snapshot is null || snapshot.DesktopId != approval.Key.DesktopId
             || snapshot.CapturedUtc != approval.Key.CapturedUtc || _active != approval.Key.DesktopId)
         {
             CancelBrowserRestore();
@@ -421,7 +423,7 @@ public partial class DesktopMemorySettingsPage : System.Windows.Controls.UserCon
             || saved.DesktopId != _active || sender is not System.Windows.Controls.Button { DataContext: BrowserReviewGroup group }
             || !group.Restorable || !_browserGroups.Contains(group)) return;
         var window = saved.Windows.SingleOrDefault(w => w.Id == group.WindowId);
-        if (window?.BrowserContext is not { } context || window.Minimized || window.Maximized
+        if (window is null || window.BrowserContext is not { } context || window.Minimized || window.Maximized
             || !BrowserRestoreProtocol.CanRestore(context)) return;
         var key = new BrowserRestoreKey(saved.DesktopId, saved.CapturedUtc, window.Id);
         if (!Confirm($"Reopen {context.Tabs.Count} saved tabs in a NEW {context.Browser} window for profile {context.ProfileId[..8]}…? Existing windows and tabs will not be reused or closed. If the browser already restored them, this may create duplicates. The new window's native placement is not verified.", "Reopen browser session")) return;
