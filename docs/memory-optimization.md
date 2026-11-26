@@ -71,8 +71,8 @@ Self-tests cover statistics, CPU normalization, comparison deltas, JSON round tr
 
 | Phase | Scope | Status |
 | --- | --- | --- |
-| M.0 | Repeatable profiling, baseline and comparison | Harness implemented; interactive baseline pending |
-| M.1 | Lazy overlay window creation and resource release | Planned |
+| M.0 | Repeatable profiling, baseline and comparison | Merged; Windows CI passed; interactive baseline pending |
+| M.1 | Lazy overlay window creation and resource release | Implemented; Windows CI and physical measurements pending |
 | M.2 | Lazy settings pages and snapshot loading | Planned |
 | M.3 | Demand-driven timers and background activity | Planned |
 | M.4 | Filesystem watcher consolidation and reuse | Planned |
@@ -81,3 +81,13 @@ Self-tests cover statistics, CPU normalization, comparison deltas, JSON round tr
 | M.7 | Final repeat profiling and functional regression qualification | Planned |
 
 Start with private-byte and resource-count improvements in equivalent workloads; set numerical targets only after actual controlled baseline data. Retain the R.8 maintainability and physical qualification boundaries. No runtime flags, application behavior, storage format or dependencies change in M.0.
+
+## M.1: overlay window lifetime
+
+Git and virtual desktop overlays now use a shared UI-thread-owned OverlayWindowHost. Startup does not allocate either window until eligible for display. The Git overlay is eligible when enabled and the repository root is available; the virtual desktop overlay is eligible when its existing visibility setting is enabled. Disabling either closes its WPF window and releases the host reference, including native window resources; enabling reconstructs it using current settings and current repository or desktop state. Enabled refreshes reuse the same instance. Closing a window independently also clears the reference, and a failed initial render releases its candidate. Application shutdown and controller disposal do not recreate a closed overlay.
+
+Desktop monitoring remains active at the same cadence for sticky notes and settings even when the desktop overlay is disabled. Its visual refreshes coalesce through UiRefreshCoordinator, read the latest state, and do not queue while disabled. Closing the taskbar overlay stops its 400 ms z-order timer through the existing OnClosed cleanup. No change to repository watching, click-through styles, topmost policy, persisted visibility, alarms or runtime flags.
+
+Five Windows STA regressions cover disabled allocation, reuse and recreation from fresh state, external close, failed initial render and virtual desktop timer cleanup. Windows CI must pass. Native window placement, focus, desktop switches and physical resource measurements remain unqualified.
+
+Measure tray-only (both overlays disabled), overlays-on, and repeated hide/show with matching process age and workload against M.0. For repeated transitions, compare equivalent steady states, including after returning to disabled. A lower private-byte median or stable handle/GDI/USER counts across repeated cycles is more meaningful than a transient working-set drop. If neither overlay is disabled, substantial savings from this slice should not be expected. No measured MiB savings claimed before collecting comparable profiles. M.2 targets lazy settings page construction.

@@ -38,6 +38,8 @@ public partial class VirtualDesktopOverlayWindow : Window
 
     internal double ActiveHeight => _activeHeight;
 
+    internal bool IsTaskbarTimerRunning => _taskbarZOrderTimer?.IsEnabled == true;
+
     public VirtualDesktopOverlayWindow()
     {
         InitializeComponent();

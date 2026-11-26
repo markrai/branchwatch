@@ -13,7 +13,7 @@ public sealed class TrayService : IDisposable
     private readonly StartupService _startupService;
     private readonly RepositorySessionController _sessionController;
     private readonly GitRepositoryWatcher _repositoryWatcher;
-    private readonly OverlayWindow _overlayWindow;
+    private readonly OverlayWindowHost<OverlayWindow> _overlay = new(() => new OverlayWindow());
     private readonly VirtualDesktopOverlayController _virtualDesktopOverlayController;
     private readonly StickyNotesController _stickyNotes;
     private readonly Forms.NotifyIcon _notifyIcon;
@@ -30,7 +30,6 @@ public sealed class TrayService : IDisposable
         StartupService startupService,
         RepositorySessionController sessionController,
         GitRepositoryWatcher repositoryWatcher,
-        OverlayWindow overlayWindow,
         VirtualDesktopOverlayController virtualDesktopOverlayController,
         StickyNotesController stickyNotes)
     {
@@ -39,7 +38,6 @@ public sealed class TrayService : IDisposable
         _startupService = startupService;
         _sessionController = sessionController;
         _repositoryWatcher = repositoryWatcher;
-        _overlayWindow = overlayWindow;
         _virtualDesktopOverlayController = virtualDesktopOverlayController;
         _stickyNotes = stickyNotes;
         _dialogOwner = CreateDialogOwner();
@@ -128,6 +126,7 @@ public sealed class TrayService : IDisposable
 
         _disposed = true;
         _repositoryRefresh.Dispose();
+        _overlay.Dispose();
         _stickyNotes.Error -= OnStickyNotesError;
         _settingsHost.Dispose();
         _sessionController.StateChanged -= OnSessionStateChanged;
@@ -306,7 +305,7 @@ public sealed class TrayService : IDisposable
 
     private void ExitApplication()
     {
-        _overlayWindow.Hide();
+        _overlay.Release();
         _stickyNotes.Dispose();
         Dispose();
         System.Windows.Application.Current.Shutdown();
@@ -326,18 +325,14 @@ public sealed class TrayService : IDisposable
             _sessionController.LastWorkspaceActivityReason, _sessionController.WorkspaceStatusText);
         _notifyIcon.Text = menuState.NotifyText;
 
-        if (_settings.OverlayVisible && !string.IsNullOrWhiteSpace(status.RepositoryRoot))
+        _overlay.Render(_settings.OverlayVisible && !string.IsNullOrWhiteSpace(status.RepositoryRoot), window =>
         {
             var activityReason = WorkspaceActivityReasonFormatter.FormatForOverlay(
                 _settings,
                 _sessionController.LastWorkspaceActivityReason);
-            _overlayWindow.SetOverlayText(status.BranchDisplay, status.RepositoryRoot, activityReason);
-            _overlayWindow.ShowOverlay(_settings);
-        }
-        else
-        {
-            _overlayWindow.Hide();
-        }
+            window.SetOverlayText(status.BranchDisplay, status.RepositoryRoot, activityReason);
+            window.ShowOverlay(_settings);
+        });
 
         _menu.Apply(menuState);
         _settingsHost.RefreshRepositoryState();
