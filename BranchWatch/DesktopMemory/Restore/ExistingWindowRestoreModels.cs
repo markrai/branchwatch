@@ -35,7 +35,8 @@ internal enum ExistingRestoreStatus
     LaunchReady,
     LaunchBlocked,
     LaunchUnverified,
-    LaunchedAndRestored
+    LaunchedAndRestored,
+    UserSkipped
 }
 
 internal sealed record ExistingRestoreItem(Guid WindowId, string Label, PlannedWindowPlacement Placement,

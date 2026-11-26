@@ -20,9 +20,15 @@ internal sealed class ExistingWindowRestoreService(IExistingWindowRestoreEnviron
         return new(snapshot, plan, policy, ExistingWindowRestoreMatcher.Match(snapshot, plan, inventory));
     }
 
-    internal IReadOnlyList<ExistingRestoreOutcome> Execute(ExistingRestorePreparation approved, CancellationToken cancellation)
+    internal IReadOnlyList<ExistingRestoreOutcome> Execute(ExistingRestorePreparation approved, CancellationToken cancellation,
+        Action<ExistingRestoreOutcome>? progress = null)
     {
         var results = new List<ExistingRestoreOutcome>();
+        void Record(ExistingRestoreOutcome outcome)
+        {
+            results.Add(outcome);
+            RestoreProgressReporter.Notify(progress, outcome);
+        }
         var stopped = false;
         foreach (var item in approved.Items)
         {
@@ -31,12 +37,12 @@ internal sealed class ExistingWindowRestoreService(IExistingWindowRestoreEnviron
 
             if (item.Status != ExistingRestoreStatus.Ready)
             {
-                results.Add(Outcome(item.Status, item.Detail));
+                Record(Outcome(item.Status, item.Detail));
                 continue;
             }
             if (cancellation.IsCancellationRequested || stopped)
             {
-                results.Add(Outcome(cancellation.IsCancellationRequested ? ExistingRestoreStatus.Cancelled : ExistingRestoreStatus.NotAttempted,
+                Record(Outcome(cancellation.IsCancellationRequested ? ExistingRestoreStatus.Cancelled : ExistingRestoreStatus.NotAttempted,
                     "No placement request was issued."));
                 continue;
             }
@@ -48,7 +54,7 @@ internal sealed class ExistingWindowRestoreService(IExistingWindowRestoreEnviron
                 if (inventory.ActiveDesktopId != approved.Snapshot.DesktopId || !SameDisplays(approved.Plan.Current, inventory.Topology))
                 {
                     stopped = true;
-                    results.Add(Outcome(ExistingRestoreStatus.Changed, "Desktop or display configuration changed. Remaining moves stopped."));
+                    Record(Outcome(ExistingRestoreStatus.Changed, "Desktop or display configuration changed. Remaining moves stopped."));
                     continue;
                 }
 
@@ -56,22 +62,22 @@ internal sealed class ExistingWindowRestoreService(IExistingWindowRestoreEnviron
                     .Single(w => w.WindowId == item.WindowId);
                 if (current.Status != ExistingRestoreStatus.Ready || current.Token != item.Token)
                 {
-                    results.Add(Outcome(ExistingRestoreStatus.Changed, "The approved running window changed or is no longer a unique match."));
+                    Record(Outcome(ExistingRestoreStatus.Changed, "The approved running window changed or is no longer a unique match."));
                     continue;
                 }
 
                 var outcome = environment.Apply(approved.Snapshot.DesktopId, approved.Plan.Current, item, cancellation);
-                results.Add(outcome);
+                Record(outcome);
                 if (outcome.Status is ExistingRestoreStatus.Changed or ExistingRestoreStatus.Failed) stopped = true;
             }
             catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
             {
-                results.Add(Outcome(ExistingRestoreStatus.Cancelled, "Cancelled before the next placement request."));
+                Record(Outcome(ExistingRestoreStatus.Cancelled, "Cancelled before the next placement request."));
             }
             catch (Exception ex)
             {
                 stopped = true;
-                results.Add(Outcome(ExistingRestoreStatus.Failed, $"Restore stopped: {ex.Message}"));
+                Record(Outcome(ExistingRestoreStatus.Failed, $"Restore stopped: {ex.Message}"));
             }
         }
         return results;

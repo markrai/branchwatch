@@ -226,6 +226,27 @@ public sealed class MissingApplicationLaunchTests
         Assert.AreEqual(0, env.LaunchCount);
     }
 
+    [TestMethod]
+    public void Selection_UnselectedMissingApplicationCannotBeLaunched()
+    {
+        var a = Saved("One");
+        var b = Saved("Two", @"C:\Apps\Other.exe", 1);
+        var env = new FakeEnvironment(Inventory());
+        var service = new MissingApplicationLaunchService(env, env);
+        var preparation = RestoreSelection.Apply(Prepare(env, a, b), new HashSet<Guid> { b.Id });
+        var plan = service.Prepare(preparation, default);
+        Assert.AreEqual(b.Id, plan.Items.Single().RestoreItem.WindowId);
+        env.AfterLaunch = () => env.Current = Inventory(Live(b, 10, ProcessIdentity.ProcessId, ProcessIdentity.CreatedFileTime));
+        var progress = new List<ExistingRestoreOutcome>();
+        var result = service.Execute(plan, MissingResults(plan), default, progress.Add);
+        Assert.AreEqual(ExistingRestoreStatus.UserSkipped, result[0].Status);
+        Assert.AreEqual(ExistingRestoreStatus.LaunchedAndRestored, result[1].Status);
+        Assert.AreEqual(b.ExecutablePath, env.LastSpec!.ExecutablePath);
+        Assert.AreEqual(1, env.LaunchCount);
+        Assert.HasCount(1, progress);
+        Assert.AreEqual(result[1], progress.Single());
+    }
+
     private static SnapshotWindow Saved(string title, string path = @"C:\Apps\Editor.exe", int index = 0) =>
         new(Guid.NewGuid(), "Editor", path, title, "EditorWindow", Bounds, null, Bounds,
             false, false, 1, 0, "main", 96, index, ["main"]);
