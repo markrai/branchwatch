@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Microsoft.Win32;
 
 namespace BranchWatch;
@@ -9,6 +8,7 @@ public static class VirtualDesktopRegistryReader
         @"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VirtualDesktops";
 
     private const int GuidByteLength = 16;
+    private static readonly VirtualDesktopSessionKeyPath SessionKeyPath = new();
 
     public static VirtualDesktopInfo? TryGetCurrentDesktop()
     {
@@ -127,10 +127,7 @@ public static class VirtualDesktopRegistryReader
 
     private static Guid? TryGetSessionCurrentDesktopId()
     {
-        var sessionId = Process.GetCurrentProcess().SessionId;
-        var sessionKeyPath = $@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\SessionInfo\{sessionId}\VirtualDesktops";
-
-        using var sessionKey = Registry.CurrentUser.OpenSubKey(sessionKeyPath, writable: false);
+        using var sessionKey = Registry.CurrentUser.OpenSubKey(SessionKeyPath.Value, writable: false);
         return sessionKey is null ? null : ParseGuidValue(sessionKey.GetValue("CurrentVirtualDesktop"));
     }
 
