@@ -77,7 +77,9 @@ Self-tests cover statistics, CPU normalization, comparison deltas, JSON round tr
 | M.3 | Demand-driven timers and background activity | Merged; Windows CI passed; physical measurements pending |
 | M.4 | Filesystem watcher consolidation and reuse | Merged; Windows CI passed; physical measurements pending |
 | M.5 | Sticky-note rendering and shared resources | Merged; Windows CI passed; physical measurements pending |
-| M.6 | Controlled runtime/GC experiments only if evidence warrants | Comparison tooling implemented; Windows CI and physical measurements pending |
+| M.6 | Controlled runtime/GC experiments only if evidence warrants | Merged; Windows CI passed; GC tuning not justified |
+| M.6.1 | TITAN subsystem isolation and CPU attribution | Investigation complete; session lookup hotspot identified |
+| M.6.2 | Cache process session registry path | Implemented; Windows CI and physical qualification pending |
 | M.7 | Final repeat profiling and functional regression qualification | Planned |
 
 Start with private-byte and resource-count improvements in equivalent workloads; set numerical targets only after actual controlled baseline data. Retain the R.8 maintainability and physical qualification boundaries. No runtime flags, application behavior, storage format or dependencies change in M.0.
@@ -201,4 +203,24 @@ The comparison validates matching sampling conditions, distinct process launches
 
 Retain defaults unless private-byte reductions are meaningful, repeatable beyond baseline run variation and observed in relevant workloads. A lower working set alone is insufficient. Require equivalent CPU, UI responsiveness, alarm delivery, native desktop affinity, watcher behavior, and browser/restore qualification. Inspect collection pauses in separately instrumented runs. Reject a candidate if it introduces meaningful regressions or the evidence is ambiguous. Do not add periodic GC.Collect, working-set trimming, hard heap limits, server GC, aggressive latency policies, trimming/AOT or rendering-mode overrides as speculative changes. Any justified production runtime change requires a separate review and PR.
 
-The existing CI memory-profile self-test now also covers multi-run statistics, overlapping ranges, duplicate launches, insufficient runs, mixed hashes and identical-binary enforcement. M.5 merged with passing Windows CI; M.6 Windows CI and physical data remain pending. No runtime tuning adopted without evidence. M.7 will compare M.0-era and final release binaries and exercise the functional qualification matrix.
+The existing CI memory-profile self-test now also covers multi-run statistics, overlapping ranges, duplicate launches, insufficient runs, mixed hashes and identical-binary enforcement. M.5 and M.6 merged with passing Windows CI. Subsequent TITAN findings are recorded below. No runtime tuning adopted without evidence. M.7 will compare M.0-era and final release binaries and exercise the functional qualification matrix.
+
+## M.6.1: TITAN diagnostic findings
+
+The November 27, 2026 local investigation isolated the desktop monitor's repeated Process.GetCurrentProcess().SessionId lookup. The report attributed approximately 1.67 seconds of UI-thread time per 60-second trace to this call chain, corroborated by per-thread kernel CPU snapshots and separate microbenchmarks. Tray-only CPU remained approximately 3.4% of one logical core versus 3.5% in the clean full-configuration baseline. The 300 ms polling path enumerated system process information on every read. A native ProcessIdToSessionId replica reduced per-read kernel time from approximately 5.1–5.5 ms to 0.05–0.06 ms. Managed heap measurements were small (3.5–5.5 MiB in the later instrumented runs), so GC tuning is not justified.
+
+The evidence is diagnostic rather than a release comparison: most feature phases used in-place transitions and single runs, and sampled thread time is not itself CPU time. Native memory attribution remains incomplete. Keep the local TITAN report and raw traces outside version control; preserve the raw baseline and executable separately from new publish output.
+
+## M.6.2: session path caching
+
+Both display and strict verified desktop reads use a process-lifetime session registry path. Resolve it lazily using ProcessIdToSessionId and fall back to a disposed managed Process instance only if the native call reports failure. Session zero is valid. Concurrent reads share one successful initialization; a failed resolution does not poison the cache, so the existing outer read error handling returns null and subsequent reads can retry. The cached value is the path, not a RegistryKey, current desktop ID, desktop list or name. Each read still opens and disposes fresh registry keys. Selection precedence, strict disagreement rejection and the 300 ms monitor interval are unchanged.
+
+Tests cover concurrent initialization, session zero, native failure with managed fallback, retry after failed resolution and equality with the running Windows process session. The existing verified-reader tests remain unchanged.
+
+### Physical acceptance
+
+Preserve the baseline self-contained x64 executable from commit 19c7a3a (SHA-256 9CD495C39AC0E76CA89EABEA9CC3AAA5CEA2F1AC727E1F8F4D5218960D43B309) before building the candidate. Use the same packaging, machine and configuration. For tray-only and current-idle separately, collect at least three independent launches per binary with 60 seconds warm-up and 151 samples at two-second intervals. Use matching labels and CompareRuns without RequireSameExecutable. Alternate baseline and candidate, preserve all profiles, and report per-thread UI kernel time in separate matched diagnostic runs. Record system process/thread counts and maintain identical desktop topology, notes and repository configuration. Require separated lower CPU run ranges and target UI-thread kernel time below 5 ms/s; compare allocations, private bytes and GUI resources, without forcing GC or trimming.
+
+Verify desktop switching, overlays, sticky-note restore and affinity, strict Desktop Memory identity/restore behavior, and Explorer restart/session reconnect with the existing physical qualification checks. The report projects about 2.7–2.8 percentage points of a logical core saved (approximately 0.6% tray-only and 0.9% full), not measured candidate performance. If the qualification fails, investigate rather than relaxing identity or responsiveness guarantees.
+
+Further phases are conditional on measured evidence: M.6.3 registry polling allocation reduction, M.6.4 event-driven desktop detection, M.6.5 taskbar z-order, M.6.6 note maintenance cadence, M.6.7 native memory attribution, M.6.8 workspace watcher load testing, then M.7 final qualification. No change to GC defaults, dependencies, publish configuration or application version.

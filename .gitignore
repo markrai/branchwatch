@@ -52,3 +52,7 @@ snapshots.json
 snapshots.json.*
 snapshots.backup.json
 desktop-memory-qualification/
+
+# Local TITAN performance evidence
+/perf/titan-m6.1/
+/TITAN-PERFORMANCE-REPORT.md
