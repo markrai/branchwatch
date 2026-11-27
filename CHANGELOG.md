@@ -4,6 +4,10 @@
 
 ### Changed
 
+- Resolve and cache the Windows process session registry path once instead of enumerating system processes during every virtual desktop poll.
+
+### Changed
+
 - Share frozen sticky-note palette brushes and dispatcher-local scrollbar styles; release inactive alarm effects and reuse animation definitions.
 
 ### Changed
