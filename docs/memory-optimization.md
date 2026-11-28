@@ -224,3 +224,43 @@ Preserve the baseline self-contained x64 executable from commit 19c7a3a (SHA-256
 Verify desktop switching, overlays, sticky-note restore and affinity, strict Desktop Memory identity/restore behavior, and Explorer restart/session reconnect with the existing physical qualification checks. The report projects about 2.7–2.8 percentage points of a logical core saved (approximately 0.6% tray-only and 0.9% full), not measured candidate performance. If the qualification fails, investigate rather than relaxing identity or responsiveness guarantees.
 
 Further phases are conditional on measured evidence: M.6.3 registry polling allocation reduction, M.6.4 event-driven desktop detection, M.6.5 taskbar z-order, M.6.6 note maintenance cadence, M.6.7 native memory attribution, M.6.8 workspace watcher load testing, then M.7 final qualification. No change to GC defaults, dependencies, publish configuration or application version.
+
+
+## M.6.2 qualification outcome
+
+TITAN qualified merge 5bf6a94 against the byte-identical reconstructed 19c7a3a baseline. Three independent launches per binary and configuration gave median CPU of 2.672% to 0.057% (tray-only) and 3.251% to 0.160% (full), relative to one logical core. CPU ranges were separated, UI kernel time was below 5 ms/s, resolved traces no longer contained the recurring process enumeration, and all 273 automated tests passed. Read-only desktop identity, switching, overlay and sticky-note checks matched the baseline. Live renaming, topology changes, Explorer restart/reconnect and destructive restore remain deferred physical checks. Full private-memory reduction is not attributed entirely to the session fix. M.6.3–M.6.6 are deferred unless new CPU or wakeup evidence warrants them.
+
+## M.6.7A: controlled WPF rendering experiment
+
+Preliminary M.6.7 attribution on TITAN found approximately 28–30 MiB private memory for tray-only and 72–73 MiB with the first overlay, with substantial increases in native heaps, graphics-driver image mappings and GPU write-combine memory. Four open notes without overlays used approximately 95–96 MiB; full configuration used approximately 103–104 MiB. These are preliminary fresh-launch observations, not a proof that the entire first-window cost is avoidable or that every mapped driver byte is private commit. Complete and review the M.6.7 report before interpreting the rendering experiment.
+
+An explicit startup-only child environment variable selects WPF software rendering using RenderOptions.ProcessRenderMode before application construction. The exact value 1 enables it; all other values leave WPF's default untouched. It is not a persisted preference, not a command-line argument, and has no effect on activity commands, the desktop-memory probe or a rejected second instance. There is no registry rendering override, live render-mode switching, GC change, new dependency or version change. Microsoft documents this API as a process rendering preference; measure actual graphics allocations rather than assuming the preference eliminates all GPU activity.
+
+Reference: [WPF ProcessRenderMode](https://learn.microsoft.com/en-us/dotnet/api/system.windows.media.renderoptions.processrendermode?view=windowsdesktop-10.0).
+
+### Matched diagnostic launches
+
+Use PowerShell 7.4 or later and one self-contained Release executable for both variants. Exit the application normally between launches and confirm no instance remains. Do not interrupt the ongoing M.6.7 agent or overwrite its artifacts. Back up settings, sticky notes, the original publish executable and the current-user Windows Run entry for BranchWatch. Launch both variants from the same path. Use matched temporary settings with StartWithWindows disabled for both variants to avoid redirecting startup registration to an experimental executable; restore and verify the original settings, notes and Run entry after qualification. Do not change user-wide or machine-wide environment variables or rendering registry keys.
+
+```powershell
+$exe = 'C:\path\to\experiment\BranchWatch.exe'
+Start-Process -FilePath $exe -Environment @{ BRANCHWATCH_EXPERIMENT_SOFTWARE_RENDERING = '0' }
+```
+
+After normal exit:
+
+```powershell
+Start-Process -FilePath $exe -Environment @{ BRANCHWATCH_EXPERIMENT_SOFTWARE_RENDERING = '1' }
+```
+
+Record executable hash, role, actual child environment, display/GPU topology, existing hardware acceleration restrictions, and configuration. Default is not a guarantee that hardware rendering is active. Verify graphics attribution on the baseline and candidate with the M.6.7 diagnostic tooling in separate launches. If the default is already software-rendered or the applied mode cannot be verified, do not claim a hardware/software comparison.
+
+Start with a single overlay and full configuration, three independent launches per variant per configuration, alternating variants. Warm up for 60 seconds and use the existing sampler with 151 samples at two-second intervals. Compare each configuration with CompareRuns -RequireSameExecutable and consistent workload/scenario labels. Use separate diagnostic launches for VMMap or equivalent memory attribution, counters and traces. Attribute private commit separately from shared image mappings, GPU allocations and working set; note any unavailable counters. A tray-only sanity check can be short. Expand to one and many notes only if a repeatable gain is found.
+
+### Decision gate
+
+Proposed initial acceptance target: at least 15 MiB and 15% lower median full-configuration private bytes with non-overlapping run ranges; a repeatable single-overlay improvement; no material increases in handles, GDI/USER resources, allocations or idle CPU. Aim to retain full idle CPU below 0.5% of one logical core and no more than 0.3 percentage points above matched default. These are experiment thresholds, not guaranteed savings. Measure interactive CPU and responsiveness separately during matched desktop switches, overlay updates, note typing, scrolling, dragging, transparency transitions, collapse/expand and alarm animation using disposable notes. Verify taskbar z-order, click-through, native desktop affinity and strict Desktop Memory verification. Include mixed-DPI/multi-monitor behavior where available. Do not exercise destructive restore against real data or alter real desktop topology without approval.
+
+Reject or defer software rendering if memory savings are small, rendering or responsiveness regress, or attribution/qualification is inconclusive. The default remains unchanged regardless of the experimental results until a separate reviewed production decision. No speculative changes to sticky-note window ownership or watcher buffer sizes. Consider further work only if the completed M.6.7 report and M.6.8 workload evidence justify it.
+
+Keep new results under perf/titan-m6.7a/ and write TITAN-M6.7A-RENDERING-REPORT.md locally. Preserve the original M.6.1, M.6.2 and M.6.7 artifacts.
