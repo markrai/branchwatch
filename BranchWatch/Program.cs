@@ -23,8 +23,20 @@ internal static class Program
             return 0;
         }
 
+        ApplyRenderingExperiment(
+            Environment.GetEnvironmentVariable("BRANCHWATCH_EXPERIMENT_SOFTWARE_RENDERING"),
+            () => System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly);
+
         var app = new App();
         app.InitializeComponent();
         return app.Run();
+    }
+
+    internal static void ApplyRenderingExperiment(string? value, Action enableSoftwareRendering)
+    {
+        if (value == "1")
+        {
+            enableSoftwareRendering();
+        }
     }
 }
